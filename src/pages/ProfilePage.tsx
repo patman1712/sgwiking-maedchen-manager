@@ -38,7 +38,9 @@ export default function ProfilePage() {
                 ? "Vereinsadmin"
                 : currentUser.role === "trainer"
                   ? "Trainerin / Trainer"
-                  : "Spielerin"}
+                  : currentUser.role === "board"
+                    ? "Vorstand"
+                    : "Spielerin"}
             </p>
           </div>
         </div>

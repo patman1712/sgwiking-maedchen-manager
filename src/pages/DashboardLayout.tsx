@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   Bell,
+  Briefcase,
   LayoutDashboard,
   LogOut,
   Menu,
   MessageSquare,
+  Shield,
   Settings,
   ShieldCheck,
   UserCircle2,
@@ -19,7 +21,9 @@ import { cn } from "@/lib/utils";
 const menuItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/dashboard/teams", label: "Mannschaften", icon: Volleyball },
-  { to: "/dashboard/users", label: "Trainer & Spielerinnen", icon: Users },
+  { to: "/dashboard/trainers", label: "Trainer", icon: Shield },
+  { to: "/dashboard/players", label: "Spielerinnen", icon: Users },
+  { to: "/dashboard/board", label: "Vorstand", icon: Briefcase },
   { to: "/dashboard/messages", label: "Nachrichten", icon: MessageSquare },
   { to: "/dashboard/profile", label: "Mein Profil", icon: UserCircle2 },
   { to: "/dashboard/settings", label: "Einstellungen", icon: Settings },
@@ -105,7 +109,9 @@ export default function DashboardLayout() {
               ? "Vereinsadmin"
               : currentUser?.role === "trainer"
                 ? "Trainerin / Trainer"
-                : "Spielerin"}
+                : currentUser?.role === "board"
+                  ? "Vorstand"
+                  : "Spielerin"}
           </p>
         </div>
 

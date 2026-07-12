@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { MessageSquare, ShieldCheck, Users, Volleyball } from "lucide-react";
+import { Briefcase, MessageSquare, ShieldCheck, Users, Volleyball } from "lucide-react";
 import { useAppStore } from "@/store";
 import StatCard from "@/components/StatCard";
 import SectionCard from "@/components/SectionCard";
@@ -12,6 +12,7 @@ export default function DashboardHome() {
 
   const trainers = users.filter((user) => user.role === "trainer");
   const players = users.filter((user) => user.role === "player");
+  const boardMembers = users.filter((user) => user.role === "board");
   const recentMessages = [...messages]
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
     .slice(0, 5);
@@ -47,7 +48,7 @@ export default function DashboardHome() {
         </div>
       </section>
 
-      <div className="grid gap-4 xl:grid-cols-4">
+      <div className="grid gap-4 xl:grid-cols-5">
         <StatCard
           title="Mannschaften"
           value={String(teams.length)}
@@ -65,6 +66,12 @@ export default function DashboardHome() {
           value={String(players.length)}
           description="Kader, Logins und Teamzuordnungen zentral gepflegt."
           icon={Users}
+        />
+        <StatCard
+          title="Vorstand"
+          value={String(boardMembers.length)}
+          description="Eigener Bereich fuer die Vereinsleitung und Organisation."
+          icon={Briefcase}
         />
         <StatCard
           title="Konversationen"

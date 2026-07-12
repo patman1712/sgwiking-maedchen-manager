@@ -1,14 +1,16 @@
 import { BrowserRouter as Router, Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import BoardPage from "@/pages/BoardPage";
 import DashboardHome from "@/pages/DashboardHome";
 import DashboardLayout from "@/pages/DashboardLayout";
 import Login from "@/pages/Login";
 import MessagesPage from "@/pages/MessagesPage";
+import PlayersPage from "@/pages/PlayersPage";
 import ProfilePage from "@/pages/ProfilePage";
 import SettingsPage from "@/pages/SettingsPage";
 import TeamDetailPage from "@/pages/TeamDetailPage";
 import TeamsPage from "@/pages/TeamsPage";
-import UsersPage from "@/pages/UsersPage";
+import TrainersPage from "@/pages/TrainersPage";
 
 export default function App() {
   return (
@@ -27,7 +29,10 @@ export default function App() {
           <Route index element={<DashboardHome />} />
           <Route path="teams" element={<TeamsPage />} />
           <Route path="teams/:teamId" element={<TeamDetailPage />} />
-          <Route path="users" element={<UsersPage />} />
+          <Route path="trainers" element={<TrainersPage />} />
+          <Route path="players" element={<PlayersPage />} />
+          <Route path="board" element={<BoardPage />} />
+          <Route path="users" element={<Navigate to="/dashboard/trainers" replace />} />
           <Route path="messages" element={<MessagesPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="settings" element={<SettingsPage />} />

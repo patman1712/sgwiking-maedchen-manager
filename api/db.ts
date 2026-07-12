@@ -16,6 +16,36 @@ const db = new Database(dbPath)
 db.pragma('journal_mode = WAL')
 db.pragma('foreign_keys = ON')
 
+const usersTableSql = db.prepare(
+  "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'",
+).get() as { sql: string } | undefined
+
+if (usersTableSql && !usersTableSql.sql.includes("'board'")) {
+  db.pragma('foreign_keys = OFF')
+  db.transaction(() => {
+    db.exec(`
+      CREATE TABLE users_new (
+        id TEXT PRIMARY KEY,
+        full_name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        phone TEXT DEFAULT '',
+        role TEXT NOT NULL CHECK(role IN ('admin', 'trainer', 'player', 'board')),
+        notes TEXT DEFAULT '',
+        created_at TEXT NOT NULL
+      );
+
+      INSERT INTO users_new (id, full_name, email, password, phone, role, notes, created_at)
+      SELECT id, full_name, email, password, phone, role, notes, created_at
+      FROM users;
+
+      DROP TABLE users;
+      ALTER TABLE users_new RENAME TO users;
+    `)
+  })()
+  db.pragma('foreign_keys = ON')
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
@@ -39,7 +69,7 @@ db.exec(`
     email TEXT NOT NULL UNIQUE,
     password TEXT NOT NULL,
     phone TEXT DEFAULT '',
-    role TEXT NOT NULL CHECK(role IN ('admin', 'trainer', 'player')),
+    role TEXT NOT NULL CHECK(role IN ('admin', 'trainer', 'player', 'board')),
     notes TEXT DEFAULT '',
     created_at TEXT NOT NULL
   );
@@ -204,6 +234,15 @@ if (teamCount.count === 0) {
         role: 'player',
         notes: 'Angriff, Vorbereitung auf Damenbereich.',
       },
+      {
+        id: 'user_board_1',
+        fullName: 'Katrin Weber',
+        email: 'vorstand@wiking-verein.de',
+        password: 'vorstand123',
+        phone: '0160 4455667',
+        role: 'board',
+        notes: 'Vorstand Organisation und Vereinskoordination.',
+      },
     ]
 
     const memberships = [
@@ -315,6 +354,26 @@ if (teamCount.count === 0) {
   seed()
 }
 
+const boardUserCount = db
+  .prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'board'")
+  .get() as { count: number }
+
+if (boardUserCount.count === 0) {
+  db.prepare(`
+    INSERT INTO users (id, full_name, email, password, phone, role, notes, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    'user_board_1',
+    'Katrin Weber',
+    'vorstand@wiking-verein.de',
+    bcrypt.hashSync('vorstand123', 10),
+    '0160 4455667',
+    'board',
+    'Vorstand Organisation und Vereinskoordination.',
+    now(),
+  )
+}
+
 type TeamRow = {
   id: string
   name: string
@@ -332,7 +391,7 @@ type UserRow = {
   email: string
   password: string
   phone: string
-  role: 'admin' | 'trainer' | 'player'
+  role: 'admin' | 'trainer' | 'player' | 'board'
   notes: string
   created_at: string
 }

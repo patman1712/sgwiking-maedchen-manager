@@ -19,6 +19,11 @@ const demoAccounts = [
     email: "nele.hansen@wiking-verein.de",
     password: "spielerin123",
   },
+  {
+    role: "Vorstand",
+    email: "vorstand@wiking-verein.de",
+    password: "vorstand123",
+  },
 ];
 
 export default function Login() {

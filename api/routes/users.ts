@@ -17,7 +17,7 @@ router.post('/', (req: Request, res: Response) => {
     email?: string
     password?: string
     phone?: string
-    role?: 'admin' | 'trainer' | 'player'
+    role?: 'admin' | 'trainer' | 'player' | 'board'
     teamIds?: string[]
     notes?: string
   }
@@ -62,7 +62,7 @@ router.post('/', (req: Request, res: Response) => {
       timestamp,
     )
 
-    ;(teamIds ?? []).forEach((teamId) => {
+    ;(role === 'board' ? [] : teamIds ?? []).forEach((teamId) => {
       insertMember.run(
         createId('member'),
         teamId,
