@@ -28,7 +28,8 @@ export default function App() {
         >
           <Route index element={<DashboardHome />} />
           <Route path="teams" element={<TeamsPage />} />
-          <Route path="teams/:teamId" element={<TeamDetailPage />} />
+          <Route path="teams/:teamId" element={<Navigate to="kader" replace />} />
+          <Route path="teams/:teamId/:section" element={<TeamDetailPage />} />
           <Route path="trainers" element={<TrainersPage />} />
           <Route path="players" element={<PlayersPage />} />
           <Route path="board" element={<BoardPage />} />

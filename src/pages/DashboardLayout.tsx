@@ -33,6 +33,7 @@ const menuItems = [
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [teamsMenuOpen, setTeamsMenuOpen] = useState(false);
+  const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const logout = useAppStore((state) => state.logout);
   const fetchData = useAppStore((state) => state.fetchData);
   const users = useAppStore((state) => state.users);
@@ -59,6 +60,16 @@ export default function DashboardLayout() {
       setTeamsMenuOpen(true);
     }
   }, [location.pathname]);
+
+  useEffect(() => {
+    const activeTeam = teams.find((team) =>
+      location.pathname.startsWith(`/dashboard/teams/${team.id}`),
+    );
+
+    if (activeTeam) {
+      setExpandedTeamId(activeTeam.id);
+    }
+  }, [location.pathname, teams]);
 
   const handleLogout = () => {
     logout();
@@ -176,26 +187,75 @@ export default function DashboardLayout() {
 
                   {teams.length && teamsMenuOpen ? (
                     <div className="ml-4 space-y-1 border-l border-white/15 pl-4">
-                      {teams.map((team) => (
-                        <NavLink
-                          key={team.id}
-                          to={`/dashboard/teams/${team.id}`}
-                          onClick={() => setSidebarOpen(false)}
-                          className={({ isActive }) =>
-                            cn(
-                              "block rounded-xl px-3 py-2 text-sm transition-all",
-                              isActive
-                                ? "bg-white text-blue-950 shadow"
-                                : "text-blue-100/95 hover:bg-white/10 hover:text-white",
-                            )
-                          }
-                        >
-                          <span className="block truncate font-medium">{team.name}</span>
-                          <span className="block truncate text-xs text-current/75">
-                            {team.ageGroup}
-                          </span>
-                        </NavLink>
-                      ))}
+                      {teams.map((team) => {
+                        const teamActive = location.pathname.startsWith(
+                          `/dashboard/teams/${team.id}`,
+                        );
+                        const teamOpen = expandedTeamId === team.id;
+                        const subItems = [
+                          { key: "kader", label: "Kader" },
+                          { key: "spielplan", label: "Spielplan" },
+                          { key: "inventar", label: "Inventar" },
+                          { key: "verwaltung", label: "Verwaltung" },
+                        ];
+
+                        return (
+                          <div key={team.id} className="space-y-1">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedTeamId((current) =>
+                                  current === team.id ? null : team.id,
+                                )
+                              }
+                              className={cn(
+                                "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition-all",
+                                teamActive
+                                  ? "bg-white text-blue-950 shadow"
+                                  : "text-blue-100/95 hover:bg-white/10 hover:text-white",
+                              )}
+                            >
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm font-medium">
+                                  {team.name}
+                                </span>
+                                <span className="block truncate text-xs text-current/75">
+                                  {team.ageGroup}
+                                </span>
+                              </span>
+                              <ChevronDown
+                                size={16}
+                                className={cn(
+                                  "shrink-0 transition-transform duration-200",
+                                  teamOpen ? "rotate-180" : "",
+                                )}
+                              />
+                            </button>
+
+                            {teamOpen ? (
+                              <div className="ml-3 space-y-1 border-l border-white/15 pl-3">
+                                {subItems.map((subItem) => (
+                                  <NavLink
+                                    key={subItem.key}
+                                    to={`/dashboard/teams/${team.id}/${subItem.key}`}
+                                    onClick={() => setSidebarOpen(false)}
+                                    className={({ isActive }) =>
+                                      cn(
+                                        "block rounded-lg px-3 py-2 text-sm transition-all",
+                                        isActive
+                                          ? "bg-white text-blue-950 shadow"
+                                          : "text-blue-100/90 hover:bg-white/10 hover:text-white",
+                                      )
+                                    }
+                                  >
+                                    {subItem.label}
+                                  </NavLink>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : null}
                 </div>
