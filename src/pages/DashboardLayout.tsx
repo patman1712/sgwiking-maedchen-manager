@@ -63,7 +63,7 @@ export default function DashboardLayout() {
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-blue-950/10 bg-gradient-to-b from-blue-950 via-blue-900 to-fuchsia-800 text-white shadow-2xl transition-transform duration-300 md:static md:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-blue-950/10 bg-gradient-to-b from-blue-950 via-blue-900 to-blue-700 text-white shadow-2xl transition-transform duration-300 md:static md:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
@@ -172,7 +172,7 @@ export default function DashboardLayout() {
                 className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
                 <Bell size={18} />
-                <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-fuchsia-600 px-1 text-[11px] font-semibold text-white">
+                <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-700 px-1 text-[11px] font-semibold text-white">
                   {unreadHint}
                 </span>
               </Link>

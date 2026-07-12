@@ -208,7 +208,7 @@ export default function UsersPage() {
 
           <button
             type="submit"
-            className="rounded-2xl bg-gradient-to-r from-blue-700 to-fuchsia-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-700/20 transition hover:-translate-y-0.5"
+            className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
           >
             Person speichern
           </button>

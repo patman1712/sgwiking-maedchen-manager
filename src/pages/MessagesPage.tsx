@@ -120,7 +120,7 @@ export default function MessagesPage() {
                     <p className="text-sm font-semibold text-slate-900">
                       {conversation.title}
                     </p>
-                    <p className="mt-1 text-xs uppercase tracking-[0.18em] text-fuchsia-700">
+                  <p className="mt-1 text-xs uppercase tracking-[0.18em] text-blue-700">
                       {conversation.type === "team" ? "Teamchat" : "Direktnachricht"}
                     </p>
                   </div>
@@ -160,7 +160,7 @@ export default function MessagesPage() {
                     <div
                       className={`max-w-[80%] rounded-3xl px-4 py-3 shadow-sm ${
                         ownMessage
-                          ? "bg-gradient-to-r from-blue-700 to-fuchsia-600 text-white"
+                          ? "bg-gradient-to-r from-blue-900 to-blue-700 text-white"
                           : "bg-white text-slate-700"
                       }`}
                     >
@@ -193,7 +193,7 @@ export default function MessagesPage() {
               />
               <button
                 type="submit"
-                className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-700 to-fuchsia-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-700/20 transition hover:-translate-y-0.5"
+                className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
               >
                 <Send size={18} />
                 Senden

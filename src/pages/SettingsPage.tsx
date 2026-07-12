@@ -126,7 +126,7 @@ export default function SettingsPage() {
           <button
             type="submit"
             disabled={uploading}
-            className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-800 to-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-800/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-950 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
           >
             <ImagePlus size={18} />
             {uploading ? "Wird hochgeladen..." : "Wappen speichern"}

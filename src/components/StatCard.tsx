@@ -22,7 +22,7 @@ export default function StatCard({
           </p>
           <p className="mt-3 text-3xl font-semibold text-slate-900">{value}</p>
         </div>
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-700 to-fuchsia-600 text-white shadow-lg">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-900 to-blue-700 text-white shadow-lg">
           <Icon size={22} />
         </div>
       </div>

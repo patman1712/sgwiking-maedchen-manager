@@ -69,7 +69,7 @@ export default function ProfilePage() {
           })}
         </div>
 
-        <div className="mt-6 rounded-3xl bg-gradient-to-r from-blue-50 to-fuchsia-50 p-5">
+        <div className="mt-6 rounded-3xl bg-gradient-to-r from-blue-50 to-white p-5">
           <p className="text-sm font-medium text-slate-900">Interne Notiz</p>
           <p className="mt-2 text-sm text-slate-600">{currentUser.notes || "Keine Notiz hinterlegt."}</p>
         </div>

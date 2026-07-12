@@ -104,7 +104,7 @@ export default function TeamDetailPage() {
               existingConversationId ?? (await ensureTeamConversation(team.id));
             navigate(`/dashboard/messages?conversation=${conversationId}`);
           }}
-          className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-700 to-fuchsia-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-700/20 transition hover:-translate-y-0.5"
+          className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
         >
           <MessageSquare size={18} />
           Teamchat oeffnen
@@ -255,7 +255,7 @@ export default function TeamDetailPage() {
               onClick={async () => {
                 await setTeamMembership(team.id, selectedTrainerIds, selectedPlayerIds);
               }}
-              className="rounded-2xl bg-gradient-to-r from-blue-700 to-fuchsia-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-700/20 transition hover:-translate-y-0.5"
+              className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
             >
               Zuweisungen speichern
             </button>

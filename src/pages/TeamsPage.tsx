@@ -41,7 +41,7 @@ export default function TeamsPage() {
                 className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white hover:shadow-md md:flex-row md:items-start md:justify-between"
               >
                 <div className="flex gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-700 to-fuchsia-600 text-white shadow-lg">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-900 to-blue-700 text-white shadow-lg">
                     <Volleyball size={22} />
                   </div>
                   <div>
@@ -159,7 +159,7 @@ export default function TeamsPage() {
 
           <button
             type="submit"
-            className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-700 to-fuchsia-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-700/20 transition hover:-translate-y-0.5"
+            className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
           >
             <Plus size={18} />
             Mannschaft anlegen

@@ -18,7 +18,7 @@ export default function DashboardHome() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[2rem] bg-gradient-to-r from-blue-900 via-blue-800 to-fuchsia-700 p-8 text-white shadow-[0_30px_80px_rgba(30,41,59,0.2)]">
+      <section className="rounded-[2rem] bg-gradient-to-r from-blue-950 via-blue-900 to-blue-700 p-8 text-white shadow-[0_30px_80px_rgba(30,41,59,0.2)]">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-100">
           Vereinsuebersicht
         </p>
@@ -133,7 +133,7 @@ export default function DashboardHome() {
                       {new Date(message.createdAt).toLocaleString("de-DE")}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-fuchsia-700">
+                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-blue-700">
                     {conversation?.title}
                   </p>
                   <p className="mt-3 text-sm text-slate-600">{message.content}</p>
