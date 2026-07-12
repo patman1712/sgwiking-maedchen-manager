@@ -90,4 +90,62 @@ router.post('/', (req: Request, res: Response) => {
   })
 })
 
+router.put('/:id', (req: Request, res: Response) => {
+  const { id } = req.params
+  const { fullName, email, password, phone, notes } = req.body as {
+    fullName?: string
+    email?: string
+    password?: string
+    phone?: string
+    notes?: string
+  }
+
+  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(id) as { id: string } | undefined
+  if (!user) {
+    res.status(404).json({ success: false, error: 'Benutzer nicht gefunden.' })
+    return
+  }
+
+  if (!fullName || !email) {
+    res.status(400).json({ success: false, error: 'Name und E-Mail sind Pflichtfelder.' })
+    return
+  }
+
+  const normalizedEmail = email.trim().toLowerCase()
+  const existing = db
+    .prepare('SELECT id FROM users WHERE email = ? AND id != ?')
+    .get(normalizedEmail, id) as { id: string } | undefined
+
+  if (existing) {
+    res.status(409).json({ success: false, error: 'Diese E-Mail ist bereits vergeben.' })
+    return
+  }
+
+  if (password?.trim()) {
+    db.prepare(`
+      UPDATE users
+      SET full_name = ?, email = ?, password = ?, phone = ?, notes = ?
+      WHERE id = ?
+    `).run(
+      fullName,
+      normalizedEmail,
+      bcrypt.hashSync(password.trim(), 10),
+      phone ?? '',
+      notes ?? '',
+      id,
+    )
+  } else {
+    db.prepare(`
+      UPDATE users
+      SET full_name = ?, email = ?, phone = ?, notes = ?
+      WHERE id = ?
+    `).run(fullName, normalizedEmail, phone ?? '', notes ?? '', id)
+  }
+
+  res.json({
+    success: true,
+    ...getBootstrapData(id),
+  })
+})
+
 export default router
