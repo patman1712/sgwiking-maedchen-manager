@@ -41,3 +41,8 @@ export interface Message {
   content: string;
   createdAt: string;
 }
+
+export interface AppSettings {
+  clubName: string;
+  logoUrl: string | null;
+}

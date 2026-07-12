@@ -5,6 +5,7 @@ import DashboardLayout from "@/pages/DashboardLayout";
 import Login from "@/pages/Login";
 import MessagesPage from "@/pages/MessagesPage";
 import ProfilePage from "@/pages/ProfilePage";
+import SettingsPage from "@/pages/SettingsPage";
 import TeamDetailPage from "@/pages/TeamDetailPage";
 import TeamsPage from "@/pages/TeamsPage";
 import UsersPage from "@/pages/UsersPage";
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="users" element={<UsersPage />} />
           <Route path="messages" element={<MessagesPage />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

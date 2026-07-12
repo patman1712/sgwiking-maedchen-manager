@@ -1,6 +1,13 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { Conversation, Message, Team, UserProfile, UserRole } from "@/types";
+import type {
+  AppSettings,
+  Conversation,
+  Message,
+  Team,
+  UserProfile,
+  UserRole,
+} from "@/types";
 
 interface TeamInput {
   name: string;
@@ -26,6 +33,7 @@ interface ApiStatePayload {
   users: UserProfile[];
   conversations: Conversation[];
   messages: Message[];
+  settings: AppSettings;
   currentUser?: UserProfile | null;
 }
 
@@ -39,6 +47,7 @@ interface AppState {
   users: UserProfile[];
   conversations: Conversation[];
   messages: Message[];
+  settings: AppSettings;
   currentUserId: string | null;
   loading: boolean;
   initialized: boolean;
@@ -63,6 +72,10 @@ export const initialAppState = {
   users: [] as UserProfile[],
   conversations: [] as Conversation[],
   messages: [] as Message[],
+  settings: {
+    clubName: "SG Wiking Offenbach",
+    logoUrl: null,
+  } as AppSettings,
   currentUserId: null as string | null,
   loading: false,
   initialized: false,
@@ -93,6 +106,7 @@ const applyPayload = (
     users: payload.users,
     conversations: payload.conversations,
     messages: payload.messages,
+    settings: payload.settings,
     currentUserId: payload.currentUser?.id ?? fallbackUserId,
     initialized: true,
   });

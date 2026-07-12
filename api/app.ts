@@ -12,10 +12,12 @@ import path from 'path'
 import fs from 'fs'
 import dotenv from 'dotenv'
 import { fileURLToPath } from 'url'
+import { DATA_DIR } from './db.js'
 import authRoutes from './routes/auth.js'
 import bootstrapRoutes from './routes/bootstrap.js'
 import conversationsRoutes from './routes/conversations.js'
 import messagesRoutes from './routes/messages.js'
+import settingsRoutes from './routes/settings.js'
 import teamsRoutes from './routes/teams.js'
 import usersRoutes from './routes/users.js'
 
@@ -30,6 +32,7 @@ const app: express.Application = express()
 const serverStartTime = Date.now()
 const clientDistPath = path.resolve(__dirname, '../dist')
 const clientIndexPath = path.join(clientDistPath, 'index.html')
+const uploadPath = path.join(DATA_DIR, 'uploads')
 
 app.use(cors())
 app.use(express.json({ limit: '10mb' }))
@@ -44,6 +47,8 @@ app.use('/api/teams', teamsRoutes)
 app.use('/api/users', usersRoutes)
 app.use('/api/conversations', conversationsRoutes)
 app.use('/api/messages', messagesRoutes)
+app.use('/api/settings', settingsRoutes)
+app.use('/uploads', express.static(uploadPath))
 
 /**
  * health

@@ -6,6 +6,7 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  Settings,
   ShieldCheck,
   UserCircle2,
   Users,
@@ -21,6 +22,7 @@ const menuItems = [
   { to: "/dashboard/users", label: "Trainer & Spielerinnen", icon: Users },
   { to: "/dashboard/messages", label: "Nachrichten", icon: MessageSquare },
   { to: "/dashboard/profile", label: "Mein Profil", icon: UserCircle2 },
+  { to: "/dashboard/settings", label: "Einstellungen", icon: Settings },
 ];
 
 export default function DashboardLayout() {
@@ -28,6 +30,7 @@ export default function DashboardLayout() {
   const logout = useAppStore((state) => state.logout);
   const fetchData = useAppStore((state) => state.fetchData);
   const users = useAppStore((state) => state.users);
+  const settings = useAppStore((state) => state.settings);
   const currentUserId = useAppStore((state) => state.currentUserId);
   const conversations = useAppStore((state) => state.conversations);
   const navigate = useNavigate();
@@ -66,14 +69,24 @@ export default function DashboardLayout() {
       >
         <div className="flex h-20 items-center justify-between border-b border-white/10 px-6">
           <Link to="/dashboard" className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 shadow-lg backdrop-blur">
-              <ShieldCheck size={22} />
+            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-lg">
+              {settings.logoUrl ? (
+                <img
+                  src={settings.logoUrl}
+                  alt="Teamwappen"
+                  className="h-full w-full object-contain p-1"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-white/15 text-blue-950">
+                  <ShieldCheck size={22} />
+                </div>
+              )}
             </div>
             <div>
               <p className="text-xs uppercase tracking-[0.24em] text-blue-200">
                 Vereinsmanager
               </p>
-              <p className="text-base font-semibold">SG Wiking Maedchenfussball</p>
+              <p className="text-base font-semibold">{settings.clubName}</p>
             </div>
           </Link>
           <button

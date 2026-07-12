@@ -4,6 +4,10 @@ import type { UserProfile } from "@/types";
 
 const bootstrapPayload = {
   success: true,
+  settings: {
+    clubName: "SG Wiking Offenbach",
+    logoUrl: null,
+  },
   teams: [
     {
       id: "team_u13",

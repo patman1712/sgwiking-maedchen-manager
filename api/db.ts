@@ -17,6 +17,11 @@ db.pragma('journal_mode = WAL')
 db.pragma('foreign_keys = ON')
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  );
+
   CREATE TABLE IF NOT EXISTS teams (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -440,13 +445,35 @@ export const getMessages = () =>
     createdAt: row.created_at,
   }))
 
+export const getSetting = (key: string) => {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
+    | { value: string }
+    | undefined
+
+  return row?.value ?? null
+}
+
+export const setSetting = (key: string, value: string) => {
+  db.prepare(`
+    INSERT INTO settings (key, value)
+    VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(key, value)
+}
+
+export const getSettings = () => ({
+  clubName: getSetting('club_name') ?? 'SG Wiking Offenbach',
+  logoUrl: getSetting('team_logo_url'),
+})
+
 export const getBootstrapData = (userId?: string | null) => ({
   teams: getTeams(),
   users: getUsers(),
   conversations: getConversations(),
   messages: getMessages(),
+  settings: getSettings(),
   currentUser: userId ? getUserById(userId) : null,
 })
 
 export default db
-export { createId, now }
+export { createId, DATA_DIR, now }
