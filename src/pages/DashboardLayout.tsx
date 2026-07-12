@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
   Briefcase,
+  ChevronDown,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -31,13 +32,16 @@ const menuItems = [
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [teamsMenuOpen, setTeamsMenuOpen] = useState(false);
   const logout = useAppStore((state) => state.logout);
   const fetchData = useAppStore((state) => state.fetchData);
   const users = useAppStore((state) => state.users);
+  const teams = useAppStore((state) => state.teams);
   const settings = useAppStore((state) => state.settings);
   const currentUserId = useAppStore((state) => state.currentUserId);
   const conversations = useAppStore((state) => state.conversations);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const currentUser = useMemo(
     () => users.find((user) => user.id === currentUserId) ?? null,
@@ -49,6 +53,12 @@ export default function DashboardLayout() {
   useEffect(() => {
     void fetchData();
   }, [fetchData, currentUserId]);
+
+  useEffect(() => {
+    if (location.pathname.startsWith("/dashboard/teams")) {
+      setTeamsMenuOpen(true);
+    }
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -118,6 +128,79 @@ export default function DashboardLayout() {
         <nav className="flex-1 space-y-2 px-4 py-6">
           {menuItems.map((item) => {
             const Icon = item.icon;
+
+            if (item.to === "/dashboard/teams") {
+              const teamsAreaActive = location.pathname.startsWith("/dashboard/teams");
+
+              return (
+                <div key={item.to} className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <NavLink
+                      to={item.to}
+                      onClick={() => setSidebarOpen(false)}
+                      className={({ isActive }) =>
+                        cn(
+                          "flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all",
+                          isActive || teamsAreaActive
+                            ? "bg-white text-blue-950 shadow-lg"
+                            : "text-blue-100 hover:bg-white/10 hover:text-white",
+                        )
+                      }
+                    >
+                      <Icon size={18} />
+                      <span>{item.label}</span>
+                    </NavLink>
+
+                    {teams.length ? (
+                      <button
+                        type="button"
+                        aria-label="Mannschaften aufklappen"
+                        onClick={() => setTeamsMenuOpen((open) => !open)}
+                        className={cn(
+                          "flex h-11 w-11 items-center justify-center rounded-2xl transition-all",
+                          teamsAreaActive || teamsMenuOpen
+                            ? "bg-white/15 text-white"
+                            : "text-blue-100 hover:bg-white/10 hover:text-white",
+                        )}
+                      >
+                        <ChevronDown
+                          size={18}
+                          className={cn(
+                            "transition-transform duration-200",
+                            teamsMenuOpen ? "rotate-180" : "",
+                          )}
+                        />
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {teams.length && teamsMenuOpen ? (
+                    <div className="ml-4 space-y-1 border-l border-white/15 pl-4">
+                      {teams.map((team) => (
+                        <NavLink
+                          key={team.id}
+                          to={`/dashboard/teams/${team.id}`}
+                          onClick={() => setSidebarOpen(false)}
+                          className={({ isActive }) =>
+                            cn(
+                              "block rounded-xl px-3 py-2 text-sm transition-all",
+                              isActive
+                                ? "bg-white text-blue-950 shadow"
+                                : "text-blue-100/95 hover:bg-white/10 hover:text-white",
+                            )
+                          }
+                        >
+                          <span className="block truncate font-medium">{team.name}</span>
+                          <span className="block truncate text-xs text-current/75">
+                            {team.ageGroup}
+                          </span>
+                        </NavLink>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            }
 
             return (
               <NavLink
