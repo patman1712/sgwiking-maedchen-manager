@@ -169,6 +169,12 @@ export default function TeamDetailPage() {
     return pastMatches.length ? pastMatches[pastMatches.length - 1] : null;
   }, [teamMatches]);
 
+  const getHomeTeamName = (match: (typeof teamMatches)[number]) =>
+    match.homeTeamName || (match.isHome ? team.name : match.opponent);
+
+  const getAwayTeamName = (match: (typeof teamMatches)[number]) =>
+    match.awayTeamName || (match.isHome ? match.opponent : team.name);
+
   const seasonLabelForKickoff = (kickoffAt: string) => {
     const date = new Date(kickoffAt);
     const year = date.getFullYear();
@@ -495,9 +501,43 @@ export default function TeamDetailPage() {
                   </div>
                   {nextMatch ? (
                     <div className="mt-4 space-y-2">
-                      <p className="text-lg font-semibold text-slate-900">
-                        {nextMatch.isHome ? "Heim" : "Auswaerts"} vs. {nextMatch.opponent}
-                      </p>
+                      <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                        <div className="flex items-center gap-3">
+                          {nextMatch.homeLogoUrl ? (
+                            <img
+                              src={nextMatch.homeLogoUrl}
+                              alt={getHomeTeamName(nextMatch)}
+                              className="h-10 w-10 rounded-2xl border border-slate-200 bg-white object-contain p-1"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-100 text-blue-900">
+                              <Shield size={16} />
+                            </div>
+                          )}
+                          <p className="min-w-0 truncate text-sm font-semibold text-slate-900">
+                            {getHomeTeamName(nextMatch)}
+                          </p>
+                        </div>
+                        <p className="text-center text-sm font-semibold text-slate-500">vs.</p>
+                        <div className="flex items-center justify-start gap-3 sm:justify-end">
+                          <p className="min-w-0 truncate text-sm font-semibold text-slate-900 sm:text-right">
+                            {getAwayTeamName(nextMatch)}
+                          </p>
+                          {nextMatch.awayLogoUrl ? (
+                            <img
+                              src={nextMatch.awayLogoUrl}
+                              alt={getAwayTeamName(nextMatch)}
+                              className="h-10 w-10 rounded-2xl border border-slate-200 bg-white object-contain p-1"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-100 text-blue-900">
+                              <Shield size={16} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
                       <p className="text-sm text-slate-600">
                         {new Date(nextMatch.kickoffAt).toLocaleString("de-DE")}
                       </p>
@@ -520,9 +560,45 @@ export default function TeamDetailPage() {
                   </div>
                   {lastMatch ? (
                     <div className="mt-4 space-y-2">
-                      <p className="text-lg font-semibold text-slate-900">
-                        {lastMatch.isHome ? "Heim" : "Auswaerts"} vs. {lastMatch.opponent}
-                      </p>
+                      <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                        <div className="flex items-center gap-3">
+                          {lastMatch.homeLogoUrl ? (
+                            <img
+                              src={lastMatch.homeLogoUrl}
+                              alt={getHomeTeamName(lastMatch)}
+                              className="h-10 w-10 rounded-2xl border border-slate-200 bg-white object-contain p-1"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-100 text-blue-900">
+                              <Shield size={16} />
+                            </div>
+                          )}
+                          <p className="min-w-0 truncate text-sm font-semibold text-slate-900">
+                            {getHomeTeamName(lastMatch)}
+                          </p>
+                        </div>
+                        <p className="text-center text-sm font-semibold text-slate-500">
+                          {lastMatch.result || "vs."}
+                        </p>
+                        <div className="flex items-center justify-start gap-3 sm:justify-end">
+                          <p className="min-w-0 truncate text-sm font-semibold text-slate-900 sm:text-right">
+                            {getAwayTeamName(lastMatch)}
+                          </p>
+                          {lastMatch.awayLogoUrl ? (
+                            <img
+                              src={lastMatch.awayLogoUrl}
+                              alt={getAwayTeamName(lastMatch)}
+                              className="h-10 w-10 rounded-2xl border border-slate-200 bg-white object-contain p-1"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-100 text-blue-900">
+                              <Shield size={16} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
                       <p className="text-sm text-slate-600">
                         {new Date(lastMatch.kickoffAt).toLocaleString("de-DE")}
                       </p>
@@ -707,10 +783,8 @@ export default function TeamDetailPage() {
                     const isFriendlyMatch = (match.competition ?? "")
                       .toLowerCase()
                       .includes("freundschaft");
-                    const homeTeamName =
-                      match.homeTeamName || (match.isHome ? team.name : match.opponent);
-                    const awayTeamName =
-                      match.awayTeamName || (match.isHome ? match.opponent : team.name);
+                    const homeTeamName = getHomeTeamName(match);
+                    const awayTeamName = getAwayTeamName(match);
 
                     return (
                       <div
@@ -748,7 +822,6 @@ export default function TeamDetailPage() {
                                   <p className="truncate text-sm font-semibold text-slate-900">
                                     {homeTeamName}
                                   </p>
-                                  <p className="mt-1 text-xs text-slate-500">Heim</p>
                                 </div>
                               </div>
 
@@ -763,7 +836,6 @@ export default function TeamDetailPage() {
                                   <p className="truncate text-sm font-semibold text-slate-900">
                                     {awayTeamName}
                                   </p>
-                                  <p className="mt-1 text-xs text-slate-500">Gast</p>
                                 </div>
                                 {match.awayLogoUrl ? (
                                   <img
@@ -864,33 +936,69 @@ export default function TeamDetailPage() {
                                 Saison {seasonLabel}
                               </p>
                             </div>
-                            {seasonMatches.map((match) => (
-                              <div
-                                key={match.id}
-                                className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                              >
-                                <div className="flex flex-wrap items-center justify-between gap-3">
-                                  <div>
-                                    <p className="text-sm font-semibold text-slate-900">
-                                      {(match.competition || "Spiel").trim()}
-                                    </p>
-                                    <p className="mt-1 text-sm text-slate-700">
-                                      {(match.homeTeamName ||
-                                        (match.isHome ? team.name : match.opponent)).trim()}{" "}
-                                      -{" "}
-                                      {(match.awayTeamName ||
-                                        (match.isHome ? match.opponent : team.name)).trim()}
-                                    </p>
-                                    <p className="mt-1 text-sm text-slate-500">
-                                      {new Date(match.kickoffAt).toLocaleString("de-DE")}
-                                    </p>
+                            {seasonMatches.map((match) => {
+                              const homeTeamName = getHomeTeamName(match);
+                              const awayTeamName = getAwayTeamName(match);
+
+                              return (
+                                <div
+                                  key={match.id}
+                                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                                >
+                                  <div className="flex flex-wrap items-start justify-between gap-4">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm font-semibold text-slate-900">
+                                        {(match.competition || "Spiel").trim()}
+                                      </p>
+                                      <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                                        <div className="flex items-center gap-3">
+                                          {match.homeLogoUrl ? (
+                                            <img
+                                              src={match.homeLogoUrl}
+                                              alt={homeTeamName}
+                                              className="h-10 w-10 rounded-2xl border border-slate-200 bg-white object-contain p-1"
+                                              loading="lazy"
+                                            />
+                                          ) : (
+                                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-100 text-blue-900">
+                                              <Shield size={16} />
+                                            </div>
+                                          )}
+                                          <p className="min-w-0 truncate text-sm font-semibold text-slate-900">
+                                            {homeTeamName}
+                                          </p>
+                                        </div>
+
+                                        <p className="text-center text-sm font-semibold text-slate-700">
+                                          {match.result || "- : -"}
+                                        </p>
+
+                                        <div className="flex items-center justify-start gap-3 sm:justify-end">
+                                          <p className="min-w-0 truncate text-sm font-semibold text-slate-900 sm:text-right">
+                                            {awayTeamName}
+                                          </p>
+                                          {match.awayLogoUrl ? (
+                                            <img
+                                              src={match.awayLogoUrl}
+                                              alt={awayTeamName}
+                                              className="h-10 w-10 rounded-2xl border border-slate-200 bg-white object-contain p-1"
+                                              loading="lazy"
+                                            />
+                                          ) : (
+                                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-100 text-blue-900">
+                                              <Shield size={16} />
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <p className="mt-3 text-sm text-slate-500">
+                                        {new Date(match.kickoffAt).toLocaleString("de-DE")}
+                                      </p>
+                                    </div>
                                   </div>
-                                  <p className="text-sm font-semibold text-slate-700">
-                                    {match.result || "Noch offen"}
-                                  </p>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         ) : null,
                       )}
