@@ -193,6 +193,7 @@ export default function DashboardLayout() {
                         );
                         const teamOpen = expandedTeamId === team.id;
                         const subItems = [
+                          { key: "dashboard", label: "Dashboard" },
                           { key: "kader", label: "Kader" },
                           { key: "spielplan", label: "Spielplan" },
                           { key: "inventar", label: "Inventar" },

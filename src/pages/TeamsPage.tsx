@@ -37,7 +37,7 @@ export default function TeamsPage() {
             return (
               <Link
                 key={team.id}
-                to={`/dashboard/teams/${team.id}`}
+                to={`/dashboard/teams/${team.id}/dashboard`}
                 className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white hover:shadow-md md:flex-row md:items-start md:justify-between"
               >
                 <div className="flex gap-4">

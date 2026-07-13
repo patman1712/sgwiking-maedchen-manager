@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import type {
   AppSettings,
   Conversation,
+  Match,
   Message,
   Team,
   UserProfile,
@@ -41,6 +42,7 @@ interface UserInput {
 interface ApiStatePayload {
   teams: Team[];
   users: UserProfile[];
+  matches: Match[];
   conversations: Conversation[];
   messages: Message[];
   settings: AppSettings;
@@ -76,6 +78,7 @@ interface UserUpdateInput {
 interface AppState {
   teams: Team[];
   users: UserProfile[];
+  matches: Match[];
   conversations: Conversation[];
   messages: Message[];
   settings: AppSettings;
@@ -87,10 +90,27 @@ interface AppState {
   logout: () => void;
   addTeam: (input: TeamInput) => Promise<ActionResult>;
   updateTeam: (teamId: string, input: TeamInput) => Promise<ActionResult>;
+  uploadTeamPhoto: (teamId: string, file: File) => Promise<ActionResult>;
   addUser: (input: UserInput) => Promise<ActionResult>;
   updateUser: (input: UserUpdateInput) => Promise<ActionResult>;
   deleteUser: (userId: string) => Promise<ActionResult>;
   uploadUserAvatar: (userId: string, file: File) => Promise<ActionResult>;
+  addMatch: (input: {
+    teamId: string;
+    opponent: string;
+    kickoffAt: string;
+    location: string;
+    isHome: boolean;
+    result?: string;
+  }) => Promise<ActionResult>;
+  updateMatch: (matchId: string, input: Partial<{
+    opponent: string;
+    kickoffAt: string;
+    location: string;
+    isHome: boolean;
+    result: string;
+  }>) => Promise<ActionResult>;
+  deleteMatch: (matchId: string) => Promise<ActionResult>;
   updateCurrentUser: (input: {
     fullName: string;
     email: string;
@@ -111,6 +131,7 @@ interface AppState {
 export const initialAppState = {
   teams: [] as Team[],
   users: [] as UserProfile[],
+  matches: [] as Match[],
   conversations: [] as Conversation[],
   messages: [] as Message[],
   settings: {
@@ -145,6 +166,7 @@ const applyPayload = (
   set({
     teams: payload.teams,
     users: payload.users,
+    matches: payload.matches,
     conversations: payload.conversations,
     messages: payload.messages,
     settings: payload.settings,
@@ -252,6 +274,36 @@ export const useAppStore = create<AppState>()(
           };
         }
       },
+      uploadTeamPhoto: async (teamId, file) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("photo", file);
+          payload.append("actorId", actorId);
+
+          const response = await fetch(`/api/teams/${teamId}/photo`, {
+            method: "POST",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Mannschaftsfoto konnte nicht gespeichert werden.",
+          };
+        }
+      },
       addUser: async (input) => {
         try {
           const actorId = get().currentUserId;
@@ -356,6 +408,81 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Profilbild konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      addMatch: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch("/api/matches", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...input, actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error ? error.message : "Spiel konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      updateMatch: async (matchId, input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/matches/${matchId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...input, actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error ? error.message : "Spiel konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      deleteMatch: async (matchId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/matches/${matchId}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error ? error.message : "Spiel konnte nicht geloescht werden.",
           };
         }
       },

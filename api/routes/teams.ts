@@ -1,7 +1,24 @@
+import fs from 'fs'
+import path from 'path'
+import multer from 'multer'
 import { Router, type Request, type Response } from 'express'
-import db, { createId, getBootstrapData, isAdminOrBoard, now } from '../db.js'
+import db, { createId, DATA_DIR, getBootstrapData, isAdminOrBoard, now } from '../db.js'
 
 const router = Router()
+const uploadDir = path.join(DATA_DIR, 'uploads', 'teams')
+fs.mkdirSync(uploadDir, { recursive: true })
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, callback) => {
+    callback(null, uploadDir)
+  },
+  filename: (req, file, callback) => {
+    const extension = path.extname(file.originalname) || '.jpg'
+    callback(null, `team-${req.params.id}-${Date.now()}${extension}`)
+  },
+})
+
+const upload = multer({ storage })
 
 router.get('/', (_req: Request, res: Response) => {
   res.json({
@@ -130,6 +147,46 @@ router.put('/:id/members', (req: Request, res: Response) => {
 
   res.json({
     success: true,
+    ...getBootstrapData(actorId),
+  })
+})
+
+router.post('/:id/photo', upload.single('photo'), (req: Request, res: Response) => {
+  const { id } = req.params
+  const actorId = req.body.actorId as string | undefined
+
+  if (!actorId || !isAdminOrBoard(actorId)) {
+    res.status(403).json({ success: false, error: 'Mannschaftsfotos koennen nur von Admin oder Vorstand geaendert werden.' })
+    return
+  }
+
+  if (!req.file) {
+    res.status(400).json({ success: false, error: 'Bitte eine Bilddatei auswaehlen.' })
+    return
+  }
+
+  const current = db.prepare('SELECT photo_url FROM teams WHERE id = ?').get(id) as {
+    photo_url: string | null
+  } | undefined
+
+  const photoUrl = `/uploads/teams/${req.file.filename}?v=${encodeURIComponent(now())}`
+  db.prepare('UPDATE teams SET photo_url = ? WHERE id = ?').run(photoUrl, id)
+
+  if (current?.photo_url) {
+    const match = current.photo_url.match(/\/uploads\/teams\/([^?]+)/)
+    const filename = match?.[1]
+    if (filename) {
+      try {
+        fs.unlinkSync(path.join(uploadDir, filename))
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  res.json({
+    success: true,
+    photoUrl,
     ...getBootstrapData(actorId),
   })
 })

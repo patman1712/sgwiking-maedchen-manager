@@ -8,6 +8,18 @@ export interface Team {
   trainingDay: string;
   location: string;
   notes: string;
+  photoUrl?: string | null;
+  createdAt: string;
+}
+
+export interface Match {
+  id: string;
+  teamId: string;
+  opponent: string;
+  kickoffAt: string;
+  location: string;
+  isHome: boolean;
+  result: string | null;
   createdAt: string;
 }
 

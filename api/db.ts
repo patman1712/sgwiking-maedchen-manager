@@ -110,6 +110,7 @@ db.exec(`
     training_day TEXT NOT NULL,
     location TEXT NOT NULL,
     notes TEXT DEFAULT '',
+    photo_url TEXT DEFAULT NULL,
     created_at TEXT NOT NULL
   );
 
@@ -175,7 +176,27 @@ db.exec(`
     FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
     FOREIGN KEY(sender_id) REFERENCES users(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS matches (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    opponent TEXT NOT NULL,
+    kickoff_at TEXT NOT NULL,
+    location TEXT NOT NULL,
+    is_home INTEGER NOT NULL DEFAULT 1,
+    result TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE
+  );
 `)
+
+const teamColumns = (
+  db.prepare('PRAGMA table_info(teams)').all() as { name: string }[]
+).map((column) => column.name)
+
+if (!teamColumns.includes('photo_url')) {
+  db.prepare('ALTER TABLE teams ADD COLUMN photo_url TEXT DEFAULT NULL').run()
+}
 
 const userColumns = (
   db.prepare("PRAGMA table_info(users)").all() as { name: string }[]
@@ -557,6 +578,7 @@ type TeamRow = {
   training_day: string
   location: string
   notes: string
+  photo_url: string | null
   created_at: string
 }
 
@@ -602,6 +624,17 @@ type MessageRow = {
   created_at: string
 }
 
+type MatchRow = {
+  id: string
+  team_id: string
+  opponent: string
+  kickoff_at: string
+  location: string
+  is_home: number
+  result: string
+  created_at: string
+}
+
 export const mapTeam = (row: TeamRow) => ({
   id: row.id,
   name: row.name,
@@ -610,6 +643,7 @@ export const mapTeam = (row: TeamRow) => ({
   trainingDay: row.training_day,
   location: row.location,
   notes: row.notes,
+  photoUrl: row.photo_url,
   createdAt: row.created_at,
 })
 
@@ -743,6 +777,20 @@ export const getMessages = () =>
     createdAt: row.created_at,
   }))
 
+export const getMatches = () =>
+  (
+    db.prepare('SELECT * FROM matches ORDER BY kickoff_at ASC, created_at ASC').all() as MatchRow[]
+  ).map((row) => ({
+    id: row.id,
+    teamId: row.team_id,
+    opponent: row.opponent,
+    kickoffAt: row.kickoff_at,
+    location: row.location,
+    isHome: Boolean(row.is_home),
+    result: row.result || null,
+    createdAt: row.created_at,
+  }))
+
 export const getSetting = (key: string) => {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
     | { value: string }
@@ -767,6 +815,7 @@ export const getSettings = () => ({
 export const getBootstrapData = (userId?: string | null) => ({
   teams: getTeams(),
   users: getUsers(),
+  matches: getMatches(),
   conversations: getConversations(),
   messages: getMessages(),
   settings: getSettings(),
