@@ -73,6 +73,25 @@ export default function TeamDetailPage() {
   const [matchImportMessage, setMatchImportMessage] = useState("");
   const [matchImportError, setMatchImportError] = useState("");
   const [expandedArchivedSeasons, setExpandedArchivedSeasons] = useState<string[]>([]);
+  const [leagueTable, setLeagueTable] = useState<{
+    season: string;
+    competition: string | null;
+    standings: Array<{
+      rank: string;
+      teamName: string;
+      logoUrl: string | null;
+      matchesPlayed: string;
+      wins: string;
+      draws: string;
+      losses: string;
+      goals: string;
+      goalDifference: string;
+      points: string;
+      isOwnTeam: boolean;
+    }>;
+  } | null>(null);
+  const [leagueTableLoading, setLeagueTableLoading] = useState(false);
+  const [leagueTableError, setLeagueTableError] = useState("");
 
   const assignedTrainers = useMemo(
     () =>
@@ -230,6 +249,49 @@ export default function TeamDetailPage() {
   useEffect(() => {
     setExpandedArchivedSeasons([]);
   }, [team.id, primarySeasonLabel]);
+
+  const loadLeagueTable = useCallback(async () => {
+    if (!team.fussballDeTeamId) {
+      setLeagueTable(null);
+      setLeagueTableError("");
+      return;
+    }
+
+    setLeagueTableLoading(true);
+    setLeagueTableError("");
+
+    try {
+      const response = await fetch(
+        `/api/teams/${team.id}/fussballde-table?season=${encodeURIComponent(team.season)}`,
+      );
+      const data = await response.json();
+
+      if (!response.ok || data.success === false) {
+        throw new Error(data.error || "Tabelle konnte nicht geladen werden.");
+      }
+
+      setLeagueTable({
+        season: data.season,
+        competition: data.competition,
+        standings: data.standings ?? [],
+      });
+    } catch (error) {
+      setLeagueTable(null);
+      setLeagueTableError(
+        error instanceof Error ? error.message : "Tabelle konnte nicht geladen werden.",
+      );
+    } finally {
+      setLeagueTableLoading(false);
+    }
+  }, [team.fussballDeTeamId, team.id, team.season]);
+
+  useEffect(() => {
+    if (activeSection !== "spielplan") {
+      return;
+    }
+
+    void loadLeagueTable();
+  }, [activeSection, loadLeagueTable]);
 
   return (
     <div className="space-y-6">
@@ -434,6 +496,7 @@ export default function TeamDetailPage() {
                           const result = await importTeamMatchesFromFussballDe(team.id);
 
                           if (result.success) {
+                            void loadLeagueTable();
                             setMatchImportMessage(
                               `${result.importedCount ?? 0} Spiel(e) von fussball.de importiert.`,
                             );
@@ -736,7 +799,7 @@ export default function TeamDetailPage() {
       ) : null}
 
       {activeSection === "spielplan" ? (
-        <div className="grid gap-6">
+        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
           <SectionCard
             title="Spielplan"
             description="Aktuelle Saison direkt im Blick, aeltere Saisons nur bei Bedarf aufklappen."
@@ -1095,6 +1158,82 @@ export default function TeamDetailPage() {
                     Spiel speichern
                   </button>
                 </form>
+              ) : null}
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Tabelle"
+            description="Direkt von fussball.de geladen, sobald fuer die Mannschaft eine Staffel verfuegbar ist."
+          >
+            <div className="space-y-3">
+              {leagueTableLoading ? (
+                <div className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500">
+                  Tabelle wird geladen...
+                </div>
+              ) : null}
+
+              {!leagueTableLoading && leagueTableError ? (
+                <div className="rounded-3xl border border-rose-200 bg-rose-50 px-5 py-6 text-sm text-rose-700">
+                  {leagueTableError}
+                </div>
+              ) : null}
+
+              {!leagueTableLoading && !leagueTableError && leagueTable?.standings.length ? (
+                <>
+                  <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                      {leagueTable.season}
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-slate-900">
+                      {leagueTable.competition || "Tabelle"}
+                    </p>
+                  </div>
+
+                  {leagueTable.standings.map((entry) => (
+                    <div
+                      key={`${entry.rank}-${entry.teamName}`}
+                      className={cn(
+                        "grid gap-3 rounded-2xl border px-4 py-3 md:grid-cols-[auto_1fr_auto] md:items-center",
+                        entry.isOwnTeam
+                          ? "border-blue-200 bg-blue-50"
+                          : "border-slate-200 bg-slate-50",
+                      )}
+                    >
+                      <p className="text-base font-semibold text-slate-900">{entry.rank}</p>
+                      <div className="flex items-center gap-3">
+                        {entry.logoUrl ? (
+                          <img
+                            src={entry.logoUrl}
+                            alt={entry.teamName}
+                            className="h-10 w-10 rounded-2xl border border-slate-200 bg-white object-contain p-1"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-blue-900">
+                            <Shield size={16} />
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">{entry.teamName}</p>
+                          <p className="text-xs text-slate-500">
+                            {entry.matchesPlayed} Sp. | {entry.wins} S | {entry.draws} U | {entry.losses} N
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-slate-900">{entry.points} Pkt.</p>
+                        <p className="text-xs text-slate-500">{entry.goals}</p>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              ) : null}
+
+              {!leagueTableLoading && !leagueTableError && !leagueTable?.standings.length ? (
+                <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500">
+                  Fuer diese Saison ist bei fussball.de aktuell noch keine Tabelle verfuegbar.
+                </div>
               ) : null}
             </div>
           </SectionCard>
