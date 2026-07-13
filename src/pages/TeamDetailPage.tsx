@@ -149,6 +149,34 @@ export default function TeamDetailPage() {
     return pastMatches.length ? pastMatches[pastMatches.length - 1] : null;
   }, [teamMatches]);
 
+  const seasonLabelForKickoff = (kickoffAt: string) => {
+    const date = new Date(kickoffAt);
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+
+    if (month >= 7) {
+      return `${year}/${year + 1}`;
+    }
+
+    return `${year - 1}/${year}`;
+  };
+
+  const teamMatchesBySeason = teamMatches.reduce<Record<string, typeof teamMatches>>(
+    (accumulator, match) => {
+      const label = seasonLabelForKickoff(match.kickoffAt);
+      const existing = accumulator[label] ?? [];
+      accumulator[label] = [...existing, match];
+      return accumulator;
+    },
+    {},
+  );
+
+  const teamSeasonEntries = Object.entries(teamMatchesBySeason).sort(([left], [right]) => {
+    const leftStart = Number(left.split("/")[0] ?? 0);
+    const rightStart = Number(right.split("/")[0] ?? 0);
+    return rightStart - leftStart;
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -591,66 +619,77 @@ export default function TeamDetailPage() {
             <div className="space-y-4">
               {teamMatches.length ? (
                 <div className="space-y-3">
-                  {teamMatches.map((match) => (
-                    <div
-                      key={match.id}
-                      className="rounded-3xl border border-slate-200 bg-slate-50 p-5"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">
-                            {match.isHome ? "Heim" : "Auswaerts"} vs. {match.opponent}
-                          </p>
-                          <p className="mt-2 text-sm text-slate-600">
-                            {new Date(match.kickoffAt).toLocaleString("de-DE")}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-500">{match.location}</p>
-                        </div>
-
-                        {canManageMatchesHere ? (
-                          <div className="flex flex-wrap items-center justify-end gap-2">
-                            <input
-                              className="w-40 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                              value={matchResultDrafts[match.id] ?? (match.result ?? "")}
-                              placeholder="Ergebnis"
-                              onChange={(event) =>
-                                setMatchResultDrafts((current) => ({
-                                  ...current,
-                                  [match.id]: event.target.value,
-                                }))
-                              }
-                            />
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                const nextValue =
-                                  matchResultDrafts[match.id] ?? (match.result ?? "");
-                                await updateMatch(match.id, { result: nextValue });
-                              }}
-                              className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-900 transition hover:bg-blue-100"
-                            >
-                              Speichern
-                            </button>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                const confirmed = window.confirm("Spiel wirklich loeschen?");
-                                if (!confirmed) {
-                                  return;
-                                }
-                                await deleteMatch(match.id);
-                              }}
-                              className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
-                            >
-                              Loeschen
-                            </button>
-                          </div>
-                        ) : (
-                          <p className="text-sm text-slate-700">
-                            Ergebnis: {match.result || "Noch offen"}
-                          </p>
-                        )}
+                  {teamSeasonEntries.map(([seasonLabel, seasonMatches]) => (
+                    <div key={seasonLabel} className="space-y-3">
+                      <div className="rounded-3xl border border-slate-200 bg-white px-5 py-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Saison
+                        </p>
+                        <p className="mt-1 text-lg font-semibold text-slate-900">{seasonLabel}</p>
                       </div>
+
+                      {seasonMatches.map((match) => (
+                        <div
+                          key={match.id}
+                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-900">
+                                {match.isHome ? "Heim" : "Auswaerts"} vs. {match.opponent}
+                              </p>
+                              <p className="mt-2 text-sm text-slate-600">
+                                {new Date(match.kickoffAt).toLocaleString("de-DE")}
+                              </p>
+                              <p className="mt-1 text-sm text-slate-500">{match.location}</p>
+                            </div>
+
+                            {canManageMatchesHere ? (
+                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                <input
+                                  className="w-40 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                  value={matchResultDrafts[match.id] ?? (match.result ?? "")}
+                                  placeholder="Ergebnis"
+                                  onChange={(event) =>
+                                    setMatchResultDrafts((current) => ({
+                                      ...current,
+                                      [match.id]: event.target.value,
+                                    }))
+                                  }
+                                />
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    const nextValue =
+                                      matchResultDrafts[match.id] ?? (match.result ?? "");
+                                    await updateMatch(match.id, { result: nextValue });
+                                  }}
+                                  className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-900 transition hover:bg-blue-100"
+                                >
+                                  Speichern
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    const confirmed = window.confirm("Spiel wirklich loeschen?");
+                                    if (!confirmed) {
+                                      return;
+                                    }
+                                    await deleteMatch(match.id);
+                                  }}
+                                  className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                                >
+                                  Loeschen
+                                </button>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-slate-700">
+                                Ergebnis: {match.result || "Noch offen"}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ))}
                 </div>
