@@ -480,4 +480,64 @@ router.post('/:id/avatar', upload.single('avatar'), (req: Request, res: Response
   })
 })
 
+router.delete('/:id', (req: Request, res: Response) => {
+  const { id } = req.params
+  const actorId = (req.body?.actorId as string | undefined) ?? (req.query.actorId as string | undefined)
+  const user = getUserRowById(id)
+
+  if (!user) {
+    res.status(404).json({ success: false, error: 'Benutzer nicht gefunden.' })
+    return
+  }
+
+  if (!actorId) {
+    res.status(400).json({ success: false, error: 'Fehlender Benutzerkontext.' })
+    return
+  }
+
+  if (!isAdminOrBoard(actorId)) {
+    res.status(403).json({ success: false, error: 'Personen koennen nur von Admin oder Vorstand geloescht werden.' })
+    return
+  }
+
+  if (actorId === id) {
+    res.status(400).json({ success: false, error: 'Du kannst deinen eigenen Account nicht loeschen.' })
+    return
+  }
+
+  const affectedTeamIds = getTeamIdsByUserId(id)
+  const timestamp = now()
+
+  db.transaction(() => {
+    db.prepare('DELETE FROM users WHERE id = ?').run(id)
+  })()
+
+  if (user.role === 'player') {
+    const prefix = `player-${id}-`
+    try {
+      const files = fs.readdirSync(uploadDir)
+      files.forEach((filename) => {
+        if (!filename.startsWith(prefix)) {
+          return
+        }
+
+        try {
+          fs.unlinkSync(path.join(uploadDir, filename))
+        } catch {
+          return
+        }
+      })
+    } catch {
+      // ignore
+    }
+  }
+
+  affectedTeamIds.forEach((teamId) => rebuildTeamConversationParticipants(teamId, timestamp))
+
+  res.json({
+    success: true,
+    ...getBootstrapData(actorId),
+  })
+})
+
 export default router

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
-import { ChevronLeft, ImagePlus, Pencil, Shield, X } from "lucide-react";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { ChevronLeft, ImagePlus, Pencil, Shield, Trash2, X } from "lucide-react";
 import SectionCard from "@/components/SectionCard";
 import { optimizeImageForUpload } from "@/lib/image";
 import { useAppStore } from "@/store";
@@ -64,7 +64,9 @@ export default function PlayerEditPage() {
   const teams = useAppStore((state) => state.teams);
   const currentUserId = useAppStore((state) => state.currentUserId);
   const updateUser = useAppStore((state) => state.updateUser);
+  const deleteUser = useAppStore((state) => state.deleteUser);
   const uploadUserAvatar = useAppStore((state) => state.uploadUserAvatar);
+  const navigate = useNavigate();
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -103,12 +105,16 @@ export default function PlayerEditPage() {
     !isOwnProfile &&
     hasSharedTeam;
   const canEdit = isPrivilegedViewer;
+  const canManageMemberships =
+    currentUser?.role === "admin" || currentUser?.role === "board";
+  const canDelete = canManageMemberships;
 
   const [form, setForm] = useState(() => ({
     fullName: player?.fullName ?? "",
     email: player?.email ?? "",
     phone: player?.phone ?? "",
     notes: player?.notes ?? "",
+    teamIds: player?.teamIds ?? [],
     memberNumber: player?.memberNumber ?? "",
     birthday: player?.birthday ?? "",
     address: player?.address ?? "",
@@ -132,6 +138,7 @@ export default function PlayerEditPage() {
       email: player.email,
       phone: player.phone,
       notes: player.notes,
+      teamIds: player.teamIds,
       memberNumber: player.memberNumber ?? "",
       birthday: player.birthday ?? "",
       address: player.address ?? "",
@@ -181,22 +188,55 @@ export default function PlayerEditPage() {
         </div>
 
         {canEdit ? (
-          <button
-            type="button"
-            onClick={() => {
-              setIsEditing((current) => !current);
-              setError("");
-              setSuccess("");
-            }}
-            className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition ${
-              isEditing
-                ? "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                : "bg-gradient-to-r from-blue-900 to-blue-700 text-white shadow-lg shadow-blue-900/20 hover:-translate-y-0.5"
-            }`}
-          >
-            {isEditing ? <X size={18} /> : <Pencil size={18} />}
-            {isEditing ? "Bearbeiten schliessen" : "Bearbeiten"}
-          </button>
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {canDelete ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  setError("");
+                  setSuccess("");
+
+                  const confirmed = window.confirm(
+                    `Spielerin "${player.fullName}" wirklich loeschen? Alle Daten und Bilder werden entfernt.`,
+                  );
+
+                  if (!confirmed) {
+                    return;
+                  }
+
+                  const result = await deleteUser(player.id);
+
+                  if (!result.success) {
+                    setError(result.error ?? "Spielerin konnte nicht geloescht werden.");
+                    return;
+                  }
+
+                  navigate("/dashboard/players", { replace: true });
+                }}
+                className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+              >
+                <Trash2 size={18} />
+                Loeschen
+              </button>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsEditing((current) => !current);
+                setError("");
+                setSuccess("");
+              }}
+              className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition ${
+                isEditing
+                  ? "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  : "bg-gradient-to-r from-blue-900 to-blue-700 text-white shadow-lg shadow-blue-900/20 hover:-translate-y-0.5"
+              }`}
+            >
+              {isEditing ? <X size={18} /> : <Pencil size={18} />}
+              {isEditing ? "Bearbeiten schliessen" : "Bearbeiten"}
+            </button>
+          </div>
         ) : null}
       </div>
 
@@ -332,6 +372,7 @@ export default function PlayerEditPage() {
                   email: form.email,
                   phone: form.phone,
                   notes: form.notes,
+                  teamIds: canManageMemberships ? form.teamIds : undefined,
                   memberNumber: form.memberNumber,
                   birthday: form.birthday,
                   address: form.address,
@@ -532,24 +573,58 @@ export default function PlayerEditPage() {
 
               <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Teams</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {visibleTeamNames.length ? (
-                    visibleTeamNames.map((teamName) => (
-                      <span
-                        key={teamName}
-                        className="rounded-full bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm"
-                      >
-                        {teamName}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-sm text-slate-500">Keinem Team zugeordnet</span>
-                  )}
-                </div>
-                <p className="mt-3 text-xs text-slate-500">
-                  Die Teamzuordnung wird zentral im Bereich Spielerinnen von Admin oder Vorstand
-                  gepflegt.
-                </p>
+                {canManageMemberships ? (
+                  <>
+                    <div className="mt-4 space-y-2">
+                      {teams.map((team) => (
+                        <label
+                          key={team.id}
+                          className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={form.teamIds.includes(team.id)}
+                            onChange={() =>
+                              setForm({
+                                ...form,
+                                teamIds: form.teamIds.includes(team.id)
+                                  ? form.teamIds.filter((value) => value !== team.id)
+                                  : [...form.teamIds, team.id],
+                              })
+                            }
+                          />
+                          <span className="text-sm text-slate-700">
+                            {team.name} ({team.ageGroup})
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-xs text-slate-500">
+                      Die Teamzuordnung darf nur von Admin oder Vorstand geaendert werden.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {visibleTeamNames.length ? (
+                        visibleTeamNames.map((teamName) => (
+                          <span
+                            key={teamName}
+                            className="rounded-full bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm"
+                          >
+                            {teamName}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-sm text-slate-500">Keinem Team zugeordnet</span>
+                      )}
+                    </div>
+                    <p className="mt-3 text-xs text-slate-500">
+                      Die Teamzuordnung wird zentral im Bereich Spielerinnen von Admin oder Vorstand
+                      gepflegt.
+                    </p>
+                  </>
+                )}
               </div>
 
               <label className="block">

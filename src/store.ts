@@ -89,6 +89,7 @@ interface AppState {
   updateTeam: (teamId: string, input: TeamInput) => Promise<ActionResult>;
   addUser: (input: UserInput) => Promise<ActionResult>;
   updateUser: (input: UserUpdateInput) => Promise<ActionResult>;
+  deleteUser: (userId: string) => Promise<ActionResult>;
   uploadUserAvatar: (userId: string, file: File) => Promise<ActionResult>;
   updateCurrentUser: (input: {
     fullName: string;
@@ -298,6 +299,33 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Person konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      deleteUser: async (userId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/users/${userId}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Person konnte nicht geloescht werden.",
           };
         }
       },
