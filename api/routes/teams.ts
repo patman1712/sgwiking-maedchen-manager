@@ -6,6 +6,7 @@ import db, {
   createId,
   DATA_DIR,
   getBootstrapData,
+  getUserRowById,
   isAdminOrBoard,
   now,
   userHasTeamRole,
@@ -161,6 +162,14 @@ const buildFussballDeTableUrl = (params: {
   competitionId: string
 }) =>
   `https://www.fussball.de/ajax.team.table/-/saison/${params.seasonCode}/staffel/${params.competitionId}/team-id/${params.teamId}`
+
+type FussballDeImportTeam = {
+  id: string
+  name: string
+  season: string
+  fussball_de_team_id: string
+  location: string
+}
 
 const fetchFussballDeText = async (url: string) => {
   const response = await fetch(url, {
@@ -339,6 +348,29 @@ const parseFussballDeMatches = (html: string, teamName: string, teamId: string) 
   return matches
 }
 
+const getTeamForFussballDeImport = (teamId: string) =>
+  db
+    .prepare('SELECT id, name, season, fussball_de_team_id, location FROM teams WHERE id = ?')
+    .get(teamId) as FussballDeImportTeam | undefined
+
+const getImportSeasonRanges = (season: string) => {
+  const ranges: Array<{ from: string | null; to: string | null }> = []
+  const current = getSeasonDateRange(season)
+  if (current) {
+    ranges.push(current)
+  }
+
+  const prevSeason = getPreviousSeason(season)
+  if (prevSeason) {
+    const previous = getSeasonDateRange(prevSeason)
+    if (previous) {
+      ranges.push(previous)
+    }
+  }
+
+  return ranges.length ? ranges : [{ from: null, to: null }]
+}
+
 const fetchMatchResultFromFussballDe = async (matchUrl: string) => {
   const response = await fetch(matchUrl, {
     headers: {
@@ -361,6 +393,266 @@ const fetchMatchResultFromFussballDe = async (matchUrl: string) => {
   const awayGoals = (html.match(/'type':'[^']*goal'[^}]*'team':'away'/g) ?? []).length
 
   return `${homeGoals}:${awayGoals}`
+}
+
+const importMatchesForTeamFromFussballDe = async (team: FussballDeImportTeam) => {
+  const normalizedTeamId = normalizeFussballDeTeamId(team.fussball_de_team_id)
+
+  if (!normalizedTeamId) {
+    throw new Error('Bitte eine gueltige fussball.de Team-ID hinterlegen.')
+  }
+
+  const seasonRanges = getImportSeasonRanges(team.season)
+  const importedMatches: Array<{
+    opponent: string
+    kickoffAt: string
+    location: string
+    isHome: boolean
+    competition: string
+    homeTeamName: string
+    awayTeamName: string
+    homeLogoUrl: string | null
+    awayLogoUrl: string | null
+    matchUrl: string | null
+  }> = []
+
+  for (const range of seasonRanges) {
+    const max = 200
+    let offset = 0
+    let finished = false
+
+    while (!finished) {
+      const url = buildFussballDeMatchplanUrl({
+        teamId: normalizedTeamId,
+        from: range?.from ?? null,
+        to: range?.to ?? null,
+        max,
+        offset,
+      })
+
+      const response = await fetch(url, {
+        headers: {
+          'user-agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('fussball.de konnte gerade nicht geladen werden.')
+      }
+
+      const data = (await response.json()) as {
+        success: boolean
+        html?: string
+        final?: boolean
+        lastIndex?: number
+      }
+
+      if (!data.success || !data.html) {
+        finished = true
+        continue
+      }
+
+      const parsed = parseFussballDeMatches(data.html, team.name, normalizedTeamId)
+      importedMatches.push(...parsed)
+
+      if (data.final || typeof data.lastIndex !== 'number' || data.lastIndex < max - 1) {
+        finished = true
+      } else {
+        offset += max
+      }
+    }
+  }
+
+  const uniqueKey = (match: { opponent: string; kickoffAt: string }) =>
+    `${match.opponent}__${match.kickoffAt}`
+  const uniqueMatches = Array.from(
+    new Map(importedMatches.map((match) => [uniqueKey(match), match])).values(),
+  )
+
+  if (!uniqueMatches.length) {
+    throw new Error('Es konnten keine Spiele aus fussball.de erkannt werden.')
+  }
+
+  const insertMatch = db.prepare(`
+    INSERT INTO matches (
+      id,
+      team_id,
+      opponent,
+      kickoff_at,
+      location,
+      is_home,
+      competition,
+      home_team_name,
+      away_team_name,
+      home_logo_url,
+      away_logo_url,
+      result,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+  const findExisting = db.prepare(`
+    SELECT id, result
+    FROM matches
+    WHERE team_id = ? AND opponent = ? AND kickoff_at = ?
+    LIMIT 1
+  `)
+  const updateMatch = db.prepare(`
+    UPDATE matches
+    SET
+      location = ?,
+      is_home = ?,
+      competition = ?,
+      home_team_name = ?,
+      away_team_name = ?,
+      home_logo_url = ?,
+      away_logo_url = ?,
+      result = COALESCE(NULLIF(?, ''), result)
+    WHERE id = ?
+  `)
+
+  let importedCount = 0
+  const timestamp = now()
+  const matchIdToUrl = new Map<string, string>()
+
+  uniqueMatches.forEach((match) => {
+    const location = match.location || (match.isHome ? team.location : 'Auswaertsspiel')
+    const existing = findExisting.get(team.id, match.opponent, match.kickoffAt) as
+      | { id: string; result: string }
+      | undefined
+
+    if (existing) {
+      updateMatch.run(
+        location,
+        match.isHome ? 1 : 0,
+        match.competition ?? '',
+        match.homeTeamName ?? (match.isHome ? team.name : match.opponent),
+        match.awayTeamName ?? (match.isHome ? match.opponent : team.name),
+        match.homeLogoUrl ?? '',
+        match.awayLogoUrl ?? '',
+        '',
+        existing.id,
+      )
+      if (match.matchUrl) {
+        matchIdToUrl.set(existing.id, match.matchUrl)
+      }
+      return
+    }
+
+    const matchId = createId('match')
+    insertMatch.run(
+      matchId,
+      team.id,
+      match.opponent,
+      match.kickoffAt,
+      location,
+      match.isHome ? 1 : 0,
+      match.competition ?? '',
+      match.homeTeamName ?? (match.isHome ? team.name : match.opponent),
+      match.awayTeamName ?? (match.isHome ? match.opponent : team.name),
+      match.homeLogoUrl ?? '',
+      match.awayLogoUrl ?? '',
+      '',
+      timestamp,
+    )
+    importedCount += 1
+
+    if (match.matchUrl) {
+      matchIdToUrl.set(matchId, match.matchUrl)
+    }
+  })
+
+  const nowDate = Date.now()
+  for (const [matchId, matchUrl] of matchIdToUrl.entries()) {
+    const row = db.prepare('SELECT kickoff_at, result FROM matches WHERE id = ?').get(matchId) as
+      | { kickoff_at: string; result: string }
+      | undefined
+
+    if (!row) {
+      continue
+    }
+
+    const kickoffTime = new Date(row.kickoff_at).getTime()
+    if (!Number.isFinite(kickoffTime) || kickoffTime > nowDate) {
+      continue
+    }
+
+    if (row.result && row.result.trim()) {
+      continue
+    }
+
+    const result = await fetchMatchResultFromFussballDe(matchUrl)
+    if (!result) {
+      continue
+    }
+
+    db.prepare('UPDATE matches SET result = ? WHERE id = ?').run(result, matchId)
+  }
+
+  return {
+    importedCount,
+  }
+}
+
+let automaticImportStarted = false
+let automaticImportRunning = false
+
+export const startAutomaticFussballDeImports = () => {
+  if (automaticImportStarted || process.env.DISABLE_AUTO_FUSSBALLDE_IMPORT === 'true') {
+    return
+  }
+
+  automaticImportStarted = true
+  const intervalMs = 6 * 60 * 60 * 1000
+
+  const runAutomaticImport = async (reason: 'startup' | 'interval') => {
+    if (automaticImportRunning) {
+      return
+    }
+
+    automaticImportRunning = true
+
+    try {
+      const teams = db.prepare(`
+        SELECT id, name, season, fussball_de_team_id, location
+        FROM teams
+        WHERE TRIM(COALESCE(fussball_de_team_id, '')) <> ''
+        ORDER BY age_group ASC
+      `).all() as FussballDeImportTeam[]
+
+      let importedTotal = 0
+
+      for (const team of teams) {
+        try {
+          const result = await importMatchesForTeamFromFussballDe(team)
+          importedTotal += result.importedCount
+        } catch (error) {
+          console.error(
+            `[fussball.de auto-import] ${team.name} fehlgeschlagen: ${
+              error instanceof Error ? error.message : 'Unbekannter Fehler'
+            }`,
+          )
+        }
+      }
+
+      console.log(
+        `[fussball.de auto-import] ${reason} abgeschlossen: ${teams.length} Team(s), ${importedTotal} neue Spiele.`,
+      )
+    } finally {
+      automaticImportRunning = false
+    }
+  }
+
+  setTimeout(() => {
+    void runAutomaticImport('startup')
+  }, 60_000)
+
+  setInterval(() => {
+    void runAutomaticImport('interval')
+  }, intervalMs)
+
+  console.log('[fussball.de auto-import] aktiviert: automatischer Abgleich alle 6 Stunden.')
 }
 
 router.get('/', (_req: Request, res: Response) => {
@@ -522,11 +814,7 @@ router.post('/:id/import-fussballde', async (req: Request, res: Response) => {
   const { id } = req.params
   const actorId = req.body.actorId as string | undefined
 
-  const team = db
-    .prepare('SELECT id, name, season, fussball_de_team_id, location FROM teams WHERE id = ?')
-    .get(id) as
-    | { id: string; name: string; season: string; fussball_de_team_id: string; location: string }
-    | undefined
+  const team = getTeamForFussballDeImport(id)
 
   if (!team) {
     res.status(404).json({ success: false, error: 'Mannschaft nicht gefunden.' })
@@ -565,230 +853,73 @@ router.post('/:id/import-fussballde', async (req: Request, res: Response) => {
   }
 
   try {
-    const seasonRanges = (() => {
-      const ranges: Array<{ from: string | null; to: string | null }> = []
-      const current = getSeasonDateRange(team.season)
-      if (current) {
-        ranges.push(current)
-      }
-
-      const prevSeason = getPreviousSeason(team.season)
-      if (prevSeason) {
-        const previous = getSeasonDateRange(prevSeason)
-        if (previous) {
-          ranges.push(previous)
-        }
-      }
-
-      return ranges.length ? ranges : [{ from: null, to: null }]
-    })()
-
-    const importedMatches: Array<{
-      opponent: string
-      kickoffAt: string
-      location: string
-      isHome: boolean
-      competition: string
-      homeTeamName: string
-      awayTeamName: string
-      homeLogoUrl: string | null
-      awayLogoUrl: string | null
-      matchUrl: string | null
-    }> = []
-
-    for (const range of seasonRanges) {
-      const max = 200
-      let offset = 0
-      let finished = false
-
-      while (!finished) {
-        const url = buildFussballDeMatchplanUrl({
-          teamId: normalizedTeamId,
-          from: range?.from ?? null,
-          to: range?.to ?? null,
-          max,
-          offset,
-        })
-
-        const response = await fetch(url, {
-          headers: {
-            'user-agent':
-              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
-          },
-        })
-
-        if (!response.ok) {
-          res.status(502).json({
-            success: false,
-            error: 'fussball.de konnte gerade nicht geladen werden.',
-          })
-          return
-        }
-
-        const data = (await response.json()) as {
-          success: boolean
-          html?: string
-          final?: boolean
-          lastIndex?: number
-        }
-
-        if (!data.success || !data.html) {
-          finished = true
-          continue
-        }
-
-        const parsed = parseFussballDeMatches(data.html, team.name, normalizedTeamId)
-        importedMatches.push(...parsed)
-
-        if (data.final || typeof data.lastIndex !== 'number' || data.lastIndex < max - 1) {
-          finished = true
-        } else {
-          offset += max
-        }
-      }
-    }
-
-    const uniqueKey = (match: { opponent: string; kickoffAt: string }) =>
-      `${match.opponent}__${match.kickoffAt}`
-    const uniqueMatches = Array.from(
-      new Map(importedMatches.map((match) => [uniqueKey(match), match])).values(),
-    )
-
-    if (!uniqueMatches.length) {
-      res.status(400).json({
-        success: false,
-        error: 'Es konnten keine Spiele aus fussball.de erkannt werden.',
-      })
-      return
-    }
-
-    const insertMatch = db.prepare(`
-      INSERT INTO matches (
-        id,
-        team_id,
-        opponent,
-        kickoff_at,
-        location,
-        is_home,
-        competition,
-        home_team_name,
-        away_team_name,
-        home_logo_url,
-        away_logo_url,
-        result,
-        created_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `)
-    const findExisting = db.prepare(`
-      SELECT id, result
-      FROM matches
-      WHERE team_id = ? AND opponent = ? AND kickoff_at = ?
-      LIMIT 1
-    `)
-    const updateMatch = db.prepare(`
-      UPDATE matches
-      SET
-        location = ?,
-        is_home = ?,
-        competition = ?,
-        home_team_name = ?,
-        away_team_name = ?,
-        home_logo_url = ?,
-        away_logo_url = ?,
-        result = COALESCE(NULLIF(?, ''), result)
-      WHERE id = ?
-    `)
-
-    let importedCount = 0
-    const timestamp = now()
-    const matchIdToUrl = new Map<string, string>()
-
-    uniqueMatches.forEach((match) => {
-      const location = match.location || (match.isHome ? team.location : 'Auswaertsspiel')
-      const existing = findExisting.get(id, match.opponent, match.kickoffAt) as
-        | { id: string; result: string }
-        | undefined
-
-      if (existing) {
-        updateMatch.run(
-          location,
-          match.isHome ? 1 : 0,
-          match.competition ?? '',
-          match.homeTeamName ?? (match.isHome ? team.name : match.opponent),
-          match.awayTeamName ?? (match.isHome ? match.opponent : team.name),
-          match.homeLogoUrl ?? '',
-          match.awayLogoUrl ?? '',
-          '',
-          existing.id,
-        )
-        if (match.matchUrl) {
-          matchIdToUrl.set(existing.id, match.matchUrl)
-        }
-        return
-      }
-
-      const matchId = createId('match')
-      insertMatch.run(
-        matchId,
-        id,
-        match.opponent,
-        match.kickoffAt,
-        location,
-        match.isHome ? 1 : 0,
-        match.competition ?? '',
-        match.homeTeamName ?? (match.isHome ? team.name : match.opponent),
-        match.awayTeamName ?? (match.isHome ? match.opponent : team.name),
-        match.homeLogoUrl ?? '',
-        match.awayLogoUrl ?? '',
-        '',
-        timestamp,
-      )
-      importedCount += 1
-
-      if (match.matchUrl) {
-        matchIdToUrl.set(matchId, match.matchUrl)
-      }
-    })
-
-    const nowDate = Date.now()
-    for (const [matchId, matchUrl] of matchIdToUrl.entries()) {
-      const row = db.prepare('SELECT kickoff_at, result FROM matches WHERE id = ?').get(matchId) as
-        | { kickoff_at: string; result: string }
-        | undefined
-
-      if (!row) {
-        continue
-      }
-
-      const kickoffTime = new Date(row.kickoff_at).getTime()
-      if (!Number.isFinite(kickoffTime) || kickoffTime > nowDate) {
-        continue
-      }
-
-      if (row.result && row.result.trim()) {
-        continue
-      }
-
-      const result = await fetchMatchResultFromFussballDe(matchUrl)
-      if (!result) {
-        continue
-      }
-
-      db.prepare('UPDATE matches SET result = ? WHERE id = ?').run(result, matchId)
-    }
+    const { importedCount } = await importMatchesForTeamFromFussballDe(team)
 
     res.json({
       success: true,
       importedCount,
       ...getBootstrapData(actorId),
     })
-  } catch {
+  } catch (error) {
     res.status(500).json({
       success: false,
-      error: 'Der Import von fussball.de ist fehlgeschlagen.',
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Der Import von fussball.de ist fehlgeschlagen.',
     })
   }
+})
+
+router.delete('/:id/matches-season', (req: Request, res: Response) => {
+  const { id } = req.params
+  const { actorId, season } = req.body as {
+    actorId?: string
+    season?: string
+  }
+
+  const actor = actorId ? getUserRowById(actorId) : undefined
+  if (!actor || actor.role !== 'admin') {
+    res.status(403).json({
+      success: false,
+      error: 'Saisondaten duerfen nur vom Admin geloescht werden.',
+    })
+    return
+  }
+
+  const team = db.prepare('SELECT id FROM teams WHERE id = ?').get(id) as { id: string } | undefined
+  if (!team) {
+    res.status(404).json({ success: false, error: 'Mannschaft nicht gefunden.' })
+    return
+  }
+
+  const normalizedSeason = (season ?? '').trim()
+  const range = getSeasonDateRange(normalizedSeason)
+  if (!range) {
+    res.status(400).json({ success: false, error: 'Bitte eine gueltige Saison angeben.' })
+    return
+  }
+
+  const countRow = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM matches
+    WHERE team_id = ?
+      AND substr(kickoff_at, 1, 10) >= ?
+      AND substr(kickoff_at, 1, 10) <= ?
+  `).get(id, range.from, range.to) as { count: number }
+
+  db.prepare(`
+    DELETE FROM matches
+    WHERE team_id = ?
+      AND substr(kickoff_at, 1, 10) >= ?
+      AND substr(kickoff_at, 1, 10) <= ?
+  `).run(id, range.from, range.to)
+
+  res.json({
+    success: true,
+    deletedCount: countRow.count,
+    ...getBootstrapData(actorId),
+  })
 })
 
 router.put('/:id/members', (req: Request, res: Response) => {

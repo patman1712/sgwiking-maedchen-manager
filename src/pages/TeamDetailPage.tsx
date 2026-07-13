@@ -28,6 +28,9 @@ export default function TeamDetailPage() {
   const importTeamMatchesFromFussballDe = useAppStore(
     (state) => state.importTeamMatchesFromFussballDe,
   );
+  const deleteTeamMatchesBySeason = useAppStore(
+    (state) => state.deleteTeamMatchesBySeason,
+  );
   const addMatch = useAppStore((state) => state.addMatch);
   const updateMatch = useAppStore((state) => state.updateMatch);
   const deleteMatch = useAppStore((state) => state.deleteMatch);
@@ -66,6 +69,7 @@ export default function TeamDetailPage() {
   });
   const [matchResultDrafts, setMatchResultDrafts] = useState<Record<string, string>>({});
   const [matchImporting, setMatchImporting] = useState(false);
+  const [seasonDeleting, setSeasonDeleting] = useState<string | null>(null);
   const [matchImportMessage, setMatchImportMessage] = useState("");
   const [matchImportError, setMatchImportError] = useState("");
   const [expandedArchivedSeasons, setExpandedArchivedSeasons] = useState<string[]>([]);
@@ -110,6 +114,7 @@ export default function TeamDetailPage() {
   const canManageMatchesHere = canManagePlayersHere;
   const canEditTeam =
     currentUser?.role === "admin" || currentUser?.role === "board";
+  const canDeleteSeasonMatches = currentUser?.role === "admin";
   const existingConversationId = useMemo(
     () =>
       conversations.find(
@@ -208,6 +213,37 @@ export default function TeamDetailPage() {
   const primarySeasonMatches = teamMatchesBySeason[primarySeasonLabel] ?? [];
   const archivedSeasonEntries = teamSeasonEntries.filter(
     ([seasonLabel]) => seasonLabel !== primarySeasonLabel,
+  );
+
+  const handleDeleteSeasonMatches = useCallback(
+    async (seasonLabel: string) => {
+      const confirmed = window.confirm(
+        `Wirklich alle Spiele der Saison ${seasonLabel} fuer ${team.name} loeschen?`,
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      setMatchImportError("");
+      setMatchImportMessage("");
+      setSeasonDeleting(seasonLabel);
+
+      const result = await deleteTeamMatchesBySeason(team.id, seasonLabel);
+
+      if (result.success) {
+        setMatchImportMessage(
+          `${result.deletedCount ?? 0} Spiel(e) aus ${seasonLabel} wurden geloescht.`,
+        );
+      } else {
+        setMatchImportError(
+          result.error ?? "Saisondaten konnten nicht geloescht werden.",
+        );
+      }
+
+      setSeasonDeleting(null);
+    },
+    [deleteTeamMatchesBySeason, team.id, team.name],
   );
 
   const loadLeagueTable = useCallback(async () => {
@@ -445,7 +481,8 @@ export default function TeamDetailPage() {
                         </p>
                         <p className="mt-1 text-sm text-slate-600">
                           Hinterlege in der Verwaltung die Team-ID und ziehe die Spiele per Klick
-                          direkt in euren Spielplan.
+                          direkt in euren Spielplan. Danach gleicht der Server die Daten
+                          automatisch 4x pro Tag ab.
                         </p>
                       </div>
                       <button
@@ -771,12 +808,28 @@ export default function TeamDetailPage() {
               {teamMatches.length ? (
                 <div className="space-y-3">
                   <div className="rounded-3xl border border-blue-100 bg-blue-50/60 px-5 py-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-800">
-                      Aktuelle Saison
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-slate-900">
-                      {primarySeasonLabel}
-                    </p>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-800">
+                          Aktuelle Saison
+                        </p>
+                        <p className="mt-1 text-lg font-semibold text-slate-900">
+                          {primarySeasonLabel}
+                        </p>
+                      </div>
+                      {canDeleteSeasonMatches ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteSeasonMatches(primarySeasonLabel)}
+                          disabled={seasonDeleting === primarySeasonLabel}
+                          className="rounded-2xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {seasonDeleting === primarySeasonLabel
+                            ? "Wird geloescht..."
+                            : `Saison ${primarySeasonLabel} loeschen`}
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
 
                   {primarySeasonMatches.map((match) => {
@@ -931,10 +984,22 @@ export default function TeamDetailPage() {
                       {archivedSeasonEntries.map(([seasonLabel, seasonMatches]) =>
                         expandedArchivedSeasons.includes(seasonLabel) ? (
                           <div key={seasonLabel} className="space-y-3 pt-2">
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                               <p className="text-sm font-semibold text-slate-900">
                                 Saison {seasonLabel}
                               </p>
+                              {canDeleteSeasonMatches ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleDeleteSeasonMatches(seasonLabel)}
+                                  disabled={seasonDeleting === seasonLabel}
+                                  className="rounded-2xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {seasonDeleting === seasonLabel
+                                    ? "Wird geloescht..."
+                                    : `Saison ${seasonLabel} loeschen`}
+                                </button>
+                              ) : null}
                             </div>
                             {seasonMatches.map((match) => {
                               const homeTeamName = getHomeTeamName(match);

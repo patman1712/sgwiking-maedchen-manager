@@ -19,7 +19,7 @@ import conversationsRoutes from './routes/conversations.js'
 import matchesRoutes from './routes/matches.js'
 import messagesRoutes from './routes/messages.js'
 import settingsRoutes from './routes/settings.js'
-import teamsRoutes from './routes/teams.js'
+import teamsRoutes, { startAutomaticFussballDeImports } from './routes/teams.js'
 import usersRoutes from './routes/users.js'
 
 // for esm mode
@@ -51,6 +51,8 @@ app.use('/api/conversations', conversationsRoutes)
 app.use('/api/messages', messagesRoutes)
 app.use('/api/settings', settingsRoutes)
 app.use('/uploads', express.static(uploadPath))
+
+startAutomaticFussballDeImports()
 
 /**
  * health

@@ -93,6 +93,10 @@ interface AppState {
   updateTeam: (teamId: string, input: TeamInput) => Promise<ActionResult>;
   uploadTeamPhoto: (teamId: string, file: File) => Promise<ActionResult>;
   importTeamMatchesFromFussballDe: (teamId: string) => Promise<ActionResult & { importedCount?: number }>;
+  deleteTeamMatchesBySeason: (
+    teamId: string,
+    season: string,
+  ) => Promise<ActionResult & { deletedCount?: number }>;
   addUser: (input: UserInput) => Promise<ActionResult>;
   updateUser: (input: UserUpdateInput) => Promise<ActionResult>;
   deleteUser: (userId: string) => Promise<ActionResult>;
@@ -332,6 +336,35 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Spielplan konnte nicht importiert werden.",
+          };
+        }
+      },
+      deleteTeamMatchesBySeason: async (teamId, season) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/teams/${teamId}/matches-season`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId, season }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload & {
+            deletedCount?: number;
+          };
+          applyPayload(set, data, actorId);
+
+          return { success: true, deletedCount: data.deletedCount ?? 0 };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Saisondaten konnten nicht geloescht werden.",
           };
         }
       },
