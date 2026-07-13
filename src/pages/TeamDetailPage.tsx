@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ChevronLeft, MessageSquare } from "lucide-react";
+import { ChevronLeft, MessageSquare, Shield } from "lucide-react";
 import SectionCard from "@/components/SectionCard";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store";
@@ -14,14 +14,6 @@ const teamSections = [
 
 type TeamSection = (typeof teamSections)[number]["key"];
 
-const emptyPlayerForm = {
-  fullName: "",
-  email: "",
-  phone: "",
-  notes: "",
-  password: "",
-};
-
 export default function TeamDetailPage() {
   const { teamId, section } = useParams();
   const teams = useAppStore((state) => state.teams);
@@ -29,7 +21,6 @@ export default function TeamDetailPage() {
   const conversations = useAppStore((state) => state.conversations);
   const currentUserId = useAppStore((state) => state.currentUserId);
   const updateTeam = useAppStore((state) => state.updateTeam);
-  const updateUser = useAppStore((state) => state.updateUser);
   const ensureTeamConversation = useAppStore((state) => state.ensureTeamConversation);
   const navigate = useNavigate();
 
@@ -41,6 +32,10 @@ export default function TeamDetailPage() {
     () => users.find((user) => user.id === currentUserId) ?? null,
     [currentUserId, users],
   );
+  const [imageModal, setImageModal] = useState<{
+    src: string;
+    alt: string;
+  } | null>(null);
   const [form, setForm] = useState({
     name: "",
     ageGroup: "",
@@ -49,9 +44,6 @@ export default function TeamDetailPage() {
     location: "",
     notes: "",
   });
-  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
-  const [playerForm, setPlayerForm] = useState(emptyPlayerForm);
-  const [playerError, setPlayerError] = useState("");
 
   const assignedTrainers = useMemo(
     () =>
@@ -104,30 +96,6 @@ export default function TeamDetailPage() {
 
   const teamTrainerCount = assignedTrainers.length;
   const teamPlayerCount = assignedPlayers.length;
-
-  const startPlayerEdit = (playerId: string) => {
-    const player = assignedPlayers.find((entry) => entry.id === playerId);
-
-    if (!player) {
-      return;
-    }
-
-    setEditingPlayerId(player.id);
-    setPlayerError("");
-    setPlayerForm({
-      fullName: player.fullName,
-      email: player.email,
-      phone: player.phone,
-      notes: player.notes,
-      password: "",
-    });
-  };
-
-  const stopPlayerEdit = () => {
-    setEditingPlayerId(null);
-    setPlayerError("");
-    setPlayerForm(emptyPlayerForm);
-  };
 
   return (
     <div className="space-y-6">
@@ -195,91 +163,108 @@ export default function TeamDetailPage() {
       </div>
 
       {activeSection === "kader" ? (
-        <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="space-y-6">
           <SectionCard
-            title="Kader und Betreuung"
-            description="Hier werden nur die bereits zugewiesenen Trainerinnen, Trainer und Spielerinnen dieser Mannschaft angezeigt."
+            title="Trainer-Betreuer"
+            description="Hier werden nur die bereits zugewiesenen Trainerinnen und Trainer dieser Mannschaft angezeigt."
           >
-            <div className="grid gap-6 lg:grid-cols-2">
-              <div>
-                <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Zugewiesene Trainerinnen / Trainer
-                </h3>
-                <div className="mt-4 space-y-3">
-                  {assignedTrainers.length ? (
-                    assignedTrainers.map((trainer) => (
-                      <div
-                        key={trainer.id}
-                        className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
-                      >
-                        <span className="block text-sm font-medium text-slate-900">
-                          {trainer.fullName}
-                        </span>
-                        <span className="mt-1 block text-xs text-slate-500">
-                          {trainer.email}
-                        </span>
-                        {trainer.phone ? (
-                          <span className="mt-1 block text-xs text-slate-500">
-                            {trainer.phone}
-                          </span>
-                        ) : null}
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {assignedTrainers.length ? (
+                assignedTrainers.map((trainer) => (
+                  <div
+                    key={trainer.id}
+                    className="rounded-3xl border border-slate-200 bg-slate-50 p-5"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100 text-blue-900">
+                        <Shield size={28} />
                       </div>
-                    ))
-                  ) : (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                      Dieser Mannschaft ist aktuell noch kein Trainer zugewiesen.
+                      <div className="min-w-0">
+                        <h3 className="truncate text-base font-semibold text-slate-900">
+                          {trainer.fullName}
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-500">Trainer-Betreuer</p>
+                      </div>
                     </div>
-                  )}
+                    <div className="mt-4 space-y-1 text-sm text-slate-600">
+                      <p className="truncate">{trainer.email}</p>
+                      {trainer.phone ? <p>{trainer.phone}</p> : null}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500">
+                  Dieser Mannschaft ist aktuell noch kein Trainer zugewiesen.
                 </div>
-              </div>
+              )}
+            </div>
+          </SectionCard>
 
-              <div>
-                <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Zugewiesene Spielerinnen
-                </h3>
-                <div className="mt-4 space-y-3">
-                  {assignedPlayers.length ? (
-                    assignedPlayers.map((player) => (
-                      <div
-                        key={player.id}
-                        className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <span className="block text-sm font-medium text-slate-900">
-                              {player.fullName}
-                            </span>
-                            <span className="mt-1 block text-xs text-slate-500">
-                              {player.email}
-                            </span>
-                            {player.phone ? (
-                              <span className="mt-1 block text-xs text-slate-500">
-                                {player.phone}
-                              </span>
-                            ) : null}
+          <SectionCard
+            title="Spielerinnen"
+            description="Hier werden nur die bereits zugewiesenen Spielerinnen dieser Mannschaft angezeigt."
+          >
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {assignedPlayers.length ? (
+                assignedPlayers.map((player) => (
+                  <div
+                    key={player.id}
+                    className="rounded-3xl border border-slate-200 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white hover:shadow-md"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        {player.avatarUrl ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setImageModal({
+                                src: player.avatarUrl!,
+                                alt: player.fullName,
+                              })
+                            }
+                            className="overflow-hidden rounded-2xl"
+                          >
+                            <img
+                              src={player.avatarUrl}
+                              alt={player.fullName}
+                              className="h-20 w-20 rounded-2xl object-cover"
+                              loading="lazy"
+                            />
+                          </button>
+                        ) : (
+                          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-blue-100 text-blue-900">
+                            <Shield size={28} />
                           </div>
-                          {canManagePlayersHere ? (
-                            <button
-                              type="button"
-                              onClick={() => startPlayerEdit(player.id)}
-                              className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-900 transition hover:bg-blue-100"
-                            >
-                              Bearbeiten
-                            </button>
+                        )}
+
+                        <div className="min-w-0">
+                          <h3 className="truncate text-base font-semibold text-slate-900">
+                            {player.fullName}
+                          </h3>
+                          <p className="mt-1 truncate text-sm text-slate-500">{player.email}</p>
+                          {player.phone ? (
+                            <p className="mt-1 text-sm text-slate-500">{player.phone}</p>
                           ) : null}
                         </div>
-                        {player.notes ? (
-                          <p className="mt-3 text-xs text-slate-600">{player.notes}</p>
-                        ) : null}
                       </div>
-                    ))
-                  ) : (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                      Dieser Mannschaft sind aktuell noch keine Spielerinnen zugewiesen.
+
+                      {canManagePlayersHere ? (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/dashboard/players/${player.id}`)}
+                          className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-900 transition hover:bg-blue-100"
+                        >
+                          Bearbeiten
+                        </button>
+                      ) : null}
                     </div>
-                  )}
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500">
+                  Dieser Mannschaft sind aktuell noch keine Spielerinnen zugewiesen.
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="mt-6 rounded-3xl bg-blue-50 px-5 py-4 text-sm text-blue-900">
@@ -287,142 +272,6 @@ export default function TeamDetailPage() {
               <span className="font-semibold">Spielerinnen</span> gepflegt. Dort duerfen nur
               Admin und Vorstand die Zuordnung aendern.
             </div>
-          </SectionCard>
-
-          <SectionCard
-            title="Spielerinnen bearbeiten"
-            description="Zustaendige Trainer sowie Admin und Vorstand koennen hier die bereits zugewiesenen Spielerinnen dieser Mannschaft pflegen."
-          >
-            {!canManagePlayersHere ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                Nur zugeordnete Trainer, Admin oder Vorstand koennen Spielerinnen dieser
-                Mannschaft bearbeiten.
-              </div>
-            ) : !editingPlayerId ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                Waehle rechts bei einer zugewiesenen Spielerin den Button{" "}
-                <span className="font-semibold">Bearbeiten</span>.
-              </div>
-            ) : (
-              <form
-                className="space-y-4"
-                onSubmit={async (event) => {
-                  event.preventDefault();
-
-                  const player = assignedPlayers.find((entry) => entry.id === editingPlayerId);
-                  if (!player) {
-                    setPlayerError("Die Spielerin konnte nicht gefunden werden.");
-                    return;
-                  }
-
-                  const result = await updateUser({
-                    userId: player.id,
-                    fullName: playerForm.fullName,
-                    email: playerForm.email,
-                    phone: playerForm.phone,
-                    notes: playerForm.notes,
-                    password: playerForm.password.trim() || undefined,
-                    role: "player",
-                  });
-
-                  if (!result.success) {
-                    setPlayerError(result.error ?? "Spielerin konnte nicht gespeichert werden.");
-                    return;
-                  }
-
-                  stopPlayerEdit();
-                }}
-              >
-                {playerError ? (
-                  <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                    {playerError}
-                  </div>
-                ) : null}
-
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-slate-700">Name</span>
-                  <input
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                    value={playerForm.fullName}
-                    onChange={(event) =>
-                      setPlayerForm({ ...playerForm, fullName: event.target.value })
-                    }
-                    required
-                  />
-                </label>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-slate-700">
-                      Login / E-Mail
-                    </span>
-                    <input
-                      type="email"
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                      value={playerForm.email}
-                      onChange={(event) =>
-                        setPlayerForm({ ...playerForm, email: event.target.value })
-                      }
-                      required
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-slate-700">
-                      Telefon
-                    </span>
-                    <input
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                      value={playerForm.phone}
-                      onChange={(event) =>
-                        setPlayerForm({ ...playerForm, phone: event.target.value })
-                      }
-                    />
-                  </label>
-                </div>
-
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-slate-700">
-                    Neues Passwort
-                  </span>
-                  <input
-                    type="password"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                    value={playerForm.password}
-                    onChange={(event) =>
-                      setPlayerForm({ ...playerForm, password: event.target.value })
-                    }
-                    placeholder="Leer lassen, wenn es unveraendert bleiben soll"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-slate-700">Notizen</span>
-                  <textarea
-                    className="min-h-28 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                    value={playerForm.notes}
-                    onChange={(event) =>
-                      setPlayerForm({ ...playerForm, notes: event.target.value })
-                    }
-                  />
-                </label>
-
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="submit"
-                    className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
-                  >
-                    Spielerin speichern
-                  </button>
-                  <button
-                    type="button"
-                    onClick={stopPlayerEdit}
-                    className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Abbrechen
-                  </button>
-                </div>
-              </form>
-            )}
           </SectionCard>
         </div>
       ) : null}
@@ -588,6 +437,24 @@ export default function TeamDetailPage() {
             </div>
           </form>
         </SectionCard>
+      ) : null}
+
+      {imageModal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-6"
+          onClick={() => setImageModal(null)}
+        >
+          <div
+            className="max-h-[90vh] max-w-[90vw] overflow-hidden rounded-[2rem] bg-white p-3 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <img
+              src={imageModal.src}
+              alt={imageModal.alt}
+              className="max-h-[82vh] max-w-[82vw] rounded-[1.5rem] object-contain"
+            />
+          </div>
+        </div>
       ) : null}
     </div>
   );

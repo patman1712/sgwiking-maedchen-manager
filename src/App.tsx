@@ -6,6 +6,7 @@ import DashboardLayout from "@/pages/DashboardLayout";
 import Login from "@/pages/Login";
 import MessagesPage from "@/pages/MessagesPage";
 import PlayersPage from "@/pages/PlayersPage";
+import PlayerEditPage from "@/pages/PlayerEditPage";
 import ProfilePage from "@/pages/ProfilePage";
 import SettingsPage from "@/pages/SettingsPage";
 import TeamDetailPage from "@/pages/TeamDetailPage";
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="teams/:teamId/:section" element={<TeamDetailPage />} />
           <Route path="trainers" element={<TrainersPage />} />
           <Route path="players" element={<PlayersPage />} />
+          <Route path="players/:playerId" element={<PlayerEditPage />} />
           <Route path="board" element={<BoardPage />} />
           <Route path="users" element={<Navigate to="/dashboard/trainers" replace />} />
           <Route path="messages" element={<MessagesPage />} />

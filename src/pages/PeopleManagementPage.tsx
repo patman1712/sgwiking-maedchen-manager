@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import SectionCard from "@/components/SectionCard";
 import { useAppStore } from "@/store";
 import type { UserRole } from "@/types";
@@ -68,6 +69,7 @@ export default function PeopleManagementPage({
   const currentUserId = useAppStore((state) => state.currentUserId);
   const addUser = useAppStore((state) => state.addUser);
   const updateUser = useAppStore((state) => state.updateUser);
+  const navigate = useNavigate();
   const [form, setForm] = useState(createEmptyForm(role));
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -87,6 +89,11 @@ export default function PeopleManagementPage({
   );
 
   const startEdit = (userId: string) => {
+    if (role === "player") {
+      navigate(`/dashboard/players/${userId}`);
+      return;
+    }
+
     const user = filteredUsers.find((entry) => entry.id === userId);
 
     if (!user) {

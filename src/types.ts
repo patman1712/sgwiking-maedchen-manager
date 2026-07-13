@@ -20,6 +20,7 @@ export interface UserProfile {
   role: UserRole;
   teamIds: string[];
   notes: string;
+  avatarUrl?: string | null;
   createdAt: string;
 }
 

@@ -1,9 +1,13 @@
+import fs from 'fs'
+import path from 'path'
 import bcrypt from 'bcryptjs'
+import multer from 'multer'
 import { Router, type Request, type Response } from 'express'
 import db, {
   canEditPlayer,
   canManagePlayerFromMenu,
   createId,
+  DATA_DIR,
   getBootstrapData,
   getTeamIdsByUserId,
   getUserRowById,
@@ -12,6 +16,20 @@ import db, {
 } from '../db.js'
 
 const router = Router()
+const uploadDir = path.join(DATA_DIR, 'uploads', 'players')
+fs.mkdirSync(uploadDir, { recursive: true })
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, callback) => {
+    callback(null, uploadDir)
+  },
+  filename: (req, file, callback) => {
+    const extension = path.extname(file.originalname) || '.jpg'
+    callback(null, `player-${req.params.id}-${Date.now()}${extension}`)
+  },
+})
+
+const upload = multer({ storage })
 
 const rebuildTeamConversationParticipants = (teamId: string, timestamp: string) => {
   const teamConversation = db
@@ -119,8 +137,8 @@ router.post('/', (req: Request, res: Response) => {
   const userId = createId('user')
   const timestamp = now()
   const insertUser = db.prepare(`
-    INSERT INTO users (id, full_name, email, password, phone, role, notes, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (id, full_name, email, password, phone, role, notes, avatar_url, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertMember = db.prepare(`
     INSERT INTO team_members (id, team_id, user_id, membership_role, created_at)
@@ -140,6 +158,7 @@ router.post('/', (req: Request, res: Response) => {
       phone ?? '',
       role,
       notes ?? '',
+      null,
       timestamp,
     )
 
@@ -272,6 +291,49 @@ router.put('/:id', (req: Request, res: Response) => {
 
   res.json({
     success: true,
+    ...getBootstrapData(actorId),
+  })
+})
+
+router.post('/:id/avatar', upload.single('avatar'), (req: Request, res: Response) => {
+  const { id } = req.params
+  const actorId = req.body.actorId as string | undefined
+  const user = getUserRowById(id)
+
+  if (!user) {
+    res.status(404).json({ success: false, error: 'Benutzer nicht gefunden.' })
+    return
+  }
+
+  if (!actorId) {
+    res.status(400).json({ success: false, error: 'Fehlender Benutzerkontext.' })
+    return
+  }
+
+  const isAllowed =
+    actorId === id ||
+    isAdminOrBoard(actorId) ||
+    (user.role === 'player' && canEditPlayer(actorId, id))
+
+  if (!isAllowed) {
+    res.status(403).json({
+      success: false,
+      error: 'Dieses Profilbild kann hier nicht bearbeitet werden.',
+    })
+    return
+  }
+
+  if (!req.file) {
+    res.status(400).json({ success: false, error: 'Bitte eine Bilddatei auswaehlen.' })
+    return
+  }
+
+  const avatarUrl = `/uploads/players/${req.file.filename}?v=${encodeURIComponent(now())}`
+  db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').run(avatarUrl, id)
+
+  res.json({
+    success: true,
+    avatarUrl,
     ...getBootstrapData(actorId),
   })
 })

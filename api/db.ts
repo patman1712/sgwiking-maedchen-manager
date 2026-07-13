@@ -32,11 +32,12 @@ if (usersTableSql && !usersTableSql.sql.includes("'board'")) {
         phone TEXT DEFAULT '',
         role TEXT NOT NULL CHECK(role IN ('admin', 'trainer', 'player', 'board')),
         notes TEXT DEFAULT '',
+        avatar_url TEXT DEFAULT NULL,
         created_at TEXT NOT NULL
       );
 
-      INSERT INTO users_new (id, full_name, email, password, phone, role, notes, created_at)
-      SELECT id, full_name, email, password, phone, role, notes, created_at
+      INSERT INTO users_new (id, full_name, email, password, phone, role, notes, avatar_url, created_at)
+      SELECT id, full_name, email, password, phone, role, notes, NULL, created_at
       FROM users;
 
       DROP TABLE users;
@@ -71,6 +72,7 @@ db.exec(`
     phone TEXT DEFAULT '',
     role TEXT NOT NULL CHECK(role IN ('admin', 'trainer', 'player', 'board')),
     notes TEXT DEFAULT '',
+    avatar_url TEXT DEFAULT NULL,
     created_at TEXT NOT NULL
   );
 
@@ -116,6 +118,14 @@ db.exec(`
   );
 `)
 
+const userColumns = (
+  db.prepare("PRAGMA table_info(users)").all() as { name: string }[]
+).map((column) => column.name)
+
+if (!userColumns.includes('avatar_url')) {
+  db.prepare('ALTER TABLE users ADD COLUMN avatar_url TEXT DEFAULT NULL').run()
+}
+
 const now = () => new Date().toISOString()
 const createId = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 10)}`
 
@@ -128,8 +138,8 @@ if (teamCount.count === 0) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertUser = db.prepare(`
-    INSERT INTO users (id, full_name, email, password, phone, role, notes, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (id, full_name, email, password, phone, role, notes, avatar_url, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertMember = db.prepare(`
     INSERT INTO team_members (id, team_id, user_id, membership_role, created_at)
@@ -279,6 +289,7 @@ if (teamCount.count === 0) {
         user.phone,
         user.role,
         user.notes,
+        null,
         createdAt,
       )
     })
@@ -360,8 +371,8 @@ const boardUserCount = db
 
 if (boardUserCount.count === 0) {
   db.prepare(`
-    INSERT INTO users (id, full_name, email, password, phone, role, notes, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (id, full_name, email, password, phone, role, notes, avatar_url, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     'user_board_1',
     'Katrin Weber',
@@ -370,6 +381,7 @@ if (boardUserCount.count === 0) {
     '0160 4455667',
     'board',
     'Vorstand Organisation und Vereinskoordination.',
+    null,
     now(),
   )
 }
@@ -393,6 +405,7 @@ type UserRow = {
   phone: string
   role: 'admin' | 'trainer' | 'player' | 'board'
   notes: string
+  avatar_url: string | null
   created_at: string
 }
 
@@ -443,6 +456,7 @@ export const mapUser = (row: UserRow, includePassword = false) => {
     role: row.role,
     teamIds: getTeamIdsByUserId(row.id),
     notes: row.notes,
+    avatarUrl: row.avatar_url,
     createdAt: row.created_at,
   }
 

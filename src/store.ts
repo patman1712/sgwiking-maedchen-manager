@@ -69,6 +69,7 @@ interface AppState {
   updateTeam: (teamId: string, input: TeamInput) => Promise<ActionResult>;
   addUser: (input: UserInput) => Promise<ActionResult>;
   updateUser: (input: UserUpdateInput) => Promise<ActionResult>;
+  uploadUserAvatar: (userId: string, file: File) => Promise<ActionResult>;
   updateCurrentUser: (input: {
     fullName: string;
     email: string;
@@ -277,6 +278,36 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Person konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      uploadUserAvatar: async (userId, file) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("avatar", file);
+          payload.append("actorId", actorId);
+
+          const response = await fetch(`/api/users/${userId}/avatar`, {
+            method: "POST",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Profilbild konnte nicht gespeichert werden.",
           };
         }
       },
