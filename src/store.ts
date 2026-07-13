@@ -42,6 +42,17 @@ interface ActionResult {
   error?: string;
 }
 
+interface UserUpdateInput {
+  userId: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  notes: string;
+  password?: string;
+  role?: UserRole;
+  teamIds?: string[];
+}
+
 interface AppState {
   teams: Team[];
   users: UserProfile[];
@@ -57,6 +68,7 @@ interface AppState {
   addTeam: (input: TeamInput) => Promise<ActionResult>;
   updateTeam: (teamId: string, input: TeamInput) => Promise<ActionResult>;
   addUser: (input: UserInput) => Promise<ActionResult>;
+  updateUser: (input: UserUpdateInput) => Promise<ActionResult>;
   updateCurrentUser: (input: {
     fullName: string;
     email: string;
@@ -220,13 +232,42 @@ export const useAppStore = create<AppState>()(
       },
       addUser: async (input) => {
         try {
+          const actorId = get().currentUserId;
           const response = await fetch("/api/users", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(input),
+            body: JSON.stringify({ ...input, actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
           applyPayload(set, data, get().currentUserId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Person konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      updateUser: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const { userId, ...payload } = input;
+          const response = await fetch(`/api/users/${userId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...payload, actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
 
           return { success: true };
         } catch (error) {
@@ -250,7 +291,7 @@ export const useAppStore = create<AppState>()(
           const response = await fetch(`/api/users/${currentUserId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(input),
+            body: JSON.stringify({ ...input, actorId: currentUserId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
           applyPayload(set, data, currentUserId);
@@ -268,10 +309,11 @@ export const useAppStore = create<AppState>()(
       },
       setTeamMembership: async (teamId, trainerIds, playerIds) => {
         try {
+          const actorId = get().currentUserId;
           const response = await fetch(`/api/teams/${teamId}/members`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ trainerIds, playerIds }),
+            body: JSON.stringify({ actorId, trainerIds, playerIds }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
           applyPayload(set, data, get().currentUserId);

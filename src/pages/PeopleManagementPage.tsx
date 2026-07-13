@@ -13,9 +13,9 @@ const roleConfig = {
     listTitle: "Trainerbereich",
     listDescription:
       "Hier verwaltest du alle Trainerinnen und Trainer getrennt von den Spielerinnen.",
-    formTitle: "Neue Trainerin oder neuen Trainer anlegen",
+    formTitle: "Trainerin oder Trainer anlegen / bearbeiten",
     formDescription:
-      "Trainerzugänge können direkt angelegt und passenden Mannschaften zugeordnet werden.",
+      "Teamzuordnungen und Zugangsdaten werden zentral im Verwaltungsbereich gepflegt.",
     roleLabel: "Trainer",
     selectLabel: "Trainerin / Trainer",
     emptyText: "Noch keinem Team zugeordnet",
@@ -26,9 +26,9 @@ const roleConfig = {
     listTitle: "Spielerinnenbereich",
     listDescription:
       "Alle Spielerinnen mit Teamzuordnung und Login liegen in einem eigenen Verwaltungsbereich.",
-    formTitle: "Neue Spielerin anlegen",
+    formTitle: "Spielerin anlegen / bearbeiten",
     formDescription:
-      "Spielerinnen erhalten einen eigenen Zugang und können direkt Teams zugewiesen werden.",
+      "Spielerinnen werden hier Teams zugewiesen. Dieser Bereich ist nur fuer Admin und Vorstand bearbeitbar.",
     roleLabel: "Spielerin",
     selectLabel: "Spielerin",
     emptyText: "Noch keinem Team zugeordnet",
@@ -39,9 +39,9 @@ const roleConfig = {
     listTitle: "Vorstandsbereich",
     listDescription:
       "Vorstandsmitglieder sind vom sportlichen Bereich getrennt und werden hier eigenständig gepflegt.",
-    formTitle: "Neues Vorstandsmitglied anlegen",
+    formTitle: "Vorstandsmitglied anlegen / bearbeiten",
     formDescription:
-      "Vorstandszugänge können unabhängig von Mannschaften erstellt werden.",
+      "Vorstandszugaenge koennen unabhaengig von Mannschaften erstellt oder angepasst werden.",
     roleLabel: "Vorstand",
     selectLabel: "Vorstand",
     emptyText: "Keine Teamzuordnung erforderlich",
@@ -49,23 +49,34 @@ const roleConfig = {
   },
 } as const;
 
+const createEmptyForm = (role: Extract<UserRole, "trainer" | "player" | "board">) => ({
+  fullName: "",
+  email: "",
+  password: "",
+  phone: "",
+  role,
+  teamIds: [] as string[],
+  notes: "",
+});
+
 export default function PeopleManagementPage({
   role,
 }: PeopleManagementPageProps) {
   const config = roleConfig[role];
   const teams = useAppStore((state) => state.teams);
   const users = useAppStore((state) => state.users);
+  const currentUserId = useAppStore((state) => state.currentUserId);
   const addUser = useAppStore((state) => state.addUser);
-  const [form, setForm] = useState({
-    fullName: "",
-    email: "",
-    password: "",
-    phone: "",
-    role,
-    teamIds: [] as string[],
-    notes: "",
-  });
+  const updateUser = useAppStore((state) => state.updateUser);
+  const [form, setForm] = useState(createEmptyForm(role));
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const currentUser = useMemo(
+    () => users.find((user) => user.id === currentUserId) ?? null,
+    [currentUserId, users],
+  );
+  const canManageFromMenu =
+    currentUser?.role === "admin" || currentUser?.role === "board";
 
   const filteredUsers = useMemo(
     () =>
@@ -75,21 +86,48 @@ export default function PeopleManagementPage({
     [role, users],
   );
 
+  const startEdit = (userId: string) => {
+    const user = filteredUsers.find((entry) => entry.id === userId);
+
+    if (!user) {
+      return;
+    }
+
+    setSelectedUserId(user.id);
+    setError("");
+    setForm({
+      fullName: user.fullName,
+      email: user.email,
+      password: "",
+      phone: user.phone,
+      role,
+      teamIds: user.teamIds,
+      notes: user.notes,
+    });
+  };
+
+  const resetForm = () => {
+    setSelectedUserId(null);
+    setError("");
+    setForm(createEmptyForm(role));
+  };
+
   return (
     <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
       <SectionCard title={config.listTitle} description={config.listDescription}>
         <div className="overflow-hidden rounded-3xl border border-slate-200">
-          <div className="grid grid-cols-[1.2fr_0.8fr_0.9fr_1fr] gap-4 bg-slate-100 px-5 py-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <div className="grid grid-cols-[1.2fr_0.8fr_1fr_1fr_auto] gap-4 bg-slate-100 px-5 py-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
             <span>Person</span>
             <span>Rolle</span>
             <span>{config.showTeams ? "Teams" : "Bereich"}</span>
             <span>Zugang</span>
+            <span>Aktion</span>
           </div>
           <div className="divide-y divide-slate-200 bg-white">
             {filteredUsers.map((user) => (
               <div
                 key={user.id}
-                className="grid grid-cols-1 gap-4 px-5 py-4 text-sm text-slate-700 md:grid-cols-[1.2fr_0.8fr_0.9fr_1fr]"
+                className="grid grid-cols-1 gap-4 px-5 py-4 text-sm text-slate-700 md:grid-cols-[1.2fr_0.8fr_1fr_1fr_auto]"
               >
                 <div>
                   <p className="font-semibold text-slate-900">{user.fullName}</p>
@@ -126,9 +164,19 @@ export default function PeopleManagementPage({
                 <div>
                   <p className="text-xs text-slate-500">Anmeldung</p>
                   <p className="mt-1 font-medium text-slate-900">{user.email}</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Passwort ist im Backend sicher gespeichert.
-                  </p>
+                </div>
+                <div className="flex items-start justify-start">
+                  {canManageFromMenu ? (
+                    <button
+                      type="button"
+                      onClick={() => startEdit(user.id)}
+                      className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-900 transition hover:bg-blue-100"
+                    >
+                      Bearbeiten
+                    </button>
+                  ) : (
+                    <span className="text-xs text-slate-400">Nur Ansicht</span>
+                  )}
                 </div>
               </div>
             ))}
@@ -137,136 +185,175 @@ export default function PeopleManagementPage({
       </SectionCard>
 
       <SectionCard title={config.formTitle} description={config.formDescription}>
-        {error ? (
-          <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {error}
+        {!canManageFromMenu ? (
+          <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            Dieser Bereich kann nur von Admin oder Vorstand bearbeitet werden.
           </div>
-        ) : null}
-
-        <form
-          className="space-y-4"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            const result = await addUser({
-              ...form,
-              role,
-              teamIds: config.showTeams ? form.teamIds : [],
-            });
-
-            if (!result.success) {
-              setError(result.error ?? "Speichern nicht moeglich.");
-              return;
-            }
-
-            setError("");
-            setForm({
-              fullName: "",
-              email: "",
-              password: "",
-              phone: "",
-              role,
-              teamIds: [],
-              notes: "",
-            });
-          }}
-        >
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700">Name</span>
-            <input
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-              value={form.fullName}
-              onChange={(event) => setForm({ ...form, fullName: event.target.value })}
-              required
-            />
-          </label>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-slate-700">E-Mail</span>
-              <input
-                type="email"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                value={form.email}
-                onChange={(event) => setForm({ ...form, email: event.target.value })}
-                required
-              />
-            </label>
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-slate-700">Telefon</span>
-              <input
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                value={form.phone}
-                onChange={(event) => setForm({ ...form, phone: event.target.value })}
-              />
-            </label>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-slate-700">Passwort</span>
-              <input
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                value={form.password}
-                onChange={(event) => setForm({ ...form, password: event.target.value })}
-                required
-              />
-            </label>
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-slate-700">Bereich</span>
-              <input
-                value={config.selectLabel}
-                disabled
-                className="w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-500 outline-none"
-              />
-            </label>
-          </div>
-
-          {config.showTeams ? (
-            <div>
-              <span className="mb-2 block text-sm font-medium text-slate-700">Teams</span>
-              <div className="space-y-2">
-                {teams.map((team) => (
-                  <label
-                    key={team.id}
-                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={form.teamIds.includes(team.id)}
-                      onChange={() =>
-                        setForm({
-                          ...form,
-                          teamIds: form.teamIds.includes(team.id)
-                            ? form.teamIds.filter((value) => value !== team.id)
-                            : [...form.teamIds, team.id],
-                        })
-                      }
-                    />
-                    <span className="text-sm text-slate-700">
-                      {team.name} ({team.ageGroup})
-                    </span>
-                  </label>
-                ))}
+        ) : (
+          <>
+            {error ? (
+              <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {error}
               </div>
-            </div>
-          ) : null}
+            ) : null}
 
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700">Notizen</span>
-            <textarea
-              className="min-h-28 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-              value={form.notes}
-              onChange={(event) => setForm({ ...form, notes: event.target.value })}
-            />
-          </label>
+            <form
+              className="space-y-4"
+              onSubmit={async (event) => {
+                event.preventDefault();
 
-          <button
-            type="submit"
-            className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
-          >
-            {config.roleLabel} speichern
-          </button>
-        </form>
+                const payload = {
+                  ...form,
+                  role,
+                  teamIds: config.showTeams ? form.teamIds : [],
+                };
+
+                const result = selectedUserId
+                  ? await updateUser({
+                      userId: selectedUserId,
+                      fullName: payload.fullName,
+                      email: payload.email,
+                      password: payload.password.trim() || undefined,
+                      phone: payload.phone,
+                      role,
+                      teamIds: payload.teamIds,
+                      notes: payload.notes,
+                    })
+                  : await addUser({
+                      fullName: payload.fullName,
+                      email: payload.email,
+                      password: payload.password,
+                      phone: payload.phone,
+                      role,
+                      teamIds: payload.teamIds,
+                      notes: payload.notes,
+                    });
+
+                if (!result.success) {
+                  setError(result.error ?? "Speichern nicht moeglich.");
+                  return;
+                }
+
+                resetForm();
+              }}
+            >
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-700">Name</span>
+                <input
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  value={form.fullName}
+                  onChange={(event) => setForm({ ...form, fullName: event.target.value })}
+                  required
+                />
+              </label>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">E-Mail</span>
+                  <input
+                    type="email"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    value={form.email}
+                    onChange={(event) => setForm({ ...form, email: event.target.value })}
+                    required
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Telefon</span>
+                  <input
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    value={form.phone}
+                    onChange={(event) => setForm({ ...form, phone: event.target.value })}
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">
+                    {selectedUserId ? "Neues Passwort" : "Passwort"}
+                  </span>
+                  <input
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    value={form.password}
+                    onChange={(event) => setForm({ ...form, password: event.target.value })}
+                    required={!selectedUserId}
+                    placeholder={
+                      selectedUserId
+                        ? "Leer lassen, wenn es unveraendert bleiben soll"
+                        : ""
+                    }
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Bereich</span>
+                  <input
+                    value={config.selectLabel}
+                    disabled
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-500 outline-none"
+                  />
+                </label>
+              </div>
+
+              {config.showTeams ? (
+                <div>
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Teams</span>
+                  <div className="space-y-2">
+                    {teams.map((team) => (
+                      <label
+                        key={team.id}
+                        className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={form.teamIds.includes(team.id)}
+                          onChange={() =>
+                            setForm({
+                              ...form,
+                              teamIds: form.teamIds.includes(team.id)
+                                ? form.teamIds.filter((value) => value !== team.id)
+                                : [...form.teamIds, team.id],
+                            })
+                          }
+                        />
+                        <span className="text-sm text-slate-700">
+                          {team.name} ({team.ageGroup})
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-700">Notizen</span>
+                <textarea
+                  className="min-h-28 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  value={form.notes}
+                  onChange={(event) => setForm({ ...form, notes: event.target.value })}
+                />
+              </label>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="submit"
+                  className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
+                >
+                  {selectedUserId ? `${config.roleLabel} speichern` : `${config.roleLabel} anlegen`}
+                </button>
+                {selectedUserId ? (
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Abbrechen
+                  </button>
+                ) : null}
+              </div>
+            </form>
+          </>
+        )}
       </SectionCard>
     </div>
   );

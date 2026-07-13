@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from 'express'
-import db, { createId, getBootstrapData, now } from '../db.js'
+import db, { createId, getBootstrapData, isAdminOrBoard, now } from '../db.js'
 
 const router = Router()
 
@@ -62,7 +62,19 @@ router.put('/:id', (req: Request, res: Response) => {
 
 router.put('/:id/members', (req: Request, res: Response) => {
   const { id } = req.params
-  const { trainerIds, playerIds } = req.body as { trainerIds?: string[]; playerIds?: string[] }
+  const { actorId, trainerIds, playerIds } = req.body as {
+    actorId?: string
+    trainerIds?: string[]
+    playerIds?: string[]
+  }
+
+  if (!actorId || !isAdminOrBoard(actorId)) {
+    res.status(403).json({
+      success: false,
+      error: 'Teamzuweisungen koennen nur von Admin oder Vorstand geaendert werden.',
+    })
+    return
+  }
 
   const timestamp = now()
   const nextTrainerIds = trainerIds ?? []
@@ -90,7 +102,7 @@ router.put('/:id/members', (req: Request, res: Response) => {
     })
 
     const adminIds = (
-      db.prepare("SELECT id FROM users WHERE role = 'admin'").all() as { id: string }[]
+      db.prepare("SELECT id FROM users WHERE role IN ('admin', 'board')").all() as { id: string }[]
     ).map((row) => row.id)
 
     const teamConversation = db
@@ -118,7 +130,7 @@ router.put('/:id/members', (req: Request, res: Response) => {
 
   res.json({
     success: true,
-    ...getBootstrapData(null),
+    ...getBootstrapData(actorId),
   })
 })
 

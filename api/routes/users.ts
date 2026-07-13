@@ -1,8 +1,81 @@
 import bcrypt from 'bcryptjs'
 import { Router, type Request, type Response } from 'express'
-import db, { createId, getBootstrapData, now } from '../db.js'
+import db, {
+  canEditPlayer,
+  canManagePlayerFromMenu,
+  createId,
+  getBootstrapData,
+  getTeamIdsByUserId,
+  getUserRowById,
+  isAdminOrBoard,
+  now,
+} from '../db.js'
 
 const router = Router()
+
+const rebuildTeamConversationParticipants = (teamId: string, timestamp: string) => {
+  const teamConversation = db
+    .prepare("SELECT id FROM conversations WHERE team_id = ? AND type = 'team'")
+    .get(teamId) as { id: string } | undefined
+
+  if (!teamConversation) {
+    return
+  }
+
+  const participantIds = (
+    db.prepare(`
+      SELECT DISTINCT tm.user_id
+      FROM team_members tm
+      WHERE tm.team_id = ?
+      UNION
+      SELECT id
+      FROM users
+      WHERE role IN ('admin', 'board')
+    `).all(teamId) as { user_id?: string; id?: string }[]
+  )
+    .map((row) => row.user_id ?? row.id)
+    .filter((value): value is string => Boolean(value))
+
+  db.prepare('DELETE FROM conversation_participants WHERE conversation_id = ?').run(
+    teamConversation.id,
+  )
+
+  const insertParticipant = db.prepare(`
+    INSERT INTO conversation_participants (id, conversation_id, user_id, created_at)
+    VALUES (?, ?, ?, ?)
+  `)
+
+  participantIds.forEach((userId) => {
+    insertParticipant.run(createId('participant'), teamConversation.id, userId, timestamp)
+  })
+}
+
+const syncUserMemberships = (
+  userId: string,
+  role: 'admin' | 'trainer' | 'player' | 'board',
+  teamIds: string[],
+  timestamp: string,
+) => {
+  const previousTeamIds = getTeamIdsByUserId(userId)
+  const membershipRole = role === 'player' ? 'player' : role === 'trainer' ? 'trainer' : 'admin'
+
+  db.prepare('DELETE FROM team_members WHERE user_id = ?').run(userId)
+
+  if (role !== 'board') {
+    const insertMember = db.prepare(`
+      INSERT INTO team_members (id, team_id, user_id, membership_role, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `)
+
+    teamIds.forEach((teamId) => {
+      insertMember.run(createId('member'), teamId, userId, membershipRole, timestamp)
+    })
+  }
+
+  Array.from(new Set([...previousTeamIds, ...teamIds])).forEach((teamId) => {
+    rebuildTeamConversationParticipants(teamId, timestamp)
+  })
+}
 
 router.get('/', (_req: Request, res: Response) => {
   res.json({
@@ -12,7 +85,8 @@ router.get('/', (_req: Request, res: Response) => {
 })
 
 router.post('/', (req: Request, res: Response) => {
-  const { fullName, email, password, phone, role, teamIds, notes } = req.body as {
+  const { actorId, fullName, email, password, phone, role, teamIds, notes } = req.body as {
+    actorId?: string
     fullName?: string
     email?: string
     password?: string
@@ -24,6 +98,13 @@ router.post('/', (req: Request, res: Response) => {
 
   if (!fullName || !email || !password || !role) {
     res.status(400).json({ success: false, error: 'Bitte alle Pflichtfelder ausfuellen.' })
+    return
+  }
+
+  if (role === 'player' && (!actorId || !canManagePlayerFromMenu(actorId))) {
+    res
+      .status(403)
+      .json({ success: false, error: 'Spielerinnen koennen nur von Admin oder Vorstand angelegt werden.' })
     return
   }
 
@@ -92,17 +173,53 @@ router.post('/', (req: Request, res: Response) => {
 
 router.put('/:id', (req: Request, res: Response) => {
   const { id } = req.params
-  const { fullName, email, password, phone, notes } = req.body as {
+  const { actorId, fullName, email, password, phone, notes, role, teamIds } = req.body as {
+    actorId?: string
     fullName?: string
     email?: string
     password?: string
     phone?: string
     notes?: string
+    role?: 'admin' | 'trainer' | 'player' | 'board'
+    teamIds?: string[]
   }
 
-  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(id) as { id: string } | undefined
+  const user = getUserRowById(id)
   if (!user) {
     res.status(404).json({ success: false, error: 'Benutzer nicht gefunden.' })
+    return
+  }
+
+  if (!actorId) {
+    res.status(400).json({ success: false, error: 'Fehlender Benutzerkontext.' })
+    return
+  }
+
+  const isSelfUpdate = actorId === id
+  const targetRole = role ?? user.role
+  const wantsMembershipUpdate = Array.isArray(teamIds)
+
+  if (targetRole === 'player') {
+    if (wantsMembershipUpdate) {
+      if (!canManagePlayerFromMenu(actorId)) {
+        res.status(403).json({
+          success: false,
+          error: 'Teamzuweisungen fuer Spielerinnen koennen nur von Admin oder Vorstand geaendert werden.',
+        })
+        return
+      }
+    } else if (!isSelfUpdate && !canEditPlayer(actorId, id)) {
+      res.status(403).json({
+        success: false,
+        error: 'Diese Spielerin kann nur von Admin, Vorstand oder den zustaendigen Trainern bearbeitet werden.',
+      })
+      return
+    }
+  } else if (!isSelfUpdate && !isAdminOrBoard(actorId)) {
+    res.status(403).json({
+      success: false,
+      error: 'Diese Aenderung ist nur fuer Admin oder Vorstand erlaubt.',
+    })
     return
   }
 
@@ -121,30 +238,41 @@ router.put('/:id', (req: Request, res: Response) => {
     return
   }
 
-  if (password?.trim()) {
-    db.prepare(`
-      UPDATE users
-      SET full_name = ?, email = ?, password = ?, phone = ?, notes = ?
-      WHERE id = ?
-    `).run(
-      fullName,
-      normalizedEmail,
-      bcrypt.hashSync(password.trim(), 10),
-      phone ?? '',
-      notes ?? '',
-      id,
-    )
-  } else {
-    db.prepare(`
-      UPDATE users
-      SET full_name = ?, email = ?, phone = ?, notes = ?
-      WHERE id = ?
-    `).run(fullName, normalizedEmail, phone ?? '', notes ?? '', id)
-  }
+  const timestamp = now()
+
+  const transaction = db.transaction(() => {
+    if (password?.trim()) {
+      db.prepare(`
+        UPDATE users
+        SET full_name = ?, email = ?, password = ?, phone = ?, notes = ?, role = ?
+        WHERE id = ?
+      `).run(
+        fullName,
+        normalizedEmail,
+        bcrypt.hashSync(password.trim(), 10),
+        phone ?? '',
+        notes ?? '',
+        targetRole,
+        id,
+      )
+    } else {
+      db.prepare(`
+        UPDATE users
+        SET full_name = ?, email = ?, phone = ?, notes = ?, role = ?
+        WHERE id = ?
+      `).run(fullName, normalizedEmail, phone ?? '', notes ?? '', targetRole, id)
+    }
+
+    if (wantsMembershipUpdate) {
+      syncUserMemberships(id, targetRole, teamIds ?? [], timestamp)
+    }
+  })
+
+  transaction()
 
   res.json({
     success: true,
-    ...getBootstrapData(id),
+    ...getBootstrapData(actorId),
   })
 })
 

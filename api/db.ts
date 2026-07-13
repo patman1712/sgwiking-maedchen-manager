@@ -396,6 +396,9 @@ type UserRow = {
   created_at: string
 }
 
+export const getUserRowById = (userId: string) =>
+  db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as UserRow | undefined
+
 type ConversationRow = {
   id: string
   title: string
@@ -455,7 +458,7 @@ export const getUsers = () =>
   )
 
 export const getUserById = (userId: string) => {
-  const row = db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as UserRow | undefined
+  const row = getUserRowById(userId)
   return row ? mapUser(row) : null
 }
 
@@ -480,6 +483,45 @@ export const getTeamIdsUsers = (teamId: string) =>
       user_id: string
     }[]
   ).map((row) => row.user_id)
+
+export const userHasTeamRole = (
+  userId: string,
+  teamId: string,
+  membershipRole: 'trainer' | 'player' | 'admin',
+) => {
+  const row = db
+    .prepare(
+      'SELECT id FROM team_members WHERE user_id = ? AND team_id = ? AND membership_role = ? LIMIT 1',
+    )
+    .get(userId, teamId, membershipRole) as { id: string } | undefined
+
+  return Boolean(row)
+}
+
+export const isAdminOrBoard = (userId: string) => {
+  const row = getUserRowById(userId)
+  return row?.role === 'admin' || row?.role === 'board'
+}
+
+export const canManagePlayerFromMenu = (actorId: string) => isAdminOrBoard(actorId)
+
+export const canEditPlayer = (actorId: string, playerId: string) => {
+  if (isAdminOrBoard(actorId)) {
+    return true
+  }
+
+  const actor = getUserRowById(actorId)
+  const player = getUserRowById(playerId)
+
+  if (!actor || !player || actor.role !== 'trainer' || player.role !== 'player') {
+    return false
+  }
+
+  const actorTeamIds = getTeamIdsByUserId(actorId)
+  const playerTeamIds = getTeamIdsByUserId(playerId)
+
+  return actorTeamIds.some((teamId) => playerTeamIds.includes(teamId))
+}
 
 export const getConversations = () =>
   (
