@@ -1,9 +1,62 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ChevronLeft, ImagePlus, Shield } from "lucide-react";
+import { Link, Navigate, useParams } from "react-router-dom";
+import { ChevronLeft, ImagePlus, Pencil, Shield, X } from "lucide-react";
 import SectionCard from "@/components/SectionCard";
 import { optimizeImageForUpload } from "@/lib/image";
 import { useAppStore } from "@/store";
+
+function formatValue(value?: string | null) {
+  return value && value.trim() ? value : "Nicht hinterlegt";
+}
+
+function formatBirthday(value?: string | null) {
+  if (!value) {
+    return "Nicht hinterlegt";
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleDateString("de-DE");
+}
+
+function StatusBadge({
+  label,
+  active,
+}: {
+  label: string;
+  active: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
+        active
+          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+          : "border-slate-200 bg-slate-50 text-slate-500"
+      }`}
+    >
+      {label}
+    </div>
+  );
+}
+
+function DetailField({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-2 text-sm font-medium text-slate-900">{value}</p>
+    </div>
+  );
+}
 
 export default function PlayerEditPage() {
   const { playerId } = useParams();
@@ -12,11 +65,11 @@ export default function PlayerEditPage() {
   const currentUserId = useAppStore((state) => state.currentUserId);
   const updateUser = useAppStore((state) => state.updateUser);
   const uploadUserAvatar = useAppStore((state) => state.uploadUserAvatar);
-  const navigate = useNavigate();
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [uploading, setUploading] = useState(false);
   const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   const currentUser = useMemo(
     () => users.find((user) => user.id === currentUserId) ?? null,
@@ -26,13 +79,30 @@ export default function PlayerEditPage() {
     () => users.find((user) => user.id === playerId && user.role === "player") ?? null,
     [playerId, users],
   );
-  const canEdit =
+  const hasSharedTeam =
+    !!currentUser &&
+    !!player &&
+    currentUser.teamIds.some((teamId) => player.teamIds.includes(teamId));
+  const isPrivilegedViewer =
     !!currentUser &&
     !!player &&
     (currentUser.role === "admin" ||
       currentUser.role === "board" ||
-      (currentUser.role === "trainer" &&
-        currentUser.teamIds.some((teamId) => player.teamIds.includes(teamId))));
+      (currentUser.role === "trainer" && hasSharedTeam));
+  const isOwnProfile = currentUserId === player?.id;
+  const canViewProfile =
+    !!currentUser &&
+    !!player &&
+    (isPrivilegedViewer ||
+      isOwnProfile ||
+      (currentUser.role === "player" && hasSharedTeam));
+  const showLimitedPlayerView =
+    !!currentUser &&
+    !!player &&
+    currentUser.role === "player" &&
+    !isOwnProfile &&
+    hasSharedTeam;
+  const canEdit = isPrivilegedViewer;
 
   const [form, setForm] = useState(() => ({
     fullName: player?.fullName ?? "",
@@ -74,32 +144,70 @@ export default function PlayerEditPage() {
       hasPhotoConsentSocial: player.hasPhotoConsentSocial ?? false,
       password: "",
     });
+    setIsEditing(false);
+    setError("");
+    setSuccess("");
   }, [player]);
 
   if (!playerId || !player) {
     return <Navigate to="/dashboard/players" replace />;
   }
 
+  if (!canViewProfile) {
+    return <Navigate to="/dashboard/players" replace />;
+  }
+
+  const visibleTeamNames = player.teamIds
+    .map((teamId) => teams.find((entry) => entry.id === teamId)?.name ?? teamId)
+    .filter(Boolean);
+
   return (
     <div className="space-y-6">
-      <div>
-        <Link
-          to="/dashboard/players"
-          className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:text-blue-900"
-        >
-          <ChevronLeft size={16} />
-          Zurueck zu Spielerinnen
-        </Link>
-        <h2 className="mt-3 text-3xl font-semibold text-slate-900">{player.fullName}</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Profil, Login und Bild dieser Spielerin bearbeiten
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <Link
+            to="/dashboard/players"
+            className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:text-blue-900"
+          >
+            <ChevronLeft size={16} />
+            Zurueck zu Spielerinnen
+          </Link>
+          <h2 className="mt-3 text-3xl font-semibold text-slate-900">{player.fullName}</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            {showLimitedPlayerView
+              ? "Profilansicht mit freigegebenen Basisinformationen."
+              : "Profilansicht der Spielerin mit allen hinterlegten Informationen."}
+          </p>
+        </div>
+
+        {canEdit ? (
+          <button
+            type="button"
+            onClick={() => {
+              setIsEditing((current) => !current);
+              setError("");
+              setSuccess("");
+            }}
+            className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition ${
+              isEditing
+                ? "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                : "bg-gradient-to-r from-blue-900 to-blue-700 text-white shadow-lg shadow-blue-900/20 hover:-translate-y-0.5"
+            }`}
+          >
+            {isEditing ? <X size={18} /> : <Pencil size={18} />}
+            {isEditing ? "Bearbeiten schliessen" : "Bearbeiten"}
+          </button>
+        ) : null}
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[0.75fr_1.25fr]">
         <SectionCard
           title="Spielerinnenbild"
-          description="Das Bild wird fuer schnelle Ladezeiten verkleinert gespeichert und kann in gross angesehen werden."
+          description={
+            isEditing
+              ? "Im Bearbeiten-Modus kann das Bild hochgeladen und optimiert gespeichert werden."
+              : "Das Bild kann gross angesehen werden."
+          }
         >
           <div className="space-y-4">
             <div className="flex min-h-72 items-center justify-center rounded-[2rem] border border-slate-200 bg-slate-50 p-8">
@@ -126,7 +234,7 @@ export default function PlayerEditPage() {
               )}
             </div>
 
-            {canEdit ? (
+            {isEditing ? (
               <form
                 className="space-y-4"
                 onSubmit={async (event) => {
@@ -194,8 +302,9 @@ export default function PlayerEditPage() {
               </form>
             ) : (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                Dieses Profil darf nur von Admin, Vorstand oder den zustaendigen Trainern
-                bearbeitet werden.
+                {canEdit
+                  ? "Dieses Profil wird zuerst nur angezeigt. Ueber Bearbeiten kannst du es anpassen."
+                  : "Dieses Profil ist nur zur Ansicht geoeffnet."}
               </div>
             )}
           </div>
@@ -203,13 +312,13 @@ export default function PlayerEditPage() {
 
         <SectionCard
           title="Spielerinnenprofil"
-          description="Hier kannst du Stammdaten, Login und Passwort der Spielerin pflegen."
+          description={
+            isEditing
+              ? "Hier kannst du die hinterlegten Daten der Spielerin bearbeiten."
+              : "Hier siehst du die hinterlegten Profildaten der Spielerin."
+          }
         >
-          {!canEdit ? (
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-              Du hast keine Berechtigung, diese Spielerin zu bearbeiten.
-            </div>
-          ) : (
+          {isEditing ? (
             <form
               className="space-y-4"
               onSubmit={async (event) => {
@@ -244,7 +353,7 @@ export default function PlayerEditPage() {
 
                 setForm((current) => ({ ...current, password: "" }));
                 setSuccess("Die Spielerin wurde gespeichert.");
-                navigate(`/dashboard/players/${player.id}`, { replace: true });
+                setIsEditing(false);
               }}
             >
               {error ? (
@@ -424,18 +533,15 @@ export default function PlayerEditPage() {
               <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Teams</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {player.teamIds.length ? (
-                    player.teamIds.map((teamId) => {
-                      const team = teams.find((entry) => entry.id === teamId);
-                      return (
-                        <span
-                          key={teamId}
-                          className="rounded-full bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm"
-                        >
-                          {team?.name ?? teamId}
-                        </span>
-                      );
-                    })
+                  {visibleTeamNames.length ? (
+                    visibleTeamNames.map((teamName) => (
+                      <span
+                        key={teamName}
+                        className="rounded-full bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm"
+                      >
+                        {teamName}
+                      </span>
+                    ))
                   ) : (
                     <span className="text-sm text-slate-500">Keinem Team zugeordnet</span>
                   )}
@@ -455,13 +561,95 @@ export default function PlayerEditPage() {
                 />
               </label>
 
-              <button
-                type="submit"
-                className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
-              >
-                Spielerin speichern
-              </button>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="submit"
+                  className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
+                >
+                  Spielerin speichern
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Abbrechen
+                </button>
+              </div>
             </form>
+          ) : (
+            <div className="space-y-6">
+              {success ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {success}
+                </div>
+              ) : null}
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <DetailField label="Name" value={formatValue(player.fullName)} />
+                <DetailField label="E-Mail" value={formatValue(player.email)} />
+                <DetailField label="Telefon" value={formatValue(player.phone)} />
+                <DetailField
+                  label="Geburtstag"
+                  value={formatBirthday(player.birthday)}
+                />
+                <DetailField
+                  label="Mitgliedsnummer"
+                  value={formatValue(player.memberNumber)}
+                />
+                {!showLimitedPlayerView ? (
+                  <DetailField
+                    label="Teams"
+                    value={visibleTeamNames.length ? visibleTeamNames.join(", ") : "Keinem Team zugeordnet"}
+                  />
+                ) : null}
+              </div>
+
+              {showLimitedPlayerView ? null : (
+                <>
+                  <DetailField label="Anschrift" value={formatValue(player.address)} />
+
+                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                      Kontakt Eltern
+                    </p>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <DetailField label="Name" value={formatValue(player.parentName)} />
+                      <DetailField
+                        label="Handynummer"
+                        value={formatValue(player.parentPhone)}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <DetailField label="E-Mail" value={formatValue(player.parentEmail)} />
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-slate-200 bg-white p-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                      Unterlagen
+                    </p>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <StatusBadge label="Mitglied" active={Boolean(player.isMember)} />
+                      <StatusBadge
+                        label="Mitgliedsantrag"
+                        active={Boolean(player.hasMembershipApplication)}
+                      />
+                      <StatusBadge
+                        label="Aerztliches Attest"
+                        active={Boolean(player.hasMedicalCertificate)}
+                      />
+                      <StatusBadge
+                        label="Fotorecht Social Media"
+                        active={Boolean(player.hasPhotoConsentSocial)}
+                      />
+                    </div>
+                  </div>
+
+                  <DetailField label="Notizen" value={formatValue(player.notes)} />
+                </>
+              )}
+            </div>
           )}
         </SectionCard>
       </div>
