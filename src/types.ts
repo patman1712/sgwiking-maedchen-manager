@@ -21,6 +21,16 @@ export interface UserProfile {
   teamIds: string[];
   notes: string;
   avatarUrl?: string | null;
+  memberNumber?: string;
+  birthday?: string;
+  address?: string;
+  parentName?: string;
+  parentPhone?: string;
+  parentEmail?: string;
+  isMember?: boolean;
+  hasMembershipApplication?: boolean;
+  hasMedicalCertificate?: boolean;
+  hasPhotoConsentSocial?: boolean;
   createdAt: string;
 }
 

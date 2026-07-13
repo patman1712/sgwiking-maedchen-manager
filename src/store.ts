@@ -26,6 +26,16 @@ interface UserInput {
   role: UserRole;
   teamIds: string[];
   notes: string;
+  memberNumber?: string;
+  birthday?: string;
+  address?: string;
+  parentName?: string;
+  parentPhone?: string;
+  parentEmail?: string;
+  isMember?: boolean;
+  hasMembershipApplication?: boolean;
+  hasMedicalCertificate?: boolean;
+  hasPhotoConsentSocial?: boolean;
 }
 
 interface ApiStatePayload {
@@ -51,6 +61,16 @@ interface UserUpdateInput {
   password?: string;
   role?: UserRole;
   teamIds?: string[];
+  memberNumber?: string;
+  birthday?: string;
+  address?: string;
+  parentName?: string;
+  parentPhone?: string;
+  parentEmail?: string;
+  isMember?: boolean;
+  hasMembershipApplication?: boolean;
+  hasMedicalCertificate?: boolean;
+  hasPhotoConsentSocial?: boolean;
 }
 
 interface AppState {

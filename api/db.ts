@@ -33,11 +33,60 @@ if (usersTableSql && !usersTableSql.sql.includes("'board'")) {
         role TEXT NOT NULL CHECK(role IN ('admin', 'trainer', 'player', 'board')),
         notes TEXT DEFAULT '',
         avatar_url TEXT DEFAULT NULL,
+        member_number TEXT DEFAULT '',
+        birthday TEXT DEFAULT '',
+        address TEXT DEFAULT '',
+        parent_name TEXT DEFAULT '',
+        parent_phone TEXT DEFAULT '',
+        parent_email TEXT DEFAULT '',
+        is_member INTEGER NOT NULL DEFAULT 0,
+        has_membership_application INTEGER NOT NULL DEFAULT 0,
+        has_medical_certificate INTEGER NOT NULL DEFAULT 0,
+        has_photo_consent_social INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL
       );
 
-      INSERT INTO users_new (id, full_name, email, password, phone, role, notes, avatar_url, created_at)
-      SELECT id, full_name, email, password, phone, role, notes, NULL, created_at
+      INSERT INTO users_new (
+        id,
+        full_name,
+        email,
+        password,
+        phone,
+        role,
+        notes,
+        avatar_url,
+        member_number,
+        birthday,
+        address,
+        parent_name,
+        parent_phone,
+        parent_email,
+        is_member,
+        has_membership_application,
+        has_medical_certificate,
+        has_photo_consent_social,
+        created_at
+      )
+      SELECT
+        id,
+        full_name,
+        email,
+        password,
+        phone,
+        role,
+        notes,
+        NULL,
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        0,
+        0,
+        0,
+        0,
+        created_at
       FROM users;
 
       DROP TABLE users;
@@ -73,6 +122,16 @@ db.exec(`
     role TEXT NOT NULL CHECK(role IN ('admin', 'trainer', 'player', 'board')),
     notes TEXT DEFAULT '',
     avatar_url TEXT DEFAULT NULL,
+    member_number TEXT DEFAULT '',
+    birthday TEXT DEFAULT '',
+    address TEXT DEFAULT '',
+    parent_name TEXT DEFAULT '',
+    parent_phone TEXT DEFAULT '',
+    parent_email TEXT DEFAULT '',
+    is_member INTEGER NOT NULL DEFAULT 0,
+    has_membership_application INTEGER NOT NULL DEFAULT 0,
+    has_medical_certificate INTEGER NOT NULL DEFAULT 0,
+    has_photo_consent_social INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   );
 
@@ -126,6 +185,50 @@ if (!userColumns.includes('avatar_url')) {
   db.prepare('ALTER TABLE users ADD COLUMN avatar_url TEXT DEFAULT NULL').run()
 }
 
+if (!userColumns.includes('member_number')) {
+  db.prepare("ALTER TABLE users ADD COLUMN member_number TEXT DEFAULT ''").run()
+}
+
+if (!userColumns.includes('birthday')) {
+  db.prepare("ALTER TABLE users ADD COLUMN birthday TEXT DEFAULT ''").run()
+}
+
+if (!userColumns.includes('address')) {
+  db.prepare("ALTER TABLE users ADD COLUMN address TEXT DEFAULT ''").run()
+}
+
+if (!userColumns.includes('parent_name')) {
+  db.prepare("ALTER TABLE users ADD COLUMN parent_name TEXT DEFAULT ''").run()
+}
+
+if (!userColumns.includes('parent_phone')) {
+  db.prepare("ALTER TABLE users ADD COLUMN parent_phone TEXT DEFAULT ''").run()
+}
+
+if (!userColumns.includes('parent_email')) {
+  db.prepare("ALTER TABLE users ADD COLUMN parent_email TEXT DEFAULT ''").run()
+}
+
+if (!userColumns.includes('is_member')) {
+  db.prepare('ALTER TABLE users ADD COLUMN is_member INTEGER NOT NULL DEFAULT 0').run()
+}
+
+if (!userColumns.includes('has_membership_application')) {
+  db.prepare(
+    'ALTER TABLE users ADD COLUMN has_membership_application INTEGER NOT NULL DEFAULT 0',
+  ).run()
+}
+
+if (!userColumns.includes('has_medical_certificate')) {
+  db.prepare('ALTER TABLE users ADD COLUMN has_medical_certificate INTEGER NOT NULL DEFAULT 0').run()
+}
+
+if (!userColumns.includes('has_photo_consent_social')) {
+  db.prepare(
+    'ALTER TABLE users ADD COLUMN has_photo_consent_social INTEGER NOT NULL DEFAULT 0',
+  ).run()
+}
+
 const now = () => new Date().toISOString()
 const createId = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 10)}`
 
@@ -138,8 +241,28 @@ if (teamCount.count === 0) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertUser = db.prepare(`
-    INSERT INTO users (id, full_name, email, password, phone, role, notes, avatar_url, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (
+      id,
+      full_name,
+      email,
+      password,
+      phone,
+      role,
+      notes,
+      avatar_url,
+      member_number,
+      birthday,
+      address,
+      parent_name,
+      parent_phone,
+      parent_email,
+      is_member,
+      has_membership_application,
+      has_medical_certificate,
+      has_photo_consent_social,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertMember = db.prepare(`
     INSERT INTO team_members (id, team_id, user_id, membership_role, created_at)
@@ -290,6 +413,16 @@ if (teamCount.count === 0) {
         user.role,
         user.notes,
         null,
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        0,
+        0,
+        0,
+        0,
         createdAt,
       )
     })
@@ -371,8 +504,28 @@ const boardUserCount = db
 
 if (boardUserCount.count === 0) {
   db.prepare(`
-    INSERT INTO users (id, full_name, email, password, phone, role, notes, avatar_url, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (
+      id,
+      full_name,
+      email,
+      password,
+      phone,
+      role,
+      notes,
+      avatar_url,
+      member_number,
+      birthday,
+      address,
+      parent_name,
+      parent_phone,
+      parent_email,
+      is_member,
+      has_membership_application,
+      has_medical_certificate,
+      has_photo_consent_social,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     'user_board_1',
     'Katrin Weber',
@@ -382,6 +535,16 @@ if (boardUserCount.count === 0) {
     'board',
     'Vorstand Organisation und Vereinskoordination.',
     null,
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    0,
+    0,
+    0,
+    0,
     now(),
   )
 }
@@ -406,6 +569,16 @@ type UserRow = {
   role: 'admin' | 'trainer' | 'player' | 'board'
   notes: string
   avatar_url: string | null
+  member_number: string
+  birthday: string
+  address: string
+  parent_name: string
+  parent_phone: string
+  parent_email: string
+  is_member: number
+  has_membership_application: number
+  has_medical_certificate: number
+  has_photo_consent_social: number
   created_at: string
 }
 
@@ -457,6 +630,16 @@ export const mapUser = (row: UserRow, includePassword = false) => {
     teamIds: getTeamIdsByUserId(row.id),
     notes: row.notes,
     avatarUrl: row.avatar_url,
+    memberNumber: row.member_number,
+    birthday: row.birthday,
+    address: row.address,
+    parentName: row.parent_name,
+    parentPhone: row.parent_phone,
+    parentEmail: row.parent_email,
+    isMember: Boolean(row.is_member),
+    hasMembershipApplication: Boolean(row.has_membership_application),
+    hasMedicalCertificate: Boolean(row.has_medical_certificate),
+    hasPhotoConsentSocial: Boolean(row.has_photo_consent_social),
     createdAt: row.created_at,
   }
 

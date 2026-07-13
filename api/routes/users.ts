@@ -137,8 +137,28 @@ router.post('/', (req: Request, res: Response) => {
   const userId = createId('user')
   const timestamp = now()
   const insertUser = db.prepare(`
-    INSERT INTO users (id, full_name, email, password, phone, role, notes, avatar_url, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (
+      id,
+      full_name,
+      email,
+      password,
+      phone,
+      role,
+      notes,
+      avatar_url,
+      member_number,
+      birthday,
+      address,
+      parent_name,
+      parent_phone,
+      parent_email,
+      is_member,
+      has_membership_application,
+      has_medical_certificate,
+      has_photo_consent_social,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertMember = db.prepare(`
     INSERT INTO team_members (id, team_id, user_id, membership_role, created_at)
@@ -159,6 +179,16 @@ router.post('/', (req: Request, res: Response) => {
       role,
       notes ?? '',
       null,
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      0,
+      0,
+      0,
+      0,
       timestamp,
     )
 
@@ -192,7 +222,26 @@ router.post('/', (req: Request, res: Response) => {
 
 router.put('/:id', (req: Request, res: Response) => {
   const { id } = req.params
-  const { actorId, fullName, email, password, phone, notes, role, teamIds } = req.body as {
+  const {
+    actorId,
+    fullName,
+    email,
+    password,
+    phone,
+    notes,
+    role,
+    teamIds,
+    memberNumber,
+    birthday,
+    address,
+    parentName,
+    parentPhone,
+    parentEmail,
+    isMember,
+    hasMembershipApplication,
+    hasMedicalCertificate,
+    hasPhotoConsentSocial,
+  } = req.body as {
     actorId?: string
     fullName?: string
     email?: string
@@ -201,6 +250,16 @@ router.put('/:id', (req: Request, res: Response) => {
     notes?: string
     role?: 'admin' | 'trainer' | 'player' | 'board'
     teamIds?: string[]
+    memberNumber?: string | null
+    birthday?: string | null
+    address?: string | null
+    parentName?: string | null
+    parentPhone?: string | null
+    parentEmail?: string | null
+    isMember?: boolean
+    hasMembershipApplication?: boolean
+    hasMedicalCertificate?: boolean
+    hasPhotoConsentSocial?: boolean
   }
 
   const user = getUserRowById(id)
@@ -258,12 +317,53 @@ router.put('/:id', (req: Request, res: Response) => {
   }
 
   const timestamp = now()
+  const nextMemberNumber =
+    memberNumber === null ? '' : typeof memberNumber === 'string' ? memberNumber : user.member_number
+  const nextBirthday = birthday === null ? '' : typeof birthday === 'string' ? birthday : user.birthday
+  const nextAddress = address === null ? '' : typeof address === 'string' ? address : user.address
+  const nextParentName =
+    parentName === null ? '' : typeof parentName === 'string' ? parentName : user.parent_name
+  const nextParentPhone =
+    parentPhone === null ? '' : typeof parentPhone === 'string' ? parentPhone : user.parent_phone
+  const nextParentEmail =
+    parentEmail === null ? '' : typeof parentEmail === 'string' ? parentEmail : user.parent_email
+  const nextIsMember = typeof isMember === 'boolean' ? (isMember ? 1 : 0) : user.is_member
+  const nextHasMembershipApplication =
+    typeof hasMembershipApplication === 'boolean'
+      ? hasMembershipApplication
+        ? 1
+        : 0
+      : user.has_membership_application
+  const nextHasMedicalCertificate =
+    typeof hasMedicalCertificate === 'boolean' ? (hasMedicalCertificate ? 1 : 0) : user.has_medical_certificate
+  const nextHasPhotoConsentSocial =
+    typeof hasPhotoConsentSocial === 'boolean'
+      ? hasPhotoConsentSocial
+        ? 1
+        : 0
+      : user.has_photo_consent_social
 
   const transaction = db.transaction(() => {
     if (password?.trim()) {
       db.prepare(`
         UPDATE users
-        SET full_name = ?, email = ?, password = ?, phone = ?, notes = ?, role = ?
+        SET
+          full_name = ?,
+          email = ?,
+          password = ?,
+          phone = ?,
+          notes = ?,
+          role = ?,
+          member_number = ?,
+          birthday = ?,
+          address = ?,
+          parent_name = ?,
+          parent_phone = ?,
+          parent_email = ?,
+          is_member = ?,
+          has_membership_application = ?,
+          has_medical_certificate = ?,
+          has_photo_consent_social = ?
         WHERE id = ?
       `).run(
         fullName,
@@ -272,14 +372,56 @@ router.put('/:id', (req: Request, res: Response) => {
         phone ?? '',
         notes ?? '',
         targetRole,
+        nextMemberNumber,
+        nextBirthday,
+        nextAddress,
+        nextParentName,
+        nextParentPhone,
+        nextParentEmail,
+        nextIsMember,
+        nextHasMembershipApplication,
+        nextHasMedicalCertificate,
+        nextHasPhotoConsentSocial,
         id,
       )
     } else {
       db.prepare(`
         UPDATE users
-        SET full_name = ?, email = ?, phone = ?, notes = ?, role = ?
+        SET
+          full_name = ?,
+          email = ?,
+          phone = ?,
+          notes = ?,
+          role = ?,
+          member_number = ?,
+          birthday = ?,
+          address = ?,
+          parent_name = ?,
+          parent_phone = ?,
+          parent_email = ?,
+          is_member = ?,
+          has_membership_application = ?,
+          has_medical_certificate = ?,
+          has_photo_consent_social = ?
         WHERE id = ?
-      `).run(fullName, normalizedEmail, phone ?? '', notes ?? '', targetRole, id)
+      `).run(
+        fullName,
+        normalizedEmail,
+        phone ?? '',
+        notes ?? '',
+        targetRole,
+        nextMemberNumber,
+        nextBirthday,
+        nextAddress,
+        nextParentName,
+        nextParentPhone,
+        nextParentEmail,
+        nextIsMember,
+        nextHasMembershipApplication,
+        nextHasMedicalCertificate,
+        nextHasPhotoConsentSocial,
+        id,
+      )
     }
 
     if (wantsMembershipUpdate) {

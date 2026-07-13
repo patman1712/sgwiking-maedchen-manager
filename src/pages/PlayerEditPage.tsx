@@ -39,6 +39,16 @@ export default function PlayerEditPage() {
     email: player?.email ?? "",
     phone: player?.phone ?? "",
     notes: player?.notes ?? "",
+    memberNumber: player?.memberNumber ?? "",
+    birthday: player?.birthday ?? "",
+    address: player?.address ?? "",
+    parentName: player?.parentName ?? "",
+    parentPhone: player?.parentPhone ?? "",
+    parentEmail: player?.parentEmail ?? "",
+    isMember: player?.isMember ?? false,
+    hasMembershipApplication: player?.hasMembershipApplication ?? false,
+    hasMedicalCertificate: player?.hasMedicalCertificate ?? false,
+    hasPhotoConsentSocial: player?.hasPhotoConsentSocial ?? false,
     password: "",
   }));
 
@@ -52,6 +62,16 @@ export default function PlayerEditPage() {
       email: player.email,
       phone: player.phone,
       notes: player.notes,
+      memberNumber: player.memberNumber ?? "",
+      birthday: player.birthday ?? "",
+      address: player.address ?? "",
+      parentName: player.parentName ?? "",
+      parentPhone: player.parentPhone ?? "",
+      parentEmail: player.parentEmail ?? "",
+      isMember: player.isMember ?? false,
+      hasMembershipApplication: player.hasMembershipApplication ?? false,
+      hasMedicalCertificate: player.hasMedicalCertificate ?? false,
+      hasPhotoConsentSocial: player.hasPhotoConsentSocial ?? false,
       password: "",
     });
   }, [player]);
@@ -203,6 +223,16 @@ export default function PlayerEditPage() {
                   email: form.email,
                   phone: form.phone,
                   notes: form.notes,
+                  memberNumber: form.memberNumber,
+                  birthday: form.birthday,
+                  address: form.address,
+                  parentName: form.parentName,
+                  parentPhone: form.parentPhone,
+                  parentEmail: form.parentEmail,
+                  isMember: form.isMember,
+                  hasMembershipApplication: form.hasMembershipApplication,
+                  hasMedicalCertificate: form.hasMedicalCertificate,
+                  hasPhotoConsentSocial: form.hasPhotoConsentSocial,
                   password: form.password.trim() || undefined,
                   role: "player",
                 });
@@ -260,6 +290,122 @@ export default function PlayerEditPage() {
                     onChange={(event) => setForm({ ...form, phone: event.target.value })}
                   />
                 </label>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">
+                    Mitgliedsnummer
+                  </span>
+                  <input
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    value={form.memberNumber}
+                    onChange={(event) => setForm({ ...form, memberNumber: event.target.value })}
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">
+                    Geburtstag
+                  </span>
+                  <input
+                    type="date"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    value={form.birthday}
+                    onChange={(event) => setForm({ ...form, birthday: event.target.value })}
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-700">Anschrift</span>
+                <textarea
+                  className="min-h-28 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  value={form.address}
+                  onChange={(event) => setForm({ ...form, address: event.target.value })}
+                />
+              </label>
+
+              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                  Kontakt Eltern
+                </p>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">Name</span>
+                    <input
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                      value={form.parentName}
+                      onChange={(event) => setForm({ ...form, parentName: event.target.value })}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">
+                      Handynummer
+                    </span>
+                    <input
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                      value={form.parentPhone}
+                      onChange={(event) =>
+                        setForm({ ...form, parentPhone: event.target.value })
+                      }
+                    />
+                  </label>
+                </div>
+                <label className="mt-4 block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">E-Mail</span>
+                  <input
+                    type="email"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                    value={form.parentEmail}
+                    onChange={(event) => setForm({ ...form, parentEmail: event.target.value })}
+                  />
+                </label>
+              </div>
+
+              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                  Unterlagen
+                </p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={form.isMember}
+                      onChange={(event) => setForm({ ...form, isMember: event.target.checked })}
+                    />
+                    <span className="text-sm text-slate-700">Mitglied</span>
+                  </label>
+                  <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={form.hasMembershipApplication}
+                      onChange={(event) =>
+                        setForm({ ...form, hasMembershipApplication: event.target.checked })
+                      }
+                    />
+                    <span className="text-sm text-slate-700">Mitgliedsantrag</span>
+                  </label>
+                  <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={form.hasMedicalCertificate}
+                      onChange={(event) =>
+                        setForm({ ...form, hasMedicalCertificate: event.target.checked })
+                      }
+                    />
+                    <span className="text-sm text-slate-700">Aerztliches Attest</span>
+                  </label>
+                  <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={form.hasPhotoConsentSocial}
+                      onChange={(event) =>
+                        setForm({ ...form, hasPhotoConsentSocial: event.target.checked })
+                      }
+                    />
+                    <span className="text-sm text-slate-700">Fotorecht Social Media</span>
+                  </label>
+                </div>
               </div>
 
               <label className="block">
