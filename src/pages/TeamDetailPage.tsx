@@ -207,8 +207,10 @@ export default function TeamDetailPage() {
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {assignedPlayers.length ? (
                 assignedPlayers.map((player) => (
-                  <div
+                  <button
                     key={player.id}
+                    type="button"
+                    onClick={() => navigate(`/dashboard/players/${player.id}`)}
                     className="rounded-3xl border border-slate-200 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white hover:shadow-md"
                   >
                     <div className="flex items-start justify-between gap-4">
@@ -216,12 +218,13 @@ export default function TeamDetailPage() {
                         {player.avatarUrl ? (
                           <button
                             type="button"
-                            onClick={() =>
+                            onClick={(event) => {
+                              event.stopPropagation();
                               setImageModal({
                                 src: player.avatarUrl!,
                                 alt: player.fullName,
-                              })
-                            }
+                              });
+                            }}
                             className="overflow-hidden rounded-2xl"
                           >
                             <img
@@ -251,14 +254,17 @@ export default function TeamDetailPage() {
                       {canManagePlayersHere ? (
                         <button
                           type="button"
-                          onClick={() => navigate(`/dashboard/players/${player.id}`)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            navigate(`/dashboard/players/${player.id}`);
+                          }}
                           className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-900 transition hover:bg-blue-100"
                         >
                           Bearbeiten
                         </button>
                       ) : null}
                     </div>
-                  </div>
+                  </button>
                 ))
               ) : (
                 <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500">
