@@ -11,6 +11,7 @@ const emptyForm = {
   trainingDay: "",
   location: "",
   notes: "",
+  fussballDeTeamId: "",
 };
 
 export default function TeamsPage() {
@@ -144,6 +145,20 @@ export default function TeamsPage() {
               onChange={(event) => setForm({ ...form, location: event.target.value })}
               placeholder="Rasenplatz 2"
               required
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-sm font-medium text-slate-700">
+              fussball.de Team-ID
+            </span>
+            <input
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+              value={form.fussballDeTeamId}
+              onChange={(event) =>
+                setForm({ ...form, fussballDeTeamId: event.target.value.trim() })
+              }
+              placeholder="optional fuer Spielplan-Import"
             />
           </label>
 

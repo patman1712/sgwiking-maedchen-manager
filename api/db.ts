@@ -110,6 +110,7 @@ db.exec(`
     training_day TEXT NOT NULL,
     location TEXT NOT NULL,
     notes TEXT DEFAULT '',
+    fussball_de_team_id TEXT DEFAULT '',
     photo_url TEXT DEFAULT NULL,
     created_at TEXT NOT NULL
   );
@@ -198,6 +199,10 @@ if (!teamColumns.includes('photo_url')) {
   db.prepare('ALTER TABLE teams ADD COLUMN photo_url TEXT DEFAULT NULL').run()
 }
 
+if (!teamColumns.includes('fussball_de_team_id')) {
+  db.prepare("ALTER TABLE teams ADD COLUMN fussball_de_team_id TEXT DEFAULT ''").run()
+}
+
 const userColumns = (
   db.prepare("PRAGMA table_info(users)").all() as { name: string }[]
 ).map((column) => column.name)
@@ -258,8 +263,18 @@ const teamCount = db.prepare('SELECT COUNT(*) AS count FROM teams').get() as { c
 if (teamCount.count === 0) {
   const createdAt = now()
   const insertTeam = db.prepare(`
-    INSERT INTO teams (id, name, age_group, season, training_day, location, notes, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO teams (
+      id,
+      name,
+      age_group,
+      season,
+      training_day,
+      location,
+      notes,
+      fussball_de_team_id,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertUser = db.prepare(`
     INSERT INTO users (
@@ -420,6 +435,7 @@ if (teamCount.count === 0) {
         team.trainingDay,
         team.location,
         team.notes,
+        '',
         createdAt,
       )
     })
@@ -578,6 +594,7 @@ type TeamRow = {
   training_day: string
   location: string
   notes: string
+  fussball_de_team_id: string
   photo_url: string | null
   created_at: string
 }
@@ -643,6 +660,7 @@ export const mapTeam = (row: TeamRow) => ({
   trainingDay: row.training_day,
   location: row.location,
   notes: row.notes,
+  fussballDeTeamId: row.fussball_de_team_id,
   photoUrl: row.photo_url,
   createdAt: row.created_at,
 })

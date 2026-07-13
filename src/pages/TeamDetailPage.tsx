@@ -25,6 +25,9 @@ export default function TeamDetailPage() {
   const currentUserId = useAppStore((state) => state.currentUserId);
   const updateTeam = useAppStore((state) => state.updateTeam);
   const uploadTeamPhoto = useAppStore((state) => state.uploadTeamPhoto);
+  const importTeamMatchesFromFussballDe = useAppStore(
+    (state) => state.importTeamMatchesFromFussballDe,
+  );
   const addMatch = useAppStore((state) => state.addMatch);
   const updateMatch = useAppStore((state) => state.updateMatch);
   const deleteMatch = useAppStore((state) => state.deleteMatch);
@@ -50,6 +53,7 @@ export default function TeamDetailPage() {
     trainingDay: "",
     location: "",
     notes: "",
+    fussballDeTeamId: "",
   });
   const [teamPhotoUploading, setTeamPhotoUploading] = useState(false);
   const [teamPhotoError, setTeamPhotoError] = useState("");
@@ -61,6 +65,9 @@ export default function TeamDetailPage() {
     isHome: true,
   });
   const [matchResultDrafts, setMatchResultDrafts] = useState<Record<string, string>>({});
+  const [matchImporting, setMatchImporting] = useState(false);
+  const [matchImportMessage, setMatchImportMessage] = useState("");
+  const [matchImportError, setMatchImportError] = useState("");
 
   const assignedTrainers = useMemo(
     () =>
@@ -103,6 +110,7 @@ export default function TeamDetailPage() {
       trainingDay: team.trainingDay,
       location: team.location,
       notes: team.notes,
+      fussballDeTeamId: team.fussballDeTeamId ?? "",
     });
   }, [team]);
 
@@ -319,7 +327,62 @@ export default function TeamDetailPage() {
               title="Spiele"
               description="Naechstes Spiel und letztes Spiel als schnelle Uebersicht."
             >
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-4">
+                {canManageMatchesHere ? (
+                  <div className="rounded-3xl border border-blue-100 bg-blue-50/70 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-blue-950">
+                          Spielplan von fussball.de testen
+                        </p>
+                        <p className="mt-1 text-sm text-slate-600">
+                          Hinterlege in der Verwaltung die Team-ID und ziehe die Spiele per Klick
+                          direkt in euren Spielplan.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={matchImporting || !team.fussballDeTeamId || !canManageMatchesHere}
+                        onClick={async () => {
+                          setMatchImportError("");
+                          setMatchImportMessage("");
+                          setMatchImporting(true);
+
+                          const result = await importTeamMatchesFromFussballDe(team.id);
+
+                          if (result.success) {
+                            setMatchImportMessage(
+                              `${result.importedCount ?? 0} Spiel(e) von fussball.de importiert.`,
+                            );
+                          } else {
+                            setMatchImportError(
+                              result.error ?? "Spielplan konnte nicht importiert werden.",
+                            );
+                          }
+
+                          setMatchImporting(false);
+                        }}
+                        className="rounded-2xl bg-gradient-to-r from-blue-950 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {matchImporting ? "Import laeuft..." : "Spielplan importieren"}
+                      </button>
+                    </div>
+
+                    {!team.fussballDeTeamId ? (
+                      <p className="mt-3 text-sm text-amber-700">
+                        Fuer den Import fehlt noch die fussball.de Team-ID in der Teamverwaltung.
+                      </p>
+                    ) : null}
+                    {matchImportError ? (
+                      <p className="mt-3 text-sm text-rose-700">{matchImportError}</p>
+                    ) : null}
+                    {matchImportMessage ? (
+                      <p className="mt-3 text-sm text-emerald-700">{matchImportMessage}</p>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
                   <div className="flex items-center gap-3 text-slate-500">
                     <CalendarDays size={18} />
@@ -368,6 +431,7 @@ export default function TeamDetailPage() {
                     <p className="mt-4 text-sm text-slate-500">Noch kein Spiel eingetragen.</p>
                   )}
                 </div>
+              </div>
               </div>
             </SectionCard>
 
@@ -793,6 +857,20 @@ export default function TeamDetailPage() {
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                 value={form.location}
                 onChange={(event) => setForm({ ...form, location: event.target.value })}
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-700">
+                fussball.de Team-ID
+              </span>
+              <input
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                value={form.fussballDeTeamId}
+                onChange={(event) =>
+                  setForm({ ...form, fussballDeTeamId: event.target.value.trim() })
+                }
+                placeholder="z. B. 011MID47D4000000VTVG0001VTR8C1K7"
               />
             </label>
 

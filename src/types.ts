@@ -8,6 +8,7 @@ export interface Team {
   trainingDay: string;
   location: string;
   notes: string;
+  fussballDeTeamId?: string;
   photoUrl?: string | null;
   createdAt: string;
 }

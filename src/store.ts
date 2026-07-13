@@ -17,6 +17,7 @@ interface TeamInput {
   trainingDay: string;
   location: string;
   notes: string;
+  fussballDeTeamId?: string;
 }
 
 interface UserInput {
@@ -91,6 +92,7 @@ interface AppState {
   addTeam: (input: TeamInput) => Promise<ActionResult>;
   updateTeam: (teamId: string, input: TeamInput) => Promise<ActionResult>;
   uploadTeamPhoto: (teamId: string, file: File) => Promise<ActionResult>;
+  importTeamMatchesFromFussballDe: (teamId: string) => Promise<ActionResult & { importedCount?: number }>;
   addUser: (input: UserInput) => Promise<ActionResult>;
   updateUser: (input: UserUpdateInput) => Promise<ActionResult>;
   deleteUser: (userId: string) => Promise<ActionResult>;
@@ -301,6 +303,35 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Mannschaftsfoto konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      importTeamMatchesFromFussballDe: async (teamId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/teams/${teamId}/import-fussballde`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload & {
+            importedCount?: number;
+          };
+          applyPayload(set, data, actorId);
+
+          return { success: true, importedCount: data.importedCount ?? 0 };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Spielplan konnte nicht importiert werden.",
           };
         }
       },
