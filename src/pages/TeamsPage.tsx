@@ -156,7 +156,13 @@ export default function TeamsPage() {
               className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
               value={form.fussballDeTeamId}
               onChange={(event) =>
-                setForm({ ...form, fussballDeTeamId: event.target.value.trim() })
+                setForm({
+                  ...form,
+                  fussballDeTeamId: event.target.value
+                    .trim()
+                    .replace(/[^a-z0-9]/gi, "")
+                    .toUpperCase(),
+                })
               }
               placeholder="optional fuer Spielplan-Import"
             />

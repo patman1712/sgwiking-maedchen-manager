@@ -30,6 +30,22 @@ const upload = multer({ storage })
 const canManageMatches = (actorId: string, teamId: string) =>
   isAdminOrBoard(actorId) || userHasTeamRole(actorId, teamId, 'trainer')
 
+const normalizeFussballDeTeamId = (value: string) => {
+  const trimmed = value.trim()
+
+  if (!trimmed) {
+    return ''
+  }
+
+  const urlMatch = trimmed.match(/team-id\/([a-z0-9]+)/i)
+  if (urlMatch?.[1]) {
+    return urlMatch[1].toUpperCase()
+  }
+
+  const plainMatch = trimmed.match(/([a-z0-9]{10,})/i)
+  return (plainMatch?.[1] ?? '').toUpperCase()
+}
+
 const decodeHtmlEntities = (value: string) =>
   value
     .replace(/&nbsp;/g, ' ')
@@ -164,7 +180,17 @@ router.post('/', (req: Request, res: Response) => {
       created_at
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(teamId, name, ageGroup, season, trainingDay, location, notes ?? '', fussballDeTeamId ?? '', timestamp)
+  `).run(
+    teamId,
+    name,
+    ageGroup,
+    season,
+    trainingDay,
+    location,
+    notes ?? '',
+    normalizeFussballDeTeamId(fussballDeTeamId ?? ''),
+    timestamp,
+  )
 
   db.prepare(`
     INSERT INTO conversations (id, title, type, team_id, updated_at, created_at)
@@ -186,7 +212,16 @@ router.put('/:id', (req: Request, res: Response) => {
     UPDATE teams
     SET name = ?, age_group = ?, season = ?, training_day = ?, location = ?, notes = ?, fussball_de_team_id = ?
     WHERE id = ?
-  `).run(name, ageGroup, season, trainingDay, location, notes ?? '', fussballDeTeamId ?? '', id)
+  `).run(
+    name,
+    ageGroup,
+    season,
+    trainingDay,
+    location,
+    notes ?? '',
+    normalizeFussballDeTeamId(fussballDeTeamId ?? ''),
+    id,
+  )
 
   db.prepare(`
     UPDATE conversations
@@ -236,18 +271,18 @@ router.post('/:id/import-fussballde', async (req: Request, res: Response) => {
     return
   }
 
-  const seasonRange = getSeasonDateRange(team.season)
+  const normalizedTeamId = normalizeFussballDeTeamId(team.fussball_de_team_id)
+
+  if (!normalizedTeamId) {
+    res.status(400).json({
+      success: false,
+      error: 'Bitte eine gueltige fussball.de Team-ID hinterlegen.',
+    })
+    return
+  }
 
   try {
-    const url = new URL(
-      `https://www.fussball.de/ajax.team.matchplan/-/mode/PAGE/team-id/${team.fussball_de_team_id}`,
-    )
-
-    if (seasonRange) {
-      url.searchParams.set('datum-von', seasonRange.from)
-      url.searchParams.set('datum-bis', seasonRange.to)
-    }
-    url.searchParams.set('show-venues', 'true')
+    const url = `https://www.fussball.de/ajax.team.matchplan/-/mode/PAGE/prev-season-allowed/true/team-id/${normalizedTeamId}`
 
     const response = await fetch(url, {
       headers: {
@@ -265,7 +300,7 @@ router.post('/:id/import-fussballde', async (req: Request, res: Response) => {
     }
 
     const html = await response.text()
-    const importedMatches = parseFussballDeMatches(html, team.name, team.fussball_de_team_id)
+    const importedMatches = parseFussballDeMatches(html, team.name, normalizedTeamId)
 
     if (!importedMatches.length) {
       res.status(400).json({
