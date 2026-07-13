@@ -67,6 +67,22 @@ const decodeHtmlEntities = (value: string) =>
 const stripHtml = (value: string) =>
   decodeHtmlEntities(value.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim()
 
+const normalizeFussballDeAssetUrl = (value: string | null | undefined) => {
+  if (!value) {
+    return null
+  }
+
+  if (value.startsWith('//')) {
+    return `https:${value}`
+  }
+
+  if (value.startsWith('/')) {
+    return `https://www.fussball.de${value}`
+  }
+
+  return value
+}
+
 const parseGermanKickoff = (value: string) => {
   const match = value.match(/(\d{2})\.(\d{2})\.(\d{2,4}).*?(\d{2}:\d{2})/)
 
@@ -136,6 +152,106 @@ const buildFussballDeMatchplanUrl = (params: {
   return segments.join('/')
 }
 
+const buildFussballDeTableNavUrl = (teamId: string) =>
+  `https://www.fussball.de/ajax.team.table.nav/-/team-id/${teamId}`
+
+const buildFussballDeTableUrl = (params: {
+  teamId: string
+  seasonCode: string
+  competitionId: string
+}) =>
+  `https://www.fussball.de/ajax.team.table/-/saison/${params.seasonCode}/staffel/${params.competitionId}/team-id/${params.teamId}`
+
+const fetchFussballDeText = async (url: string) => {
+  const response = await fetch(url, {
+    headers: {
+      'user-agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error('fussball.de konnte gerade nicht geladen werden.')
+  }
+
+  return response.text()
+}
+
+const toFussballDeSeasonCode = (season: string) => {
+  const match = season.match(/(\d{4})\s*\/\s*(\d{4})/)
+
+  if (!match) {
+    return null
+  }
+
+  return `${match[1].slice(-2)}${match[2].slice(-2)}`
+}
+
+const parseFussballDeTableNav = (html: string) => {
+  const seasonOptions = Array.from(
+    html.matchAll(/<option value="([^"]+)"([^>]*)>([\s\S]*?)<\/option>/g),
+  )
+    .map(([, value, attributes, label]) => ({
+      value,
+      label: stripHtml(label),
+      selected: attributes.includes('selected'),
+    }))
+    .filter((option) => /^\d{4}$/.test(option.value))
+
+  const competitionBlockMatch = html.match(
+    /<select size="1" name="staffel">([\s\S]*?)<\/select>/,
+  )
+  const competitionOptions = competitionBlockMatch
+    ? Array.from(competitionBlockMatch[1].matchAll(/<option value="([^"]+)"([^>]*)>([\s\S]*?)<\/option>/g)).map(
+        ([, value, attributes, label]) => ({
+          value,
+          label: stripHtml(label),
+          selected: attributes.includes('selected'),
+        }),
+      )
+    : []
+
+  return {
+    seasons: seasonOptions,
+    competitions: competitionOptions,
+  }
+}
+
+const parseFussballDeTable = (html: string) =>
+  Array.from(html.matchAll(/<tr(?: class="([^"]*)")?>([\s\S]*?)<\/tr>/g))
+    .map(([, rowClass = '', content]) => {
+      const columns = Array.from(content.matchAll(/<td(?: class="([^"]*)")?[^>]*>([\s\S]*?)<\/td>/g)).map(
+        ([, className = '', inner]) => ({
+          className,
+          inner,
+          text: stripHtml(inner),
+        }),
+      )
+
+      const teamColumn = columns.find((column) => column.className.includes('column-club'))
+      const logoMatch = teamColumn?.inner.match(/<img src="([^"]+)"/)
+      const clubNameMatch = teamColumn?.inner.match(/<div class="club-name">\s*([\s\S]*?)\s*<\/div>/)
+
+      if (!teamColumn || columns.length < 9) {
+        return null
+      }
+
+      return {
+        rank: columns.find((column) => column.className.includes('column-rank'))?.text ?? '',
+        teamName: clubNameMatch ? stripHtml(clubNameMatch[1]) : teamColumn.text,
+        logoUrl: normalizeFussballDeAssetUrl(logoMatch?.[1] ?? null),
+        matchesPlayed: columns[3]?.text ?? '',
+        wins: columns[4]?.text ?? '',
+        draws: columns[5]?.text ?? '',
+        losses: columns[6]?.text ?? '',
+        goals: columns[7]?.text ?? '',
+        goalDifference: columns[8]?.text ?? '',
+        points: columns[9]?.text ?? '',
+        isOwnTeam: rowClass.includes('own'),
+      }
+    })
+    .filter(Boolean)
+
 const parseFussballDeMatches = (html: string, teamName: string, teamId: string) => {
   const rows = Array.from(html.matchAll(/<tr(?: class="([^"]*)")?>([\s\S]*?)<\/tr>/g))
   const matches: Array<{
@@ -143,15 +259,23 @@ const parseFussballDeMatches = (html: string, teamName: string, teamId: string) 
     kickoffAt: string
     location: string
     isHome: boolean
+    competition: string
+    homeTeamName: string
+    awayTeamName: string
+    homeLogoUrl: string | null
+    awayLogoUrl: string | null
     matchUrl: string | null
   }> = []
   let currentKickoffAt: string | null = null
+  let currentCompetition = ''
   let lastMatchIndex = -1
 
   rows.forEach(([, rowClass = '', content]) => {
     if (rowClass.includes('row-competition')) {
       const dateMatch = content.match(/<td class="column-date">([\s\S]*?)<\/td>/)
       currentKickoffAt = dateMatch ? parseGermanKickoff(stripHtml(dateMatch[1])) : null
+      const competitionMatch = content.match(/<td colspan="3" class="column-team">\s*<a>([\s\S]*?)<\/a>/)
+      currentCompetition = competitionMatch ? stripHtml(competitionMatch[1]) : ''
       return
     }
 
@@ -180,6 +304,9 @@ const parseFussballDeMatches = (html: string, teamName: string, teamId: string) 
     const clubLinks = Array.from(content.matchAll(/href="([^"]*team-id\/[^"]+)"/g)).map(
       (entry) => entry[1],
     )
+    const clubLogoUrls = Array.from(
+      content.matchAll(/data-responsive-image="([^"]+)"/g),
+    ).map((entry) => normalizeFussballDeAssetUrl(entry[1]))
     const homeIsCurrentTeam = clubLinks[0]?.includes(`team-id/${teamId}`) || clubNames[0] === teamName
     const awayIsCurrentTeam = clubLinks[1]?.includes(`team-id/${teamId}`) || clubNames[1] === teamName
 
@@ -199,6 +326,11 @@ const parseFussballDeMatches = (html: string, teamName: string, teamId: string) 
       kickoffAt: currentKickoffAt,
       location,
       isHome,
+      competition: currentCompetition,
+      homeTeamName: clubNames[0],
+      awayTeamName: clubNames[1],
+      homeLogoUrl: clubLogoUrls[0] ?? null,
+      awayLogoUrl: clubLogoUrls[1] ?? null,
       matchUrl: matchUrlMatch?.[1] ?? null,
     })
     lastMatchIndex = matches.length - 1
@@ -317,6 +449,75 @@ router.put('/:id', (req: Request, res: Response) => {
   })
 })
 
+router.get('/:id/fussballde-table', async (req: Request, res: Response) => {
+  const { id } = req.params
+  const requestedSeason = (req.query.season as string | undefined) ?? ''
+
+  const team = db
+    .prepare('SELECT id, season, fussball_de_team_id FROM teams WHERE id = ?')
+    .get(id) as
+    | { id: string; season: string; fussball_de_team_id: string }
+    | undefined
+
+  if (!team) {
+    res.status(404).json({ success: false, error: 'Mannschaft nicht gefunden.' })
+    return
+  }
+
+  const normalizedTeamId = normalizeFussballDeTeamId(team.fussball_de_team_id)
+  if (!normalizedTeamId) {
+    res.status(400).json({ success: false, error: 'Keine gueltige fussball.de Team-ID hinterlegt.' })
+    return
+  }
+
+  try {
+    const navHtml = await fetchFussballDeText(buildFussballDeTableNavUrl(normalizedTeamId))
+    const nav = parseFussballDeTableNav(navHtml)
+    const preferredSeasonCode =
+      toFussballDeSeasonCode(requestedSeason || team.season) ??
+      nav.seasons.find((entry) => entry.selected)?.value ??
+      nav.seasons[0]?.value
+
+    const selectedSeason =
+      nav.seasons.find((entry) => entry.value === preferredSeasonCode) ??
+      nav.seasons.find((entry) => entry.selected) ??
+      nav.seasons[0]
+
+    const selectedCompetition =
+      nav.competitions.find((entry) => entry.selected) ?? nav.competitions[0]
+
+    if (!selectedSeason || !selectedCompetition) {
+      res.json({
+        success: true,
+        season: requestedSeason || team.season,
+        competition: null,
+        standings: [],
+      })
+      return
+    }
+
+    const tableHtml = await fetchFussballDeText(
+      buildFussballDeTableUrl({
+        teamId: normalizedTeamId,
+        seasonCode: selectedSeason.value,
+        competitionId: selectedCompetition.value,
+      }),
+    )
+
+    res.json({
+      success: true,
+      season: selectedSeason.label,
+      competition: selectedCompetition.label,
+      standings: parseFussballDeTable(tableHtml),
+    })
+  } catch {
+    res.status(500).json({
+      success: false,
+      error: 'Die Tabelle von fussball.de konnte nicht geladen werden.',
+    })
+  }
+})
+
 router.post('/:id/import-fussballde', async (req: Request, res: Response) => {
   const { id } = req.params
   const actorId = req.body.actorId as string | undefined
@@ -387,6 +588,11 @@ router.post('/:id/import-fussballde', async (req: Request, res: Response) => {
       kickoffAt: string
       location: string
       isHome: boolean
+      competition: string
+      homeTeamName: string
+      awayTeamName: string
+      homeLogoUrl: string | null
+      awayLogoUrl: string | null
       matchUrl: string | null
     }> = []
 
@@ -457,8 +663,22 @@ router.post('/:id/import-fussballde', async (req: Request, res: Response) => {
     }
 
     const insertMatch = db.prepare(`
-      INSERT INTO matches (id, team_id, opponent, kickoff_at, location, is_home, result, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO matches (
+        id,
+        team_id,
+        opponent,
+        kickoff_at,
+        location,
+        is_home,
+        competition,
+        home_team_name,
+        away_team_name,
+        home_logo_url,
+        away_logo_url,
+        result,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const findExisting = db.prepare(`
       SELECT id, result
@@ -468,7 +688,15 @@ router.post('/:id/import-fussballde', async (req: Request, res: Response) => {
     `)
     const updateMatch = db.prepare(`
       UPDATE matches
-      SET location = ?, is_home = ?, result = COALESCE(NULLIF(?, ''), result)
+      SET
+        location = ?,
+        is_home = ?,
+        competition = ?,
+        home_team_name = ?,
+        away_team_name = ?,
+        home_logo_url = ?,
+        away_logo_url = ?,
+        result = COALESCE(NULLIF(?, ''), result)
       WHERE id = ?
     `)
 
@@ -483,7 +711,17 @@ router.post('/:id/import-fussballde', async (req: Request, res: Response) => {
         | undefined
 
       if (existing) {
-        updateMatch.run(location, match.isHome ? 1 : 0, '', existing.id)
+        updateMatch.run(
+          location,
+          match.isHome ? 1 : 0,
+          match.competition ?? '',
+          match.homeTeamName ?? (match.isHome ? team.name : match.opponent),
+          match.awayTeamName ?? (match.isHome ? match.opponent : team.name),
+          match.homeLogoUrl ?? '',
+          match.awayLogoUrl ?? '',
+          '',
+          existing.id,
+        )
         if (match.matchUrl) {
           matchIdToUrl.set(existing.id, match.matchUrl)
         }
@@ -498,6 +736,11 @@ router.post('/:id/import-fussballde', async (req: Request, res: Response) => {
         match.kickoffAt,
         location,
         match.isHome ? 1 : 0,
+        match.competition ?? '',
+        match.homeTeamName ?? (match.isHome ? team.name : match.opponent),
+        match.awayTeamName ?? (match.isHome ? match.opponent : team.name),
+        match.homeLogoUrl ?? '',
+        match.awayLogoUrl ?? '',
         '',
         timestamp,
       )

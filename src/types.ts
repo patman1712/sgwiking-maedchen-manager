@@ -20,6 +20,11 @@ export interface Match {
   kickoffAt: string;
   location: string;
   isHome: boolean;
+  competition?: string;
+  homeTeamName?: string;
+  awayTeamName?: string;
+  homeLogoUrl?: string | null;
+  awayLogoUrl?: string | null;
   result: string | null;
   createdAt: string;
 }

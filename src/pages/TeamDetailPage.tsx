@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { CalendarDays, ChevronLeft, ImagePlus, MapPin, MessageSquare, Shield, Trophy } from "lucide-react";
 import SectionCard from "@/components/SectionCard";
@@ -68,6 +68,26 @@ export default function TeamDetailPage() {
   const [matchImporting, setMatchImporting] = useState(false);
   const [matchImportMessage, setMatchImportMessage] = useState("");
   const [matchImportError, setMatchImportError] = useState("");
+  const [expandedArchivedSeasons, setExpandedArchivedSeasons] = useState<string[]>([]);
+  const [leagueTable, setLeagueTable] = useState<{
+    season: string;
+    competition: string | null;
+    standings: Array<{
+      rank: string;
+      teamName: string;
+      logoUrl: string | null;
+      matchesPlayed: string;
+      wins: string;
+      draws: string;
+      losses: string;
+      goals: string;
+      goalDifference: string;
+      points: string;
+      isOwnTeam: boolean;
+    }>;
+  } | null>(null);
+  const [leagueTableLoading, setLeagueTableLoading] = useState(false);
+  const [leagueTableError, setLeagueTableError] = useState("");
 
   const assignedTrainers = useMemo(
     () =>
@@ -176,6 +196,60 @@ export default function TeamDetailPage() {
     const rightStart = Number(right.split("/")[0] ?? 0);
     return rightStart - leftStart;
   });
+  const primarySeasonLabel = teamMatchesBySeason[team.season]
+    ? team.season
+    : (teamSeasonEntries[0]?.[0] ?? team.season);
+  const primarySeasonMatches = teamMatchesBySeason[primarySeasonLabel] ?? [];
+  const archivedSeasonEntries = teamSeasonEntries.filter(
+    ([seasonLabel]) => seasonLabel !== primarySeasonLabel,
+  );
+
+  const loadLeagueTable = useCallback(async () => {
+    if (!team.fussballDeTeamId) {
+      setLeagueTable(null);
+      setLeagueTableError("");
+      return;
+    }
+
+    setLeagueTableLoading(true);
+    setLeagueTableError("");
+
+    try {
+      const response = await fetch(
+        `/api/teams/${team.id}/fussballde-table?season=${encodeURIComponent(team.season)}`,
+      );
+      const data = await response.json();
+
+      if (!response.ok || data.success === false) {
+        throw new Error(data.error || "Tabelle konnte nicht geladen werden.");
+      }
+
+      setLeagueTable({
+        season: data.season,
+        competition: data.competition,
+        standings: data.standings ?? [],
+      });
+    } catch (error) {
+      setLeagueTable(null);
+      setLeagueTableError(
+        error instanceof Error ? error.message : "Tabelle konnte nicht geladen werden.",
+      );
+    } finally {
+      setLeagueTableLoading(false);
+    }
+  }, [team.fussballDeTeamId, team.id, team.season]);
+
+  useEffect(() => {
+    setExpandedArchivedSeasons([]);
+  }, [team.id, primarySeasonLabel]);
+
+  useEffect(() => {
+    if (activeSection !== "spielplan") {
+      return;
+    }
+
+    void loadLeagueTable();
+  }, [activeSection, loadLeagueTable]);
 
   return (
     <div className="space-y-6">
@@ -379,6 +453,7 @@ export default function TeamDetailPage() {
                           const result = await importTeamMatchesFromFussballDe(team.id);
 
                           if (result.success) {
+                            void loadLeagueTable();
                             setMatchImportMessage(
                               `${result.importedCount ?? 0} Spiel(e) von fussball.de importiert.`,
                             );
@@ -614,84 +689,213 @@ export default function TeamDetailPage() {
         <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
           <SectionCard
             title="Spielplan"
-            description="Hier kannst du kuenftig Spiele, Treffpunkte und Uhrzeiten der Mannschaft organisieren."
+            description="Aktuelle Saison direkt im Blick, aeltere Saisons nur bei Bedarf aufklappen."
           >
             <div className="space-y-4">
               {teamMatches.length ? (
                 <div className="space-y-3">
-                  {teamSeasonEntries.map(([seasonLabel, seasonMatches]) => (
-                    <div key={seasonLabel} className="space-y-3">
-                      <div className="rounded-3xl border border-slate-200 bg-white px-5 py-4">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Saison
-                        </p>
-                        <p className="mt-1 text-lg font-semibold text-slate-900">{seasonLabel}</p>
-                      </div>
+                  <div className="rounded-3xl border border-blue-100 bg-blue-50/60 px-5 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-800">
+                      Aktuelle Saison
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-slate-900">
+                      {primarySeasonLabel}
+                    </p>
+                  </div>
 
-                      {seasonMatches.map((match) => (
-                        <div
-                          key={match.id}
-                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5"
-                        >
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-semibold text-slate-900">
-                                {match.isHome ? "Heim" : "Auswaerts"} vs. {match.opponent}
+                  {primarySeasonMatches.map((match) => {
+                    const isFriendlyMatch = (match.competition ?? "")
+                      .toLowerCase()
+                      .includes("freundschaft");
+                    const homeTeamName =
+                      match.homeTeamName || (match.isHome ? team.name : match.opponent);
+                    const awayTeamName =
+                      match.awayTeamName || (match.isHome ? match.opponent : team.name);
+
+                    return (
+                      <div
+                        key={match.id}
+                        className="rounded-3xl border border-slate-200 bg-slate-50 p-5"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                {match.competition || "Spiel"}
                               </p>
-                              <p className="mt-2 text-sm text-slate-600">
-                                {new Date(match.kickoffAt).toLocaleString("de-DE")}
-                              </p>
-                              <p className="mt-1 text-sm text-slate-500">{match.location}</p>
+                              {isFriendlyMatch ? (
+                                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+                                  Freundschaftsspiel
+                                </span>
+                              ) : null}
                             </div>
 
-                            {canManageMatchesHere ? (
-                              <div className="flex flex-wrap items-center justify-end gap-2">
-                                <input
-                                  className="w-40 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                                  value={matchResultDrafts[match.id] ?? (match.result ?? "")}
-                                  placeholder="Ergebnis"
-                                  onChange={(event) =>
-                                    setMatchResultDrafts((current) => ({
-                                      ...current,
-                                      [match.id]: event.target.value,
-                                    }))
-                                  }
-                                />
-                                <button
-                                  type="button"
-                                  onClick={async () => {
-                                    const nextValue =
-                                      matchResultDrafts[match.id] ?? (match.result ?? "");
-                                    await updateMatch(match.id, { result: nextValue });
-                                  }}
-                                  className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-900 transition hover:bg-blue-100"
-                                >
-                                  Speichern
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={async () => {
-                                    const confirmed = window.confirm("Spiel wirklich loeschen?");
-                                    if (!confirmed) {
-                                      return;
-                                    }
-                                    await deleteMatch(match.id);
-                                  }}
-                                  className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
-                                >
-                                  Loeschen
-                                </button>
+                            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                              <div className="flex items-center gap-3">
+                                {match.homeLogoUrl ? (
+                                  <img
+                                    src={match.homeLogoUrl}
+                                    alt={homeTeamName}
+                                    className="h-12 w-12 rounded-2xl border border-slate-200 bg-white object-contain p-1"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-900">
+                                    <Shield size={18} />
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold text-slate-900">
+                                    {homeTeamName}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-500">Heim</p>
+                                </div>
                               </div>
-                            ) : (
-                              <p className="text-sm text-slate-700">
-                                Ergebnis: {match.result || "Noch offen"}
-                              </p>
-                            )}
+
+                              <div className="text-center">
+                                <p className="text-base font-semibold text-slate-900">
+                                  {match.result || "- : -"}
+                                </p>
+                              </div>
+
+                              <div className="flex items-center justify-start gap-3 sm:justify-end">
+                                <div className="min-w-0 text-left sm:text-right">
+                                  <p className="truncate text-sm font-semibold text-slate-900">
+                                    {awayTeamName}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-500">Gast</p>
+                                </div>
+                                {match.awayLogoUrl ? (
+                                  <img
+                                    src={match.awayLogoUrl}
+                                    alt={awayTeamName}
+                                    className="h-12 w-12 rounded-2xl border border-slate-200 bg-white object-contain p-1"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-900">
+                                    <Shield size={18} />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <p className="mt-4 text-sm text-slate-600">
+                              {new Date(match.kickoffAt).toLocaleString("de-DE")}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-500">{match.location}</p>
                           </div>
+
+                          {canManageMatchesHere ? (
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                              <input
+                                className="w-40 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                value={matchResultDrafts[match.id] ?? (match.result ?? "")}
+                                placeholder="Ergebnis"
+                                onChange={(event) =>
+                                  setMatchResultDrafts((current) => ({
+                                    ...current,
+                                    [match.id]: event.target.value,
+                                  }))
+                                }
+                              />
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const nextValue =
+                                    matchResultDrafts[match.id] ?? (match.result ?? "");
+                                  await updateMatch(match.id, { result: nextValue });
+                                }}
+                                className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-900 transition hover:bg-blue-100"
+                              >
+                                Speichern
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const confirmed = window.confirm("Spiel wirklich loeschen?");
+                                  if (!confirmed) {
+                                    return;
+                                  }
+                                  await deleteMatch(match.id);
+                                }}
+                                className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                              >
+                                Loeschen
+                              </button>
+                            </div>
+                          ) : null}
                         </div>
-                      ))}
+                      </div>
+                    );
+                  })}
+
+                  {archivedSeasonEntries.length ? (
+                    <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4">
+                      <p className="text-sm font-semibold text-slate-900">Aeltere Saisons</p>
+                      <div className="flex flex-wrap gap-2">
+                        {archivedSeasonEntries.map(([seasonLabel]) => {
+                          const isOpen = expandedArchivedSeasons.includes(seasonLabel);
+
+                          return (
+                            <button
+                              key={seasonLabel}
+                              type="button"
+                              onClick={() =>
+                                setExpandedArchivedSeasons((current) =>
+                                  current.includes(seasonLabel)
+                                    ? current.filter((entry) => entry !== seasonLabel)
+                                    : [...current, seasonLabel],
+                                )
+                              }
+                              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-900"
+                            >
+                              {isOpen ? `${seasonLabel} schliessen` : `${seasonLabel} oeffnen`}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {archivedSeasonEntries.map(([seasonLabel, seasonMatches]) =>
+                        expandedArchivedSeasons.includes(seasonLabel) ? (
+                          <div key={seasonLabel} className="space-y-3 pt-2">
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                              <p className="text-sm font-semibold text-slate-900">
+                                Saison {seasonLabel}
+                              </p>
+                            </div>
+                            {seasonMatches.map((match) => (
+                              <div
+                                key={match.id}
+                                className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                  <div>
+                                    <p className="text-sm font-semibold text-slate-900">
+                                      {(match.competition || "Spiel").trim()}
+                                    </p>
+                                    <p className="mt-1 text-sm text-slate-700">
+                                      {(match.homeTeamName ||
+                                        (match.isHome ? team.name : match.opponent)).trim()}{" "}
+                                      -{" "}
+                                      {(match.awayTeamName ||
+                                        (match.isHome ? match.opponent : team.name)).trim()}
+                                    </p>
+                                    <p className="mt-1 text-sm text-slate-500">
+                                      {new Date(match.kickoffAt).toLocaleString("de-DE")}
+                                    </p>
+                                  </div>
+                                  <p className="text-sm font-semibold text-slate-700">
+                                    {match.result || "Noch offen"}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null,
+                      )}
                     </div>
-                  ))}
+                  ) : null}
                 </div>
               ) : (
                 <div className="rounded-3xl border border-dashed border-blue-200 bg-blue-50/60 p-6">
@@ -786,24 +990,78 @@ export default function TeamDetailPage() {
           </SectionCard>
 
           <SectionCard
-            title="Schnellinfos"
-            description="Wichtige Teamdaten fuer die Spielorganisation."
+            title="Tabelle"
+            description="Direkt von fussball.de geladen, sobald fuer die Mannschaft eine Staffel verfuegbar ist."
           >
             <div className="space-y-3">
-              <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Training</p>
-                <p className="mt-1 text-sm font-medium text-slate-900">{team.trainingDay}</p>
-              </div>
-              <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Ort</p>
-                <p className="mt-1 text-sm font-medium text-slate-900">{team.location}</p>
-              </div>
-              <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Notizen</p>
-                <p className="mt-1 text-sm text-slate-700">
-                  {team.notes || "Noch keine Notizen fuer diese Mannschaft hinterlegt."}
-                </p>
-              </div>
+              {leagueTableLoading ? (
+                <div className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500">
+                  Tabelle wird geladen...
+                </div>
+              ) : null}
+
+              {!leagueTableLoading && leagueTableError ? (
+                <div className="rounded-3xl border border-rose-200 bg-rose-50 px-5 py-6 text-sm text-rose-700">
+                  {leagueTableError}
+                </div>
+              ) : null}
+
+              {!leagueTableLoading && !leagueTableError && leagueTable?.standings.length ? (
+                <>
+                  <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                      {leagueTable.season}
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-slate-900">
+                      {leagueTable.competition || "Tabelle"}
+                    </p>
+                  </div>
+
+                  {leagueTable.standings.map((entry) => (
+                    <div
+                      key={`${entry.rank}-${entry.teamName}`}
+                      className={cn(
+                        "grid gap-3 rounded-2xl border px-4 py-3 md:grid-cols-[auto_1fr_auto] md:items-center",
+                        entry.isOwnTeam
+                          ? "border-blue-200 bg-blue-50"
+                          : "border-slate-200 bg-slate-50",
+                      )}
+                    >
+                      <p className="text-base font-semibold text-slate-900">{entry.rank}</p>
+                      <div className="flex items-center gap-3">
+                        {entry.logoUrl ? (
+                          <img
+                            src={entry.logoUrl}
+                            alt={entry.teamName}
+                            className="h-10 w-10 rounded-2xl border border-slate-200 bg-white object-contain p-1"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-blue-900">
+                            <Shield size={16} />
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">{entry.teamName}</p>
+                          <p className="text-xs text-slate-500">
+                            {entry.matchesPlayed} Sp. | {entry.wins} S | {entry.draws} U | {entry.losses} N
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-slate-900">{entry.points} Pkt.</p>
+                        <p className="text-xs text-slate-500">{entry.goals}</p>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              ) : null}
+
+              {!leagueTableLoading && !leagueTableError && !leagueTable?.standings.length ? (
+                <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500">
+                  Fuer diese Saison ist bei fussball.de aktuell noch keine Tabelle verfuegbar.
+                </div>
+              ) : null}
             </div>
           </SectionCard>
         </div>

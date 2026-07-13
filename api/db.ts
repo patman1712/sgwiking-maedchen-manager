@@ -185,6 +185,11 @@ db.exec(`
     kickoff_at TEXT NOT NULL,
     location TEXT NOT NULL,
     is_home INTEGER NOT NULL DEFAULT 1,
+    competition TEXT DEFAULT '',
+    home_team_name TEXT DEFAULT '',
+    away_team_name TEXT DEFAULT '',
+    home_logo_url TEXT DEFAULT '',
+    away_logo_url TEXT DEFAULT '',
     result TEXT DEFAULT '',
     created_at TEXT NOT NULL,
     FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE
@@ -253,6 +258,30 @@ if (!userColumns.includes('has_photo_consent_social')) {
   db.prepare(
     'ALTER TABLE users ADD COLUMN has_photo_consent_social INTEGER NOT NULL DEFAULT 0',
   ).run()
+}
+
+const matchColumns = (
+  db.prepare('PRAGMA table_info(matches)').all() as { name: string }[]
+).map((column) => column.name)
+
+if (!matchColumns.includes('competition')) {
+  db.prepare("ALTER TABLE matches ADD COLUMN competition TEXT DEFAULT ''").run()
+}
+
+if (!matchColumns.includes('home_team_name')) {
+  db.prepare("ALTER TABLE matches ADD COLUMN home_team_name TEXT DEFAULT ''").run()
+}
+
+if (!matchColumns.includes('away_team_name')) {
+  db.prepare("ALTER TABLE matches ADD COLUMN away_team_name TEXT DEFAULT ''").run()
+}
+
+if (!matchColumns.includes('home_logo_url')) {
+  db.prepare("ALTER TABLE matches ADD COLUMN home_logo_url TEXT DEFAULT ''").run()
+}
+
+if (!matchColumns.includes('away_logo_url')) {
+  db.prepare("ALTER TABLE matches ADD COLUMN away_logo_url TEXT DEFAULT ''").run()
 }
 
 const now = () => new Date().toISOString()
@@ -648,6 +677,11 @@ type MatchRow = {
   kickoff_at: string
   location: string
   is_home: number
+  competition: string
+  home_team_name: string
+  away_team_name: string
+  home_logo_url: string
+  away_logo_url: string
   result: string
   created_at: string
 }
@@ -805,6 +839,11 @@ export const getMatches = () =>
     kickoffAt: row.kickoff_at,
     location: row.location,
     isHome: Boolean(row.is_home),
+    competition: row.competition || '',
+    homeTeamName: row.home_team_name || '',
+    awayTeamName: row.away_team_name || '',
+    homeLogoUrl: row.home_logo_url || null,
+    awayLogoUrl: row.away_logo_url || null,
     result: row.result || null,
     createdAt: row.created_at,
   }))

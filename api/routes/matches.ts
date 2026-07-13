@@ -34,11 +34,42 @@ router.post('/', (req: Request, res: Response) => {
 
   const matchId = createId('match')
   const timestamp = now()
+  const team = db
+    .prepare('SELECT name FROM teams WHERE id = ?')
+    .get(teamId) as { name: string } | undefined
 
   db.prepare(`
-    INSERT INTO matches (id, team_id, opponent, kickoff_at, location, is_home, result, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(matchId, teamId, opponent, kickoffAt, location, isHome === false ? 0 : 1, result ?? '', timestamp)
+    INSERT INTO matches (
+      id,
+      team_id,
+      opponent,
+      kickoff_at,
+      location,
+      is_home,
+      competition,
+      home_team_name,
+      away_team_name,
+      home_logo_url,
+      away_logo_url,
+      result,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    matchId,
+    teamId,
+    opponent,
+    kickoffAt,
+    location,
+    isHome === false ? 0 : 1,
+    '',
+    isHome === false ? opponent : team?.name ?? '',
+    isHome === false ? team?.name ?? '' : opponent,
+    '',
+    '',
+    result ?? '',
+    timestamp,
+  )
 
   res.json({
     success: true,
@@ -84,16 +115,26 @@ router.put('/:id', (req: Request, res: Response) => {
     is_home: number
     result: string
   }
+  const teamName = (
+    db.prepare('SELECT name FROM teams WHERE id = ?').get(match.team_id) as { name: string } | undefined
+  )?.name ?? ''
+
+  const nextOpponent = opponent ?? current.opponent
+  const nextIsHome = typeof isHome === 'boolean' ? (isHome ? 1 : 0) : current.is_home
+  const homeTeamName = nextIsHome ? teamName : nextOpponent
+  const awayTeamName = nextIsHome ? nextOpponent : teamName
 
   db.prepare(`
     UPDATE matches
-    SET opponent = ?, kickoff_at = ?, location = ?, is_home = ?, result = ?
+    SET opponent = ?, kickoff_at = ?, location = ?, is_home = ?, home_team_name = ?, away_team_name = ?, result = ?
     WHERE id = ?
   `).run(
-    opponent ?? current.opponent,
+    nextOpponent,
     kickoffAt ?? current.kickoff_at,
     location ?? current.location,
-    typeof isHome === 'boolean' ? (isHome ? 1 : 0) : current.is_home,
+    nextIsHome,
+    homeTeamName,
+    awayTeamName,
     result ?? current.result,
     id,
   )
