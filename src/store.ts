@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import type {
   AppSettings,
   Conversation,
+  InventoryItem,
   Match,
   Message,
   Team,
@@ -44,6 +45,7 @@ interface ApiStatePayload {
   teams: Team[];
   users: UserProfile[];
   matches: Match[];
+  inventoryItems: InventoryItem[];
   conversations: Conversation[];
   messages: Message[];
   settings: AppSettings;
@@ -80,6 +82,7 @@ interface AppState {
   teams: Team[];
   users: UserProfile[];
   matches: Match[];
+  inventoryItems: InventoryItem[];
   conversations: Conversation[];
   messages: Message[];
   settings: AppSettings;
@@ -97,6 +100,17 @@ interface AppState {
     teamId: string,
     season: string,
   ) => Promise<ActionResult & { deletedCount?: number }>;
+  addInventoryItem: (input: {
+    teamId: string;
+    category: string;
+    name: string;
+    quantity: number;
+    productInfo: string;
+    notes: string;
+    condition: string;
+    imageFile?: File | null;
+  }) => Promise<ActionResult>;
+  deleteInventoryItem: (itemId: string) => Promise<ActionResult>;
   addUser: (input: UserInput) => Promise<ActionResult>;
   updateUser: (input: UserUpdateInput) => Promise<ActionResult>;
   deleteUser: (userId: string) => Promise<ActionResult>;
@@ -138,6 +152,7 @@ export const initialAppState = {
   teams: [] as Team[],
   users: [] as UserProfile[],
   matches: [] as Match[],
+  inventoryItems: [] as InventoryItem[],
   conversations: [] as Conversation[],
   messages: [] as Message[],
   settings: {
@@ -173,6 +188,7 @@ const applyPayload = (
     teams: payload.teams,
     users: payload.users,
     matches: payload.matches,
+    inventoryItems: payload.inventoryItems,
     conversations: payload.conversations,
     messages: payload.messages,
     settings: payload.settings,
@@ -365,6 +381,73 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Saisondaten konnten nicht geloescht werden.",
+          };
+        }
+      },
+      addInventoryItem: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("actorId", actorId);
+          payload.append("teamId", input.teamId);
+          payload.append("category", input.category);
+          payload.append("name", input.name);
+          payload.append("quantity", String(input.quantity));
+          payload.append("productInfo", input.productInfo);
+          payload.append("notes", input.notes);
+          payload.append("condition", input.condition);
+
+          if (input.imageFile) {
+            payload.append("image", input.imageFile);
+          }
+
+          const response = await fetch("/api/inventory", {
+            method: "POST",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Inventar konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      deleteInventoryItem: async (itemId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/inventory/${itemId}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Inventar konnte nicht geloescht werden.",
           };
         }
       },

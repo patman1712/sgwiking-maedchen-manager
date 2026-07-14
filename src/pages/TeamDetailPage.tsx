@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { CalendarDays, ChevronLeft, ImagePlus, MapPin, MessageSquare, Shield, Trophy } from "lucide-react";
+import { CalendarDays, ChevronLeft, ImagePlus, MapPin, MessageSquare, Package, Shield, Trash2, Trophy } from "lucide-react";
 import SectionCard from "@/components/SectionCard";
 import { optimizeImageForUpload } from "@/lib/image";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,7 @@ export default function TeamDetailPage() {
   const teams = useAppStore((state) => state.teams);
   const users = useAppStore((state) => state.users);
   const matches = useAppStore((state) => state.matches);
+  const inventoryItems = useAppStore((state) => state.inventoryItems);
   const conversations = useAppStore((state) => state.conversations);
   const currentUserId = useAppStore((state) => state.currentUserId);
   const updateTeam = useAppStore((state) => state.updateTeam);
@@ -31,6 +32,8 @@ export default function TeamDetailPage() {
   const deleteTeamMatchesBySeason = useAppStore(
     (state) => state.deleteTeamMatchesBySeason,
   );
+  const addInventoryItem = useAppStore((state) => state.addInventoryItem);
+  const deleteInventoryItem = useAppStore((state) => state.deleteInventoryItem);
   const addMatch = useAppStore((state) => state.addMatch);
   const updateMatch = useAppStore((state) => state.updateMatch);
   const deleteMatch = useAppStore((state) => state.deleteMatch);
@@ -92,6 +95,19 @@ export default function TeamDetailPage() {
   } | null>(null);
   const [leagueTableLoading, setLeagueTableLoading] = useState(false);
   const [leagueTableError, setLeagueTableError] = useState("");
+  const [inventoryForm, setInventoryForm] = useState({
+    category: "Trikots",
+    name: "",
+    quantity: "1",
+    productInfo: "",
+    notes: "",
+    condition: "gut",
+  });
+  const [inventoryImageFile, setInventoryImageFile] = useState<File | null>(null);
+  const [inventorySubmitting, setInventorySubmitting] = useState(false);
+  const [inventoryDeletingId, setInventoryDeletingId] = useState<string | null>(null);
+  const [inventoryMessage, setInventoryMessage] = useState("");
+  const [inventoryError, setInventoryError] = useState("");
 
   const assignedTrainers = useMemo(
     () =>
@@ -112,6 +128,7 @@ export default function TeamDetailPage() {
     currentUser?.role === "board" ||
     assignedTrainers.some((trainer) => trainer.id === currentUserId);
   const canManageMatchesHere = canManagePlayersHere;
+  const canManageInventoryHere = canManagePlayersHere;
   const canEditTeam =
     currentUser?.role === "admin" || currentUser?.role === "board";
   const canDeleteSeasonMatches = currentUser?.role === "admin";
@@ -174,11 +191,57 @@ export default function TeamDetailPage() {
     return pastMatches.length ? pastMatches[pastMatches.length - 1] : null;
   }, [teamMatches]);
 
+  const teamInventoryItems = useMemo(
+    () =>
+      inventoryItems
+        .filter((item) => item.teamId === team.id)
+        .slice()
+        .sort((left, right) => {
+          const categoryCompare = left.category.localeCompare(right.category, "de");
+          if (categoryCompare !== 0) {
+            return categoryCompare;
+          }
+          return left.name.localeCompare(right.name, "de");
+        }),
+    [inventoryItems, team.id],
+  );
+
+  const inventoryItemsByCategory = useMemo(
+    () =>
+      teamInventoryItems.reduce<Record<string, typeof teamInventoryItems>>((accumulator, item) => {
+        const key = item.category || "Sonstiges";
+        const existing = accumulator[key] ?? [];
+        accumulator[key] = [...existing, item];
+        return accumulator;
+      }, {}),
+    [teamInventoryItems],
+  );
+
+  const inventoryCategoryEntries = useMemo(
+    () => Object.entries(inventoryItemsByCategory),
+    [inventoryItemsByCategory],
+  );
+
   const getHomeTeamName = (match: (typeof teamMatches)[number]) =>
     match.homeTeamName || (match.isHome ? team.name : match.opponent);
 
   const getAwayTeamName = (match: (typeof teamMatches)[number]) =>
     match.awayTeamName || (match.isHome ? match.opponent : team.name);
+
+  const getConditionBadgeClassName = (condition: string) => {
+    switch (condition.toLowerCase()) {
+      case "neu":
+        return "border-emerald-200 bg-emerald-50 text-emerald-700";
+      case "gut":
+        return "border-blue-200 bg-blue-50 text-blue-700";
+      case "gebraucht":
+        return "border-amber-200 bg-amber-50 text-amber-700";
+      case "reparaturbedarf":
+        return "border-rose-200 bg-rose-50 text-rose-700";
+      default:
+        return "border-slate-200 bg-slate-100 text-slate-700";
+    }
+  };
 
   const seasonLabelForKickoff = (kickoffAt: string) => {
     const date = new Date(kickoffAt);
@@ -1244,29 +1307,315 @@ export default function TeamDetailPage() {
       {activeSection === "inventar" ? (
         <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
           <SectionCard
-            title="Inventar"
-            description="Eigener Bereich fuer Trainingsmaterial, Trikots und Ausruestung dieser Mannschaft."
+            title="Inventar erfassen"
+            description="Produkte wie Trikots, Baelle oder weiteres Material mit Menge, Zustand, Infos und Bild hinterlegen."
           >
-            <div className="rounded-3xl border border-dashed border-blue-200 bg-blue-50/60 p-6">
-              <p className="text-sm font-semibold text-blue-900">Inventar-Untermenue aktiv</p>
-              <p className="mt-2 text-sm text-slate-600">
-                Dieser Bereich ist nun fest fuer {team.name} vorhanden. Als Naechstes koennen wir
-                hier Balle, Leibchen, Trikotsaetze und Materiallisten ergaenzen.
-              </p>
-            </div>
+            <form
+              className="space-y-4"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                setInventoryError("");
+                setInventoryMessage("");
+                setInventorySubmitting(true);
+
+                try {
+                  const optimizedImage = inventoryImageFile
+                    ? await optimizeImageForUpload(inventoryImageFile)
+                    : null;
+                  const result = await addInventoryItem({
+                    teamId: team.id,
+                    category: inventoryForm.category,
+                    name: inventoryForm.name,
+                    quantity: Number.parseInt(inventoryForm.quantity, 10) || 1,
+                    productInfo: inventoryForm.productInfo,
+                    notes: inventoryForm.notes,
+                    condition: inventoryForm.condition,
+                    imageFile: optimizedImage,
+                  });
+
+                  if (!result.success) {
+                    setInventoryError(
+                      result.error ?? "Inventareintrag konnte nicht gespeichert werden.",
+                    );
+                    return;
+                  }
+
+                  setInventoryForm({
+                    category: "Trikots",
+                    name: "",
+                    quantity: "1",
+                    productInfo: "",
+                    notes: "",
+                    condition: "gut",
+                  });
+                  setInventoryImageFile(null);
+                  const formElement = event.currentTarget;
+                  formElement.reset();
+                  setInventoryMessage("Inventareintrag wurde gespeichert.");
+                } catch {
+                  setInventoryError("Bild konnte nicht verarbeitet werden.");
+                } finally {
+                  setInventorySubmitting(false);
+                }
+              }}
+            >
+              {inventoryError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {inventoryError}
+                </div>
+              ) : null}
+
+              {inventoryMessage ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {inventoryMessage}
+                </div>
+              ) : null}
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Kategorie</span>
+                  <select
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    value={inventoryForm.category}
+                    onChange={(event) =>
+                      setInventoryForm({ ...inventoryForm, category: event.target.value })
+                    }
+                    disabled={!canManageInventoryHere}
+                  >
+                    {["Trikots", "Baelle", "Leibchen", "Trainingsmaterial", "Torwart", "Sonstiges"].map(
+                      (option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Zustand</span>
+                  <select
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    value={inventoryForm.condition}
+                    onChange={(event) =>
+                      setInventoryForm({ ...inventoryForm, condition: event.target.value })
+                    }
+                    disabled={!canManageInventoryHere}
+                  >
+                    {["neu", "gut", "gebraucht", "reparaturbedarf"].map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-[1fr_180px]">
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Produkt</span>
+                  <input
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    value={inventoryForm.name}
+                    onChange={(event) =>
+                      setInventoryForm({ ...inventoryForm, name: event.target.value })
+                    }
+                    placeholder="z. B. Heimtrikot rot, Ballnetz, Trainingsball"
+                    disabled={!canManageInventoryHere}
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Anzahl</span>
+                  <input
+                    type="number"
+                    min={1}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    value={inventoryForm.quantity}
+                    onChange={(event) =>
+                      setInventoryForm({ ...inventoryForm, quantity: event.target.value })
+                    }
+                    disabled={!canManageInventoryHere}
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-700">Produktinfo</span>
+                <textarea
+                  className="min-h-24 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  value={inventoryForm.productInfo}
+                  onChange={(event) =>
+                    setInventoryForm({ ...inventoryForm, productInfo: event.target.value })
+                  }
+                  placeholder="z. B. Groessen, Hersteller, Farbe, Satznummern oder weitere Details"
+                  disabled={!canManageInventoryHere}
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-700">Notizen</span>
+                <textarea
+                  className="min-h-24 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  value={inventoryForm.notes}
+                  onChange={(event) =>
+                    setInventoryForm({ ...inventoryForm, notes: event.target.value })
+                  }
+                  placeholder="z. B. bei wem das Material liegt oder was nachgekauft werden muss"
+                  disabled={!canManageInventoryHere}
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-700">Bild optional</span>
+                <input
+                  type="file"
+                  accept=".png,.jpg,.jpeg,.webp,.svg"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-blue-700 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-800"
+                  disabled={!canManageInventoryHere}
+                  onChange={(event) => setInventoryImageFile(event.target.files?.[0] ?? null)}
+                />
+              </label>
+
+              {canManageInventoryHere ? (
+                <button
+                  type="submit"
+                  disabled={inventorySubmitting}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-950 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  <ImagePlus size={18} />
+                  {inventorySubmitting ? "Wird gespeichert..." : "Inventar hinzufuegen"}
+                </button>
+              ) : (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                  Inventar kann hier von Trainern, Vorstand und Admin gepflegt werden.
+                </div>
+              )}
+            </form>
           </SectionCard>
 
           <SectionCard
-            title="Empfohlene Struktur"
-            description="So kann das Inventar spaeter aufgeteilt werden."
+            title="Inventarliste"
+            description="Sauber nach Kategorien sortiert, mit Menge, Zustand, Infos, Notizen und Bildern."
           >
-            <div className="grid gap-3">
-              {["Spielkleidung", "Trainingsmaterial", "Torwartausruestung", "Sonstiges"].map(
-                (item) => (
-                  <div key={item} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-sm font-medium text-slate-900">{item}</p>
+            <div className="space-y-4">
+              {inventoryCategoryEntries.length ? (
+                inventoryCategoryEntries.map(([category, items]) => (
+                  <div key={category} className="space-y-3">
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <p className="text-sm font-semibold text-slate-900">{category}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {items.length} Eintrag{items.length === 1 ? "" : "e"}
+                      </p>
+                    </div>
+
+                    {items.map((item) => (
+                      <div
+                        key={item.id}
+                        className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div className="flex items-start gap-4">
+                            {item.imageUrl ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setImageModal({
+                                    src: item.imageUrl!,
+                                    alt: item.name,
+                                  })
+                                }
+                                className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
+                              >
+                                <img
+                                  src={item.imageUrl}
+                                  alt={item.name}
+                                  className="h-24 w-24 object-cover"
+                                  loading="lazy"
+                                />
+                              </button>
+                            ) : (
+                              <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-400">
+                                <Package size={28} />
+                              </div>
+                            )}
+
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-lg font-semibold text-slate-900">{item.name}</p>
+                                <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                                  {item.quantity} Stk.
+                                </span>
+                                <span
+                                  className={cn(
+                                    "rounded-full border px-3 py-1 text-xs font-semibold",
+                                    getConditionBadgeClassName(item.condition),
+                                  )}
+                                >
+                                  {item.condition || "ohne Zustand"}
+                                </span>
+                              </div>
+
+                              {item.productInfo ? (
+                                <p className="text-sm text-slate-700">{item.productInfo}</p>
+                              ) : null}
+
+                              {item.notes ? (
+                                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                                  {item.notes}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          {canManageInventoryHere ? (
+                            <button
+                              type="button"
+                              disabled={inventoryDeletingId === item.id}
+                              onClick={async () => {
+                                const confirmed = window.confirm(
+                                  `${item.name} wirklich aus dem Inventar loeschen?`,
+                                );
+
+                                if (!confirmed) {
+                                  return;
+                                }
+
+                                setInventoryError("");
+                                setInventoryMessage("");
+                                setInventoryDeletingId(item.id);
+                                const result = await deleteInventoryItem(item.id);
+
+                                if (!result.success) {
+                                  setInventoryError(
+                                    result.error ?? "Inventareintrag konnte nicht geloescht werden.",
+                                  );
+                                } else {
+                                  setInventoryMessage("Inventareintrag wurde geloescht.");
+                                }
+
+                                setInventoryDeletingId(null);
+                              }}
+                              className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <Trash2 size={16} />
+                              {inventoryDeletingId === item.id ? "Loesche..." : "Loeschen"}
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ),
+                ))
+              ) : (
+                <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
+                  <p className="text-sm font-semibold text-slate-900">
+                    Noch kein Inventar fuer {team.name} erfasst
+                  </p>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Hier koennen Trikots, Baelle, Trainingsmaterial und weiteres Team-Equipment sauber gepflegt werden.
+                  </p>
+                </div>
               )}
             </div>
           </SectionCard>

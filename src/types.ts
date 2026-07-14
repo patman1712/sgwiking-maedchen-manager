@@ -29,6 +29,19 @@ export interface Match {
   createdAt: string;
 }
 
+export interface InventoryItem {
+  id: string;
+  teamId: string;
+  category: string;
+  name: string;
+  quantity: number;
+  productInfo: string;
+  notes: string;
+  condition: string;
+  imageUrl?: string | null;
+  createdAt: string;
+}
+
 export interface UserProfile {
   id: string;
   fullName: string;

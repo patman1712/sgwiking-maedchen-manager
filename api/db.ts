@@ -194,6 +194,20 @@ db.exec(`
     created_at TEXT NOT NULL,
     FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS inventory_items (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    category TEXT NOT NULL,
+    name TEXT NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 1,
+    product_info TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    item_condition TEXT DEFAULT '',
+    image_url TEXT DEFAULT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE
+  );
 `)
 
 const teamColumns = (
@@ -282,6 +296,26 @@ if (!matchColumns.includes('home_logo_url')) {
 
 if (!matchColumns.includes('away_logo_url')) {
   db.prepare("ALTER TABLE matches ADD COLUMN away_logo_url TEXT DEFAULT ''").run()
+}
+
+const inventoryItemColumns = (
+  db.prepare('PRAGMA table_info(inventory_items)').all() as { name: string }[]
+).map((column) => column.name)
+
+if (!inventoryItemColumns.includes('product_info')) {
+  db.prepare("ALTER TABLE inventory_items ADD COLUMN product_info TEXT DEFAULT ''").run()
+}
+
+if (!inventoryItemColumns.includes('notes')) {
+  db.prepare("ALTER TABLE inventory_items ADD COLUMN notes TEXT DEFAULT ''").run()
+}
+
+if (!inventoryItemColumns.includes('item_condition')) {
+  db.prepare("ALTER TABLE inventory_items ADD COLUMN item_condition TEXT DEFAULT ''").run()
+}
+
+if (!inventoryItemColumns.includes('image_url')) {
+  db.prepare('ALTER TABLE inventory_items ADD COLUMN image_url TEXT DEFAULT NULL').run()
 }
 
 const now = () => new Date().toISOString()
@@ -686,6 +720,19 @@ type MatchRow = {
   created_at: string
 }
 
+type InventoryItemRow = {
+  id: string
+  team_id: string
+  category: string
+  name: string
+  quantity: number
+  product_info: string
+  notes: string
+  item_condition: string
+  image_url: string | null
+  created_at: string
+}
+
 export const mapTeam = (row: TeamRow) => ({
   id: row.id,
   name: row.name,
@@ -848,6 +895,26 @@ export const getMatches = () =>
     createdAt: row.created_at,
   }))
 
+export const getInventoryItems = () =>
+  (
+    db
+      .prepare(
+        'SELECT * FROM inventory_items ORDER BY category COLLATE NOCASE ASC, name COLLATE NOCASE ASC, created_at DESC',
+      )
+      .all() as InventoryItemRow[]
+  ).map((row) => ({
+    id: row.id,
+    teamId: row.team_id,
+    category: row.category,
+    name: row.name,
+    quantity: Number(row.quantity) || 0,
+    productInfo: row.product_info || '',
+    notes: row.notes || '',
+    condition: row.item_condition || '',
+    imageUrl: row.image_url || null,
+    createdAt: row.created_at,
+  }))
+
 export const getSetting = (key: string) => {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
     | { value: string }
@@ -873,6 +940,7 @@ export const getBootstrapData = (userId?: string | null) => ({
   teams: getTeams(),
   users: getUsers(),
   matches: getMatches(),
+  inventoryItems: getInventoryItems(),
   conversations: getConversations(),
   messages: getMessages(),
   settings: getSettings(),
