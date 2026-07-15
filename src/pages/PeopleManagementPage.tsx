@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import SectionCard from "@/components/SectionCard";
 import { useAppStore } from "@/store";
 import type { UserRole } from "@/types";
@@ -79,6 +79,10 @@ export default function PeopleManagementPage({
   );
   const canManageFromMenu =
     currentUser?.role === "admin" || currentUser?.role === "board";
+
+  if (!canManageFromMenu) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const filteredUsers = useMemo(
     () =>

@@ -663,7 +663,13 @@ router.get('/', (_req: Request, res: Response) => {
 })
 
 router.post('/', (req: Request, res: Response) => {
-  const { name, ageGroup, season, trainingDay, location, notes, fussballDeTeamId } = req.body as Record<string, string>
+  const { actorId, name, ageGroup, season, trainingDay, location, notes, fussballDeTeamId } =
+    req.body as Record<string, string>
+
+  if (!actorId || !isAdminOrBoard(actorId)) {
+    res.status(403).json({ success: false, error: 'Mannschaften koennen nur von Admin oder Vorstand angelegt werden.' })
+    return
+  }
 
   if (!name || !ageGroup || !season || !trainingDay || !location) {
     res.status(400).json({ success: false, error: 'Bitte alle Pflichtfelder ausfuellen.' })
@@ -706,13 +712,19 @@ router.post('/', (req: Request, res: Response) => {
   res.json({
     success: true,
     teamId,
-    ...getBootstrapData(null),
+    ...getBootstrapData(actorId),
   })
 })
 
 router.put('/:id', (req: Request, res: Response) => {
   const { id } = req.params
-  const { name, ageGroup, season, trainingDay, location, notes, fussballDeTeamId } = req.body as Record<string, string>
+  const { actorId, name, ageGroup, season, trainingDay, location, notes, fussballDeTeamId } =
+    req.body as Record<string, string>
+
+  if (!actorId || !isAdminOrBoard(actorId)) {
+    res.status(403).json({ success: false, error: 'Mannschaftsstammdaten koennen nur von Admin oder Vorstand geaendert werden.' })
+    return
+  }
 
   db.prepare(`
     UPDATE teams
@@ -737,7 +749,7 @@ router.put('/:id', (req: Request, res: Response) => {
 
   res.json({
     success: true,
-    ...getBootstrapData(null),
+    ...getBootstrapData(actorId),
   })
 })
 

@@ -40,14 +40,25 @@ export default function TeamDetailPage() {
   const ensureTeamConversation = useAppStore((state) => state.ensureTeamConversation);
   const navigate = useNavigate();
 
-  const activeSection = teamSections.some((entry) => entry.key === section)
-    ? (section as TeamSection)
-    : "dashboard";
   const team = teams.find((entry) => entry.id === teamId);
   const currentUser = useMemo(
     () => users.find((user) => user.id === currentUserId) ?? null,
     [currentUserId, users],
   );
+  const canViewTeamManagement =
+    currentUser?.role === "admin" ||
+    currentUser?.role === "board" ||
+    (currentUser?.role === "trainer" && currentUser.teamIds.includes(teamId ?? ""));
+  const visibleTeamSections = useMemo(
+    () =>
+      teamSections.filter((entry) =>
+        entry.key === "verwaltung" ? canViewTeamManagement : true,
+      ),
+    [canViewTeamManagement],
+  );
+  const activeSection = visibleTeamSections.some((entry) => entry.key === section)
+    ? (section as TeamSection)
+    : "dashboard";
   const [imageModal, setImageModal] = useState<{
     src: string;
     alt: string;
@@ -161,8 +172,22 @@ export default function TeamDetailPage() {
     return <Navigate to="/dashboard/teams" replace />;
   }
 
-  if (section && !teamSections.some((entry) => entry.key === section)) {
-    return <Navigate to={`/dashboard/teams/${team.id}`} replace />;
+  if (
+    currentUser &&
+    currentUser.role !== "admin" &&
+    currentUser.role !== "board" &&
+    !currentUser.teamIds.includes(team.id)
+  ) {
+    const fallbackTeamId = currentUser.teamIds[0];
+    return fallbackTeamId ? (
+      <Navigate to={`/dashboard/teams/${fallbackTeamId}/dashboard`} replace />
+    ) : (
+      <Navigate to="/dashboard/teams" replace />
+    );
+  }
+
+  if (section && !visibleTeamSections.some((entry) => entry.key === section)) {
+    return <Navigate to={`/dashboard/teams/${team.id}/dashboard`} replace />;
   }
 
   const teamTrainerCount = assignedTrainers.length;
@@ -390,7 +415,7 @@ export default function TeamDetailPage() {
 
       <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
         <div className="flex flex-wrap gap-3 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
-          {teamSections.map((item) => (
+          {visibleTeamSections.map((item) => (
             <Link
               key={item.key}
               to={`/dashboard/teams/${team.id}/${item.key}`}
@@ -1655,15 +1680,25 @@ export default function TeamDetailPage() {
             className="space-y-4"
             onSubmit={async (event) => {
               event.preventDefault();
+              if (!canEditTeam) {
+                return;
+              }
               await updateTeam(team.id, form);
             }}
           >
+            {!canEditTeam ? (
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                Diese Daten koennen nur von Admin oder Vorstand bearbeitet werden.
+              </div>
+            ) : null}
+
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-slate-700">Teamname</span>
               <input
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                 value={form.name}
                 onChange={(event) => setForm({ ...form, name: event.target.value })}
+                disabled={!canEditTeam}
               />
             </label>
 
@@ -1674,6 +1709,7 @@ export default function TeamDetailPage() {
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                   value={form.ageGroup}
                   onChange={(event) => setForm({ ...form, ageGroup: event.target.value })}
+                  disabled={!canEditTeam}
                 />
               </label>
               <label className="block">
@@ -1682,6 +1718,7 @@ export default function TeamDetailPage() {
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                   value={form.season}
                   onChange={(event) => setForm({ ...form, season: event.target.value })}
+                  disabled={!canEditTeam}
                 />
               </label>
             </div>
@@ -1692,6 +1729,7 @@ export default function TeamDetailPage() {
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                 value={form.trainingDay}
                 onChange={(event) => setForm({ ...form, trainingDay: event.target.value })}
+                disabled={!canEditTeam}
               />
             </label>
 
@@ -1701,6 +1739,7 @@ export default function TeamDetailPage() {
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                 value={form.location}
                 onChange={(event) => setForm({ ...form, location: event.target.value })}
+                disabled={!canEditTeam}
               />
             </label>
 
@@ -1721,6 +1760,7 @@ export default function TeamDetailPage() {
                   })
                 }
                 placeholder="z. B. 011MID47D4000000VTVG0001VTR8C1K7"
+                disabled={!canEditTeam}
               />
             </label>
 
@@ -1730,16 +1770,19 @@ export default function TeamDetailPage() {
                 className="min-h-28 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                 value={form.notes}
                 onChange={(event) => setForm({ ...form, notes: event.target.value })}
+                disabled={!canEditTeam}
               />
             </label>
 
             <div className="flex flex-wrap gap-3">
-              <button
-                type="submit"
-                className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-              >
-                Team speichern
-              </button>
+              {canEditTeam ? (
+                <button
+                  type="submit"
+                  className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  Team speichern
+                </button>
+              ) : null}
 
               <button
                 type="button"

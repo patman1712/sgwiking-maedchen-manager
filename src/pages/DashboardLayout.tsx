@@ -22,18 +22,17 @@ import { cn } from "@/lib/utils";
 const menuItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/dashboard/teams", label: "Mannschaften", icon: Volleyball },
-  { to: "/dashboard/trainers", label: "Trainer", icon: Shield },
-  { to: "/dashboard/players", label: "Spielerinnen", icon: Users },
-  { to: "/dashboard/board", label: "Vorstand", icon: Briefcase },
+  { to: "__members__", label: "Mitglieder", icon: Users },
   { to: "/dashboard/messages", label: "Nachrichten", icon: MessageSquare },
   { to: "/dashboard/profile", label: "Mein Profil", icon: UserCircle2 },
   { to: "/dashboard/settings", label: "Einstellungen", icon: Settings },
-];
+] as const;
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [teamsMenuOpen, setTeamsMenuOpen] = useState(false);
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
+  const [membersMenuOpen, setMembersMenuOpen] = useState(false);
   const logout = useAppStore((state) => state.logout);
   const fetchData = useAppStore((state) => state.fetchData);
   const users = useAppStore((state) => state.users);
@@ -48,6 +47,21 @@ export default function DashboardLayout() {
     () => users.find((user) => user.id === currentUserId) ?? null,
     [currentUserId, users],
   );
+
+  const canViewMemberLists =
+    currentUser?.role === "admin" || currentUser?.role === "board";
+
+  const visibleTeams = useMemo(() => {
+    if (!currentUser) {
+      return [];
+    }
+
+    if (currentUser.role === "admin" || currentUser.role === "board") {
+      return teams;
+    }
+
+    return teams.filter((team) => currentUser.teamIds.includes(team.id));
+  }, [currentUser, teams]);
 
   const unreadHint = conversations.length;
 
@@ -70,6 +84,17 @@ export default function DashboardLayout() {
       setExpandedTeamId(activeTeam.id);
     }
   }, [location.pathname, teams]);
+
+  useEffect(() => {
+    const membersAreaActive =
+      location.pathname.startsWith("/dashboard/trainers") ||
+      location.pathname.startsWith("/dashboard/players") ||
+      location.pathname.startsWith("/dashboard/board");
+
+    if (membersAreaActive) {
+      setMembersMenuOpen(true);
+    }
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -162,7 +187,7 @@ export default function DashboardLayout() {
                       <span>{item.label}</span>
                     </NavLink>
 
-                    {teams.length ? (
+                    {visibleTeams.length ? (
                       <button
                         type="button"
                         aria-label="Mannschaften aufklappen"
@@ -185,20 +210,27 @@ export default function DashboardLayout() {
                     ) : null}
                   </div>
 
-                  {teams.length && teamsMenuOpen ? (
+                  {visibleTeams.length && teamsMenuOpen ? (
                     <div className="ml-4 space-y-1 border-l border-white/15 pl-4">
-                      {teams.map((team) => {
+                      {visibleTeams.map((team) => {
                         const teamActive = location.pathname.startsWith(
                           `/dashboard/teams/${team.id}`,
                         );
                         const teamOpen = expandedTeamId === team.id;
+                        const showManagement =
+                          currentUser?.role === "admin" ||
+                          currentUser?.role === "board" ||
+                          (currentUser?.role === "trainer" &&
+                            currentUser.teamIds.includes(team.id));
                         const subItems = [
                           { key: "dashboard", label: "Dashboard" },
                           { key: "kader", label: "Kader" },
                           { key: "spielplan", label: "Spielplan" },
                           { key: "inventar", label: "Inventar" },
-                          { key: "verwaltung", label: "Verwaltung" },
-                        ];
+                          ...(showManagement
+                            ? [{ key: "verwaltung" as const, label: "Verwaltung" }]
+                            : []),
+                        ] as const;
 
                         return (
                           <div key={team.id} className="space-y-1">
@@ -257,6 +289,83 @@ export default function DashboardLayout() {
                           </div>
                         );
                       })}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            }
+
+            if (item.to === "__members__") {
+              if (!canViewMemberLists) {
+                return null;
+              }
+
+              const membersAreaActive =
+                location.pathname.startsWith("/dashboard/trainers") ||
+                location.pathname.startsWith("/dashboard/players") ||
+                location.pathname.startsWith("/dashboard/board");
+
+              return (
+                <div key={item.to} className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMembersMenuOpen((open) => !open)}
+                      className={cn(
+                        "flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all",
+                        membersAreaActive || membersMenuOpen
+                          ? "bg-white text-blue-950 shadow-lg"
+                          : "text-blue-100 hover:bg-white/10 hover:text-white",
+                      )}
+                    >
+                      <Icon size={18} />
+                      <span>{item.label}</span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Mitglieder aufklappen"
+                      onClick={() => setMembersMenuOpen((open) => !open)}
+                      className={cn(
+                        "flex h-11 w-11 items-center justify-center rounded-2xl transition-all",
+                        membersAreaActive || membersMenuOpen
+                          ? "bg-white/15 text-white"
+                          : "text-blue-100 hover:bg-white/10 hover:text-white",
+                      )}
+                    >
+                      <ChevronDown
+                        size={18}
+                        className={cn(
+                          "transition-transform duration-200",
+                          membersMenuOpen ? "rotate-180" : "",
+                        )}
+                      />
+                    </button>
+                  </div>
+
+                  {membersMenuOpen ? (
+                    <div className="ml-4 space-y-1 border-l border-white/15 pl-4">
+                      {[
+                        { to: "/dashboard/trainers", label: "Trainer", icon: Shield },
+                        { to: "/dashboard/players", label: "Spielerinnen", icon: Users },
+                        { to: "/dashboard/board", label: "Vorstand", icon: Briefcase },
+                      ].map((subItem) => (
+                        <NavLink
+                          key={subItem.to}
+                          to={subItem.to}
+                          onClick={() => setSidebarOpen(false)}
+                          className={({ isActive }) =>
+                            cn(
+                              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
+                              isActive
+                                ? "bg-white text-blue-950 shadow"
+                                : "text-blue-100/90 hover:bg-white/10 hover:text-white",
+                            )
+                          }
+                        >
+                          <subItem.icon size={16} />
+                          <span>{subItem.label}</span>
+                        </NavLink>
+                      ))}
                     </div>
                   ) : null}
                 </div>

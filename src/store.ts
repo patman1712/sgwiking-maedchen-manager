@@ -258,13 +258,19 @@ export const useAppStore = create<AppState>()(
         }),
       addTeam: async (input) => {
         try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
           const response = await fetch("/api/teams", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(input),
+            body: JSON.stringify({ ...input, actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, get().currentUserId);
+          applyPayload(set, data, actorId);
 
           return { success: true };
         } catch (error) {
@@ -277,13 +283,19 @@ export const useAppStore = create<AppState>()(
       },
       updateTeam: async (teamId, input) => {
         try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
           const response = await fetch(`/api/teams/${teamId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(input),
+            body: JSON.stringify({ ...input, actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, get().currentUserId);
+          applyPayload(set, data, actorId);
 
           return { success: true };
         } catch (error) {
