@@ -20,13 +20,12 @@ export default function DashboardHome() {
   const currentUserId = useAppStore((state) => state.currentUserId);
 
   const currentUser = users.find((user) => user.id === currentUserId) ?? null;
-  const visibleTeams =
-    currentUser?.role === "admin" || currentUser?.role === "board"
-      ? teams
-      : teams.filter((team) => currentUser?.teamIds.includes(team.id));
-  const visibleTeamIds = visibleTeams.map((team) => team.id);
+  const canOpenAllTeams =
+    currentUser?.role === "admin" || currentUser?.role === "board";
+  const canOpenTeam = (teamId: string) =>
+    Boolean(canOpenAllTeams || currentUser?.teamIds.includes(teamId));
+  const visibleTeams = teams;
   const visibleMatches = matches
-    .filter((match) => visibleTeamIds.includes(match.teamId))
     .sort(
       (left, right) =>
         new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime(),
@@ -51,7 +50,7 @@ export default function DashboardHome() {
     .slice(0, 5);
   const showBoardOverview = currentUser?.role === "board";
 
-  const getTeamById = (teamId: string) => visibleTeams.find((team) => team.id === teamId);
+  const getTeamById = (teamId: string) => teams.find((team) => team.id === teamId);
   const formatMatchDate = (kickoffAt: string) =>
     new Intl.DateTimeFormat("de-DE", {
       day: "2-digit",
@@ -76,15 +75,12 @@ export default function DashboardHome() {
 
   const renderMatchCard = (match: (typeof visibleMatches)[number]) => {
     const team = getTeamById(match.teamId);
+    const matchIsClickable = canOpenTeam(match.teamId);
     const homeTeamName = match.homeTeamName || (match.isHome ? team?.name ?? match.opponent : match.opponent);
     const awayTeamName = match.awayTeamName || (match.isHome ? match.opponent : team?.name ?? match.opponent);
 
-    return (
-      <Link
-        key={match.id}
-        to={`/dashboard/teams/${match.teamId}/spielplan`}
-        className="rounded-3xl border border-blue-100 bg-blue-50/80 p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white"
-      >
+    const cardContent = (
+      <>
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
@@ -128,6 +124,27 @@ export default function DashboardHome() {
             </span>
           ) : null}
         </div>
+      </>
+    );
+
+    if (!matchIsClickable) {
+      return (
+        <div
+          key={match.id}
+          className="rounded-3xl border border-blue-100 bg-blue-50/80 p-4 shadow-sm opacity-95"
+        >
+          {cardContent}
+        </div>
+      );
+    }
+
+    return (
+      <Link
+        key={match.id}
+        to={`/dashboard/teams/${match.teamId}/spielplan`}
+        className="rounded-3xl border border-blue-100 bg-blue-50/80 p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white"
+      >
+        {cardContent}
       </Link>
     );
   };
@@ -204,12 +221,8 @@ export default function DashboardHome() {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {visibleTeams.map((team) => {
             const teamUsers = users.filter((user) => user.teamIds.includes(team.id));
-            return (
-              <Link
-                key={team.id}
-                to={`/dashboard/teams/${team.id}/dashboard`}
-                className="rounded-3xl border border-slate-200 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white hover:shadow-md"
-              >
+            const teamCardContent = (
+              <>
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
@@ -225,6 +238,27 @@ export default function DashboardHome() {
                 </div>
                 <p className="mt-4 text-sm text-slate-600">{team.trainingDay}</p>
                 <p className="mt-2 text-sm text-slate-500">{team.location}</p>
+              </>
+            );
+
+            if (!canOpenTeam(team.id)) {
+              return (
+                <div
+                  key={team.id}
+                  className="rounded-3xl border border-slate-200 bg-slate-50 p-5 opacity-95"
+                >
+                  {teamCardContent}
+                </div>
+              );
+            }
+
+            return (
+              <Link
+                key={team.id}
+                to={`/dashboard/teams/${team.id}/dashboard`}
+                className="rounded-3xl border border-slate-200 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white hover:shadow-md"
+              >
+                {teamCardContent}
               </Link>
             );
           })}
