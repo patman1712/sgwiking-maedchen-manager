@@ -9,9 +9,7 @@ import {
   Menu,
   MessageSquare,
   Shield,
-  Settings,
   ShieldCheck,
-  UserCircle2,
   Users,
   Volleyball,
   X,
@@ -24,8 +22,6 @@ const menuItems = [
   { to: "/dashboard/teams", label: "Mannschaften", icon: Volleyball },
   { to: "__members__", label: "Mitglieder", icon: Users },
   { to: "/dashboard/messages", label: "Nachrichten", icon: MessageSquare },
-  { to: "/dashboard/profile", label: "Mein Profil", icon: UserCircle2 },
-  { to: "/dashboard/settings", label: "Einstellungen", icon: Settings },
 ] as const;
 
 export default function DashboardLayout() {
@@ -33,6 +29,7 @@ export default function DashboardLayout() {
   const [teamsMenuOpen, setTeamsMenuOpen] = useState(false);
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [membersMenuOpen, setMembersMenuOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const logout = useAppStore((state) => state.logout);
   const fetchData = useAppStore((state) => state.fetchData);
   const users = useAppStore((state) => state.users);
@@ -96,6 +93,10 @@ export default function DashboardLayout() {
     }
   }, [location.pathname]);
 
+  useEffect(() => {
+    setProfileMenuOpen(false);
+  }, [location.pathname]);
+
   const handleLogout = () => {
     logout();
     navigate("/login");
@@ -119,15 +120,15 @@ export default function DashboardLayout() {
       >
         <div className="flex h-20 items-center justify-between border-b border-white/10 px-6">
           <Link to="/dashboard" className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-lg">
+            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl">
               {settings.logoUrl ? (
                 <img
                   src={settings.logoUrl}
                   alt="Teamwappen"
-                  className="h-full w-full object-contain p-1"
+                  className="h-full w-full object-contain"
                 />
               ) : (
-                <div className="flex h-full w-full items-center justify-center bg-white/15 text-blue-950">
+                <div className="flex h-full w-full items-center justify-center rounded-2xl bg-white/15 text-white">
                   <ShieldCheck size={22} />
                 </div>
               )}
@@ -415,13 +416,8 @@ export default function DashboardLayout() {
               >
                 <Menu size={20} />
               </button>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  Verwaltung
-                </p>
-                <h1 className="text-lg font-semibold text-slate-900">
-                  Vereinsorganisation wie im Maintextildruck-Manager
-                </h1>
+              <div className="hidden sm:block">
+                <p className="text-sm font-semibold text-slate-900">{settings.clubName}</p>
               </div>
             </div>
 
@@ -435,11 +431,55 @@ export default function DashboardLayout() {
                   {unreadHint}
                 </span>
               </Link>
-              <div className="hidden rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:block">
-                <p className="text-sm font-medium text-slate-900">
-                  {currentUser?.fullName}
-                </p>
-                <p className="text-xs text-slate-500">{currentUser?.email}</p>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setProfileMenuOpen((open) => !open)}
+                  className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:px-4"
+                >
+                  <p className="text-sm font-medium text-slate-900">
+                    {currentUser?.fullName ?? "Profil"}
+                  </p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <p className="hidden text-xs text-slate-500 sm:block">{currentUser?.email}</p>
+                    <ChevronDown
+                      size={14}
+                      className={cn(
+                        "text-slate-400 transition-transform duration-200",
+                        profileMenuOpen ? "rotate-180" : "",
+                      )}
+                    />
+                  </div>
+                </button>
+
+                {profileMenuOpen ? (
+                  <div className="absolute right-0 top-[calc(100%+0.75rem)] z-30 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                    <Link
+                      to="/dashboard/profile"
+                      onClick={() => setProfileMenuOpen(false)}
+                      className="block rounded-xl px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
+                    >
+                      Mein Profil bearbeiten
+                    </Link>
+                    <Link
+                      to="/dashboard/settings"
+                      onClick={() => setProfileMenuOpen(false)}
+                      className="block rounded-xl px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
+                    >
+                      Einstellungen
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileMenuOpen(false);
+                        handleLogout();
+                      }}
+                      className="block w-full rounded-xl px-4 py-3 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50"
+                    >
+                      Abmelden
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>

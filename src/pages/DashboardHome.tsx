@@ -27,9 +27,8 @@ export default function DashboardHome() {
           Alles Wichtige fuer eure Maedchenfussball-Organisation auf einen Blick
         </h2>
         <p className="mt-4 max-w-3xl text-sm text-blue-100 sm:text-base">
-          Die App ist bewusst nach dem Muster deines Maintextildruck-Managers
-          aufgebaut: klares Dashboard, linke Hauptnavigation und direkte Wege in
-          Teams, Personen und Nachrichten.
+          Schnelle Uebersicht ueber Mannschaften, Mitglieder und Nachrichten mit
+          direkten Wegen in alle wichtigen Vereinsbereiche.
         </p>
 
         <div className="mt-8 flex flex-wrap gap-3">
@@ -84,7 +83,7 @@ export default function DashboardHome() {
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <SectionCard
           title="Aktive Mannschaften"
-          description="Trainingsinfos und Teamgroessen nach dem Vorbild deiner bestehenden Verwaltungsansicht."
+          description="Trainingsinfos und Teamgroessen kompakt in einer gemeinsamen Uebersicht."
         >
           <div className="grid gap-4 md:grid-cols-2">
             {teams.map((team) => {
@@ -118,7 +117,7 @@ export default function DashboardHome() {
 
         <SectionCard
           title="Letzte Nachrichten"
-          description="Die Kommunikationsansicht arbeitet mit Team- und Direktchats."
+          description="Neueste Meldungen aus Team- und Direktchats auf einen Blick."
         >
           <div className="space-y-3">
             {recentMessages.map((message) => {
