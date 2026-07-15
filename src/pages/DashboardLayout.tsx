@@ -55,6 +55,8 @@ export default function DashboardLayout() {
 
   const canViewMemberLists =
     currentUser?.role === "admin" || currentUser?.role === "board";
+  const keepsCollapsedTeamMenus =
+    currentUser?.role === "admin" || currentUser?.role === "board";
 
   const visibleTeams = useMemo(() => {
     if (!currentUser) {
@@ -276,7 +278,7 @@ export default function DashboardLayout() {
                       <span>{item.label}</span>
                     </NavLink>
 
-                    {visibleTeams.length ? (
+                    {visibleTeams.length && keepsCollapsedTeamMenus ? (
                       <button
                         type="button"
                         aria-label="Mannschaften aufklappen"
@@ -299,13 +301,16 @@ export default function DashboardLayout() {
                     ) : null}
                   </div>
 
-                  {visibleTeams.length && teamsMenuOpen ? (
+                  {visibleTeams.length &&
+                  (keepsCollapsedTeamMenus ? teamsMenuOpen : true) ? (
                     <div className="ml-4 space-y-1 border-l border-white/15 pl-4">
                       {visibleTeams.map((team) => {
                         const teamActive = location.pathname.startsWith(
                           `/dashboard/teams/${team.id}`,
                         );
-                        const teamOpen = expandedTeamId === team.id;
+                        const teamOpen = keepsCollapsedTeamMenus
+                          ? expandedTeamId === team.id
+                          : true;
                         const showManagement =
                           currentUser?.role === "admin" ||
                           currentUser?.role === "board" ||
@@ -315,6 +320,7 @@ export default function DashboardLayout() {
                           { key: "dashboard", label: "Dashboard" },
                           { key: "kader", label: "Kader" },
                           { key: "spielplan", label: "Spielplan" },
+                          { key: "termine", label: "Termine" },
                           { key: "inventar", label: "Inventar" },
                           ...(showManagement
                             ? [{ key: "verwaltung" as const, label: "Verwaltung" }]
@@ -323,36 +329,54 @@ export default function DashboardLayout() {
 
                         return (
                           <div key={team.id} className="space-y-1">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setExpandedTeamId((current) =>
-                                  current === team.id ? null : team.id,
-                                )
-                              }
-                              className={cn(
-                                "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition-all",
-                                teamActive
-                                  ? "bg-white text-blue-950 shadow"
-                                  : "text-blue-100/95 hover:bg-white/10 hover:text-white",
-                              )}
-                            >
-                              <span className="min-w-0">
+                            {keepsCollapsedTeamMenus ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedTeamId((current) =>
+                                    current === team.id ? null : team.id,
+                                  )
+                                }
+                                className={cn(
+                                  "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition-all",
+                                  teamActive
+                                    ? "bg-white text-blue-950 shadow"
+                                    : "text-blue-100/95 hover:bg-white/10 hover:text-white",
+                                )}
+                              >
+                                <span className="min-w-0">
+                                  <span className="block truncate text-sm font-medium">
+                                    {team.name}
+                                  </span>
+                                  <span className="block truncate text-xs text-current/75">
+                                    {team.ageGroup}
+                                  </span>
+                                </span>
+                                <ChevronDown
+                                  size={16}
+                                  className={cn(
+                                    "shrink-0 transition-transform duration-200",
+                                    teamOpen ? "rotate-180" : "",
+                                  )}
+                                />
+                              </button>
+                            ) : (
+                              <div
+                                className={cn(
+                                  "rounded-xl px-3 py-2",
+                                  teamActive
+                                    ? "bg-white text-blue-950 shadow"
+                                    : "bg-white/10 text-white",
+                                )}
+                              >
                                 <span className="block truncate text-sm font-medium">
                                   {team.name}
                                 </span>
                                 <span className="block truncate text-xs text-current/75">
                                   {team.ageGroup}
                                 </span>
-                              </span>
-                              <ChevronDown
-                                size={16}
-                                className={cn(
-                                  "shrink-0 transition-transform duration-200",
-                                  teamOpen ? "rotate-180" : "",
-                                )}
-                              />
-                            </button>
+                              </div>
+                            )}
 
                             {teamOpen ? (
                               <div className="ml-3 space-y-1 border-l border-white/15 pl-3">
