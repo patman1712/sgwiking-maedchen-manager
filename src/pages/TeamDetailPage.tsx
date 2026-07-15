@@ -108,6 +108,7 @@ export default function TeamDetailPage() {
   const [inventoryDeletingId, setInventoryDeletingId] = useState<string | null>(null);
   const [inventoryMessage, setInventoryMessage] = useState("");
   const [inventoryError, setInventoryError] = useState("");
+  const [showInventoryForm, setShowInventoryForm] = useState(false);
 
   const assignedTrainers = useMemo(
     () =>
@@ -1305,60 +1306,12 @@ export default function TeamDetailPage() {
       ) : null}
 
       {activeSection === "inventar" ? (
-        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+        <div className="space-y-6">
           <SectionCard
-            title="Inventar erfassen"
-            description="Produkte wie Trikots, Baelle oder weiteres Material mit Menge, Zustand, Infos und Bild hinterlegen."
+            title="Inventarliste"
+            description="Sauber nach Kategorien sortiert, mit Menge, Zustand, Infos, Notizen und Bildern."
           >
-            <form
-              className="space-y-4"
-              onSubmit={async (event) => {
-                event.preventDefault();
-                setInventoryError("");
-                setInventoryMessage("");
-                setInventorySubmitting(true);
-
-                try {
-                  const optimizedImage = inventoryImageFile
-                    ? await optimizeImageForUpload(inventoryImageFile)
-                    : null;
-                  const result = await addInventoryItem({
-                    teamId: team.id,
-                    category: inventoryForm.category,
-                    name: inventoryForm.name,
-                    quantity: Number.parseInt(inventoryForm.quantity, 10) || 1,
-                    productInfo: inventoryForm.productInfo,
-                    notes: inventoryForm.notes,
-                    condition: inventoryForm.condition,
-                    imageFile: optimizedImage,
-                  });
-
-                  if (!result.success) {
-                    setInventoryError(
-                      result.error ?? "Inventareintrag konnte nicht gespeichert werden.",
-                    );
-                    return;
-                  }
-
-                  setInventoryForm({
-                    category: "Trikots",
-                    name: "",
-                    quantity: "1",
-                    productInfo: "",
-                    notes: "",
-                    condition: "gut",
-                  });
-                  setInventoryImageFile(null);
-                  const formElement = event.currentTarget;
-                  formElement.reset();
-                  setInventoryMessage("Inventareintrag wurde gespeichert.");
-                } catch {
-                  setInventoryError("Bild konnte nicht verarbeitet werden.");
-                } finally {
-                  setInventorySubmitting(false);
-                }
-              }}
-            >
+            <div className="space-y-4">
               {inventoryError ? (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                   {inventoryError}
@@ -1371,134 +1324,29 @@ export default function TeamDetailPage() {
                 </div>
               ) : null}
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-slate-700">Kategorie</span>
-                  <select
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                    value={inventoryForm.category}
-                    onChange={(event) =>
-                      setInventoryForm({ ...inventoryForm, category: event.target.value })
-                    }
-                    disabled={!canManageInventoryHere}
-                  >
-                    {["Trikots", "Baelle", "Leibchen", "Trainingsmaterial", "Torwart", "Sonstiges"].map(
-                      (option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ),
-                    )}
-                  </select>
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-slate-700">Zustand</span>
-                  <select
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                    value={inventoryForm.condition}
-                    onChange={(event) =>
-                      setInventoryForm({ ...inventoryForm, condition: event.target.value })
-                    }
-                    disabled={!canManageInventoryHere}
-                  >
-                    {["neu", "gut", "gebraucht", "reparaturbedarf"].map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-[1fr_180px]">
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-slate-700">Produkt</span>
-                  <input
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                    value={inventoryForm.name}
-                    onChange={(event) =>
-                      setInventoryForm({ ...inventoryForm, name: event.target.value })
-                    }
-                    placeholder="z. B. Heimtrikot rot, Ballnetz, Trainingsball"
-                    disabled={!canManageInventoryHere}
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-slate-700">Anzahl</span>
-                  <input
-                    type="number"
-                    min={1}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                    value={inventoryForm.quantity}
-                    onChange={(event) =>
-                      setInventoryForm({ ...inventoryForm, quantity: event.target.value })
-                    }
-                    disabled={!canManageInventoryHere}
-                  />
-                </label>
-              </div>
-
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">Produktinfo</span>
-                <textarea
-                  className="min-h-24 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                  value={inventoryForm.productInfo}
-                  onChange={(event) =>
-                    setInventoryForm({ ...inventoryForm, productInfo: event.target.value })
-                  }
-                  placeholder="z. B. Groessen, Hersteller, Farbe, Satznummern oder weitere Details"
-                  disabled={!canManageInventoryHere}
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">Notizen</span>
-                <textarea
-                  className="min-h-24 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                  value={inventoryForm.notes}
-                  onChange={(event) =>
-                    setInventoryForm({ ...inventoryForm, notes: event.target.value })
-                  }
-                  placeholder="z. B. bei wem das Material liegt oder was nachgekauft werden muss"
-                  disabled={!canManageInventoryHere}
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">Bild optional</span>
-                <input
-                  type="file"
-                  accept=".png,.jpg,.jpeg,.webp,.svg"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-blue-700 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-800"
-                  disabled={!canManageInventoryHere}
-                  onChange={(event) => setInventoryImageFile(event.target.files?.[0] ?? null)}
-                />
-              </label>
-
               {canManageInventoryHere ? (
-                <button
-                  type="submit"
-                  disabled={inventorySubmitting}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-950 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  <ImagePlus size={18} />
-                  {inventorySubmitting ? "Wird gespeichert..." : "Inventar hinzufuegen"}
-                </button>
-              ) : (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                  Inventar kann hier von Trainern, Vorstand und Admin gepflegt werden.
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-4">
+                  <div>
+                    <p className="text-sm font-semibold text-blue-950">Inventar verwalten</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Trainer, Vorstand und Admin koennen neue Produkte zur Liste hinzufuegen.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInventoryError("");
+                      setInventoryMessage("");
+                      setShowInventoryForm((current) => !current);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-950 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
+                  >
+                    <ImagePlus size={18} />
+                    {showInventoryForm ? "Formular schliessen" : "Inventar hinzufuegen"}
+                  </button>
                 </div>
-              )}
-            </form>
-          </SectionCard>
+              ) : null}
 
-          <SectionCard
-            title="Inventarliste"
-            description="Sauber nach Kategorien sortiert, mit Menge, Zustand, Infos, Notizen und Bildern."
-          >
-            <div className="space-y-4">
               {inventoryCategoryEntries.length ? (
                 inventoryCategoryEntries.map(([category, items]) => (
                   <div key={category} className="space-y-3">
@@ -1619,6 +1467,182 @@ export default function TeamDetailPage() {
               )}
             </div>
           </SectionCard>
+
+          {canManageInventoryHere && showInventoryForm ? (
+            <SectionCard
+              title="Inventar hinzufuegen"
+              description="Neues Material mit Menge, Zustand, Infos und optionalem Bild erfassen."
+            >
+              <form
+                className="space-y-4"
+                onSubmit={async (event) => {
+                  event.preventDefault();
+                  setInventoryError("");
+                  setInventoryMessage("");
+                  setInventorySubmitting(true);
+
+                  try {
+                    const optimizedImage = inventoryImageFile
+                      ? await optimizeImageForUpload(inventoryImageFile)
+                      : null;
+                    const result = await addInventoryItem({
+                      teamId: team.id,
+                      category: inventoryForm.category,
+                      name: inventoryForm.name,
+                      quantity: Number.parseInt(inventoryForm.quantity, 10) || 1,
+                      productInfo: inventoryForm.productInfo,
+                      notes: inventoryForm.notes,
+                      condition: inventoryForm.condition,
+                      imageFile: optimizedImage,
+                    });
+
+                    if (!result.success) {
+                      setInventoryError(
+                        result.error ?? "Inventareintrag konnte nicht gespeichert werden.",
+                      );
+                      return;
+                    }
+
+                    setInventoryForm({
+                      category: "Trikots",
+                      name: "",
+                      quantity: "1",
+                      productInfo: "",
+                      notes: "",
+                      condition: "gut",
+                    });
+                    setInventoryImageFile(null);
+                    const formElement = event.currentTarget;
+                    formElement.reset();
+                    setInventoryMessage("Inventareintrag wurde gespeichert.");
+                    setShowInventoryForm(false);
+                  } catch {
+                    setInventoryError("Bild konnte nicht verarbeitet werden.");
+                  } finally {
+                    setInventorySubmitting(false);
+                  }
+                }}
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">Kategorie</span>
+                    <select
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      value={inventoryForm.category}
+                      onChange={(event) =>
+                        setInventoryForm({ ...inventoryForm, category: event.target.value })
+                      }
+                    >
+                      {["Trikots", "Baelle", "Leibchen", "Trainingsmaterial", "Torwart", "Sonstiges"].map(
+                        (option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">Zustand</span>
+                    <select
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      value={inventoryForm.condition}
+                      onChange={(event) =>
+                        setInventoryForm({ ...inventoryForm, condition: event.target.value })
+                      }
+                    >
+                      {["neu", "gut", "gebraucht", "reparaturbedarf"].map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-[1fr_180px]">
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">Produkt</span>
+                    <input
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      value={inventoryForm.name}
+                      onChange={(event) =>
+                        setInventoryForm({ ...inventoryForm, name: event.target.value })
+                      }
+                      placeholder="z. B. Heimtrikot rot, Ballnetz, Trainingsball"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">Anzahl</span>
+                    <input
+                      type="number"
+                      min={1}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      value={inventoryForm.quantity}
+                      onChange={(event) =>
+                        setInventoryForm({ ...inventoryForm, quantity: event.target.value })
+                      }
+                    />
+                  </label>
+                </div>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Produktinfo</span>
+                  <textarea
+                    className="min-h-24 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    value={inventoryForm.productInfo}
+                    onChange={(event) =>
+                      setInventoryForm({ ...inventoryForm, productInfo: event.target.value })
+                    }
+                    placeholder="z. B. Groessen, Hersteller, Farbe, Satznummern oder weitere Details"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Notizen</span>
+                  <textarea
+                    className="min-h-24 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    value={inventoryForm.notes}
+                    onChange={(event) =>
+                      setInventoryForm({ ...inventoryForm, notes: event.target.value })
+                    }
+                    placeholder="z. B. bei wem das Material liegt oder was nachgekauft werden muss"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Bild optional</span>
+                  <input
+                    type="file"
+                    accept=".png,.jpg,.jpeg,.webp,.svg"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-blue-700 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-800"
+                    onChange={(event) => setInventoryImageFile(event.target.files?.[0] ?? null)}
+                  />
+                </label>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="submit"
+                    disabled={inventorySubmitting}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-950 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    <ImagePlus size={18} />
+                    {inventorySubmitting ? "Wird gespeichert..." : "Inventar speichern"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowInventoryForm(false)}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                  >
+                    Abbrechen
+                  </button>
+                </div>
+              </form>
+            </SectionCard>
+          ) : null}
         </div>
       ) : null}
 
