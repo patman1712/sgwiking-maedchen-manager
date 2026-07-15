@@ -186,6 +186,8 @@ export default function TeamDetailPage() {
   const [teamEventSettingsDraft, setTeamEventSettingsDraft] = useState({
     responseCloseHoursBefore: "24",
   });
+  const [showEventSettingsForm, setShowEventSettingsForm] = useState(false);
+  const [showEventCreateForm, setShowEventCreateForm] = useState(false);
 
   const assignedTrainers = useMemo(
     () =>
@@ -205,7 +207,10 @@ export default function TeamDetailPage() {
     currentUser?.role === "admin" ||
     currentUser?.role === "board" ||
     assignedTrainers.some((trainer) => trainer.id === currentUserId);
-  const canManageMatchesHere = canManagePlayersHere;
+  const canManageMatchesHere =
+    currentUser?.role === "admin" ||
+    currentUser?.role === "board" ||
+    assignedTrainers.some((trainer) => trainer.id === currentUserId);
   const canManageEventsHere = canManagePlayersHere;
   const canManageInventoryHere = canManagePlayersHere;
   const canEditTeam =
@@ -1677,7 +1682,7 @@ export default function TeamDetailPage() {
       ) : null}
 
       {activeSection === "termine" ? (
-        <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="space-y-6">
           <SectionCard
             title="Termine"
             description="Aktueller Termin oben, danach die naechsten Termine und ein Archiv fuer Vergangenes."
@@ -1785,298 +1790,322 @@ export default function TeamDetailPage() {
             </div>
           </SectionCard>
 
-          <div className="space-y-6">
-            {canManageEventsHere ? (
-              <SectionCard
-                title="Termineinstellungen"
-                description="Diese Einstellungen sehen nur Trainer, Admin und Vorstand."
-              >
-                <form
-                  className="space-y-4"
-                  onSubmit={async (event) => {
-                    event.preventDefault();
-                    if (!currentUserId) {
-                      return;
-                    }
-
-                    setEventsError("");
-                    setEventsMessage("");
-
-                    try {
-                      const response = await fetch("/api/events/settings", {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          actorId: currentUserId,
-                          teamId: team.id,
-                          responseCloseHoursBefore:
-                            Number.parseInt(teamEventSettingsDraft.responseCloseHoursBefore, 10) || 0,
-                        }),
-                      });
-                      const data = await response.json();
-
-                      if (!response.ok || data.success === false) {
-                        throw new Error(data.error || "Einstellungen konnten nicht gespeichert werden.");
-                      }
-
-                      setEventSettings(data.settings ?? { responseCloseHoursBefore: 24 });
-                      setTeamEventSettingsDraft({
-                        responseCloseHoursBefore: String(data.settings?.responseCloseHoursBefore ?? 24),
-                      });
-                      setEventsMessage("Termineinstellungen wurden gespeichert.");
-                    } catch (error) {
-                      setEventsError(
-                        error instanceof Error ? error.message : "Einstellungen konnten nicht gespeichert werden.",
-                      );
-                    }
-                  }}
+          {canManageEventsHere ? (
+            <SectionCard
+              title="Terminverwaltung"
+              description="Einstellungen und neue Termine erst bei Bedarf aufklappen, damit die Terminliste mehr Platz hat."
+            >
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowEventSettingsForm((current) => !current)}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-900"
                 >
+                  {showEventSettingsForm ? "Termineinstellungen schliessen" : "Termineinstellungen"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEventCreateForm((current) => !current)}
+                  className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
+                >
+                  {showEventCreateForm ? "Terminformular schliessen" : "Termin anlegen"}
+                </button>
+              </div>
+            </SectionCard>
+          ) : (
+            <SectionCard
+              title="Zu- und Absagen"
+              description="Spielerinnen sehen hier nur die Teamtermine sowie ihre Rueckmeldung."
+            >
+              <div className="rounded-3xl border border-blue-100 bg-blue-50 px-5 py-4 text-sm text-slate-700">
+                Trainings, Spiele und weitere Termine sind hier gesammelt. Die Einstellungen fuer
+                Wiederholungen und Abstimmungsfristen bleiben bewusst nur fuer Trainer, Admin und
+                Vorstand sichtbar.
+              </div>
+            </SectionCard>
+          )}
+
+          {canManageEventsHere && showEventSettingsForm ? (
+            <SectionCard
+              title="Termineinstellungen"
+              description="Diese Einstellungen sehen nur Trainer, Admin und Vorstand."
+            >
+              <form
+                className="space-y-4"
+                onSubmit={async (event) => {
+                  event.preventDefault();
+                  if (!currentUserId) {
+                    return;
+                  }
+
+                  setEventsError("");
+                  setEventsMessage("");
+
+                  try {
+                    const response = await fetch("/api/events/settings", {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        actorId: currentUserId,
+                        teamId: team.id,
+                        responseCloseHoursBefore:
+                          Number.parseInt(teamEventSettingsDraft.responseCloseHoursBefore, 10) || 0,
+                      }),
+                    });
+                    const data = await response.json();
+
+                    if (!response.ok || data.success === false) {
+                      throw new Error(data.error || "Einstellungen konnten nicht gespeichert werden.");
+                    }
+
+                    setEventSettings(data.settings ?? { responseCloseHoursBefore: 24 });
+                    setTeamEventSettingsDraft({
+                      responseCloseHoursBefore: String(data.settings?.responseCloseHoursBefore ?? 24),
+                    });
+                    setEventsMessage("Termineinstellungen wurden gespeichert.");
+                    setShowEventSettingsForm(false);
+                  } catch (error) {
+                    setEventsError(
+                      error instanceof Error ? error.message : "Einstellungen konnten nicht gespeichert werden.",
+                    );
+                  }
+                }}
+              >
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">
+                    Zu-/Absage moeglich bis wie viele Stunden vor dem Termin?
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    value={teamEventSettingsDraft.responseCloseHoursBefore}
+                    onChange={(inputEvent) =>
+                      setTeamEventSettingsDraft({
+                        responseCloseHoursBefore: inputEvent.target.value,
+                      })
+                    }
+                  />
+                </label>
+
+                <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-slate-700">
+                  Aktuell endet die Abstimmung{" "}
+                  <span className="font-semibold text-blue-900">
+                    {eventSettings.responseCloseHoursBefore} Stunden
+                  </span>{" "}
+                  vor dem jeweiligen Termin.
+                </div>
+
+                <button
+                  type="submit"
+                  className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
+                >
+                  Einstellungen speichern
+                </button>
+              </form>
+            </SectionCard>
+          ) : null}
+
+          {canManageEventsHere && showEventCreateForm ? (
+            <SectionCard
+              title="Termin anlegen"
+              description="Trainings, Besprechungen oder weitere Teamtermine mit optionaler Wochenwiederholung."
+            >
+              <form
+                className="space-y-4"
+                onSubmit={async (event) => {
+                  event.preventDefault();
+                  if (!currentUserId) {
+                    return;
+                  }
+
+                  setEventsError("");
+                  setEventsMessage("");
+                  setEventSubmitting(true);
+
+                  try {
+                    const startsAtIso = eventForm.startsAt
+                      ? new Date(eventForm.startsAt).toISOString()
+                      : "";
+                    const endsAtIso = eventForm.endsAt
+                      ? new Date(eventForm.endsAt).toISOString()
+                      : "";
+                    const repeatUntilIso =
+                      eventForm.repeatWeekly && eventForm.repeatUntil
+                        ? new Date(`${eventForm.repeatUntil}T23:59:59`).toISOString()
+                        : "";
+
+                    const response = await fetch("/api/events", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        actorId: currentUserId,
+                        teamId: team.id,
+                        title: eventForm.title,
+                        description: eventForm.description,
+                        location: eventForm.location,
+                        startsAt: startsAtIso,
+                        endsAt: endsAtIso,
+                        category: eventForm.category,
+                        repeatWeekly: eventForm.repeatWeekly,
+                        repeatUntil: repeatUntilIso,
+                      }),
+                    });
+                    const data = await response.json();
+
+                    if (!response.ok || data.success === false) {
+                      throw new Error(data.error || "Termin konnte nicht gespeichert werden.");
+                    }
+
+                    setManualEvents(data.manualEvents ?? []);
+                    setEventSummaries(data.responseSummaries ?? []);
+                    setEventSettings(data.settings ?? { responseCloseHoursBefore: 24 });
+                    setEventForm({
+                      title: "",
+                      description: "",
+                      location: "",
+                      startsAt: "",
+                      endsAt: "",
+                      category: "training",
+                      repeatWeekly: false,
+                      repeatUntil: "",
+                    });
+                    setEventsMessage(
+                      `${data.createdCount ?? 1} Termin(e) wurden angelegt.`,
+                    );
+                    setShowEventCreateForm(false);
+                  } catch (error) {
+                    setEventsError(
+                      error instanceof Error ? error.message : "Termin konnte nicht gespeichert werden.",
+                    );
+                  } finally {
+                    setEventSubmitting(false);
+                  }
+                }}
+              >
+                <div className="grid gap-4">
                   <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-slate-700">
-                      Zu-/Absage moeglich bis wie viele Stunden vor dem Termin?
-                    </span>
+                    <span className="mb-2 block text-sm font-medium text-slate-700">Titel</span>
                     <input
-                      type="number"
-                      min="0"
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                      value={teamEventSettingsDraft.responseCloseHoursBefore}
+                      value={eventForm.title}
                       onChange={(inputEvent) =>
-                        setTeamEventSettingsDraft({
-                          responseCloseHoursBefore: inputEvent.target.value,
-                        })
+                        setEventForm({ ...eventForm, title: inputEvent.target.value })
+                      }
+                      required
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">Kategorie</span>
+                    <select
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      value={eventForm.category}
+                      onChange={(inputEvent) =>
+                        setEventForm({ ...eventForm, category: inputEvent.target.value })
+                      }
+                    >
+                      <option value="training">Training</option>
+                      <option value="meeting">Besprechung</option>
+                      <option value="turnier">Turnier</option>
+                      <option value="sonstiges">Sonstiges</option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">Ort</span>
+                    <input
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      value={eventForm.location}
+                      onChange={(inputEvent) =>
+                        setEventForm({ ...eventForm, location: inputEvent.target.value })
                       }
                     />
                   </label>
 
-                  <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-slate-700">
-                    Aktuell endet die Abstimmung{" "}
-                    <span className="font-semibold text-blue-900">
-                      {eventSettings.responseCloseHoursBefore} Stunden
-                    </span>{" "}
-                    vor dem jeweiligen Termin.
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
-                  >
-                    Einstellungen speichern
-                  </button>
-                </form>
-              </SectionCard>
-            ) : null}
-
-            {canManageEventsHere ? (
-              <SectionCard
-                title="Termin anlegen"
-                description="Trainings, Besprechungen oder weitere Teamtermine mit optionaler Wochenwiederholung."
-              >
-                <form
-                  className="space-y-4"
-                  onSubmit={async (event) => {
-                    event.preventDefault();
-                    if (!currentUserId) {
-                      return;
-                    }
-
-                    setEventsError("");
-                    setEventsMessage("");
-                    setEventSubmitting(true);
-
-                    try {
-                      const startsAtIso = eventForm.startsAt
-                        ? new Date(eventForm.startsAt).toISOString()
-                        : "";
-                      const endsAtIso = eventForm.endsAt
-                        ? new Date(eventForm.endsAt).toISOString()
-                        : "";
-                      const repeatUntilIso =
-                        eventForm.repeatWeekly && eventForm.repeatUntil
-                          ? new Date(`${eventForm.repeatUntil}T23:59:59`).toISOString()
-                          : "";
-
-                      const response = await fetch("/api/events", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          actorId: currentUserId,
-                          teamId: team.id,
-                          title: eventForm.title,
-                          description: eventForm.description,
-                          location: eventForm.location,
-                          startsAt: startsAtIso,
-                          endsAt: endsAtIso,
-                          category: eventForm.category,
-                          repeatWeekly: eventForm.repeatWeekly,
-                          repeatUntil: repeatUntilIso,
-                        }),
-                      });
-                      const data = await response.json();
-
-                      if (!response.ok || data.success === false) {
-                        throw new Error(data.error || "Termin konnte nicht gespeichert werden.");
-                      }
-
-                      setManualEvents(data.manualEvents ?? []);
-                      setEventSummaries(data.responseSummaries ?? []);
-                      setEventSettings(data.settings ?? { responseCloseHoursBefore: 24 });
-                      setEventForm({
-                        title: "",
-                        description: "",
-                        location: "",
-                        startsAt: "",
-                        endsAt: "",
-                        category: "training",
-                        repeatWeekly: false,
-                        repeatUntil: "",
-                      });
-                      setEventsMessage(
-                        `${data.createdCount ?? 1} Termin(e) wurden angelegt.`,
-                      );
-                    } catch (error) {
-                      setEventsError(
-                        error instanceof Error ? error.message : "Termin konnte nicht gespeichert werden.",
-                      );
-                    } finally {
-                      setEventSubmitting(false);
-                    }
-                  }}
-                >
-                  <div className="grid gap-4">
+                  <div className="grid gap-4 md:grid-cols-2">
                     <label className="block">
-                      <span className="mb-2 block text-sm font-medium text-slate-700">Titel</span>
+                      <span className="mb-2 block text-sm font-medium text-slate-700">
+                        Start
+                      </span>
                       <input
+                        type="datetime-local"
                         className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                        value={eventForm.title}
+                        value={eventForm.startsAt}
                         onChange={(inputEvent) =>
-                          setEventForm({ ...eventForm, title: inputEvent.target.value })
+                          setEventForm({ ...eventForm, startsAt: inputEvent.target.value })
                         }
                         required
                       />
                     </label>
-
                     <label className="block">
-                      <span className="mb-2 block text-sm font-medium text-slate-700">Kategorie</span>
-                      <select
-                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                        value={eventForm.category}
-                        onChange={(inputEvent) =>
-                          setEventForm({ ...eventForm, category: inputEvent.target.value })
-                        }
-                      >
-                        <option value="training">Training</option>
-                        <option value="meeting">Besprechung</option>
-                        <option value="turnier">Turnier</option>
-                        <option value="sonstiges">Sonstiges</option>
-                      </select>
-                    </label>
-
-                    <label className="block">
-                      <span className="mb-2 block text-sm font-medium text-slate-700">Ort</span>
+                      <span className="mb-2 block text-sm font-medium text-slate-700">Ende</span>
                       <input
+                        type="datetime-local"
                         className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                        value={eventForm.location}
+                        value={eventForm.endsAt}
                         onChange={(inputEvent) =>
-                          setEventForm({ ...eventForm, location: inputEvent.target.value })
+                          setEventForm({ ...eventForm, endsAt: inputEvent.target.value })
                         }
                       />
                     </label>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label className="block">
-                        <span className="mb-2 block text-sm font-medium text-slate-700">
-                          Start
-                        </span>
-                        <input
-                          type="datetime-local"
-                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                          value={eventForm.startsAt}
-                          onChange={(inputEvent) =>
-                            setEventForm({ ...eventForm, startsAt: inputEvent.target.value })
-                          }
-                          required
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="mb-2 block text-sm font-medium text-slate-700">Ende</span>
-                        <input
-                          type="datetime-local"
-                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                          value={eventForm.endsAt}
-                          onChange={(inputEvent) =>
-                            setEventForm({ ...eventForm, endsAt: inputEvent.target.value })
-                          }
-                        />
-                      </label>
-                    </div>
-
-                    <label className="block">
-                      <span className="mb-2 block text-sm font-medium text-slate-700">
-                        Beschreibung
-                      </span>
-                      <textarea
-                        rows={3}
-                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                        value={eventForm.description}
-                        onChange={(inputEvent) =>
-                          setEventForm({ ...eventForm, description: inputEvent.target.value })
-                        }
-                      />
-                    </label>
-
-                    <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={eventForm.repeatWeekly}
-                        onChange={(inputEvent) =>
-                          setEventForm({ ...eventForm, repeatWeekly: inputEvent.target.checked })
-                        }
-                      />
-                      <span className="text-sm text-slate-700">
-                        Jede Woche am gleichen Wochentag wiederholen
-                      </span>
-                    </label>
-
-                    {eventForm.repeatWeekly ? (
-                      <label className="block">
-                        <span className="mb-2 block text-sm font-medium text-slate-700">
-                          Wiederholen bis
-                        </span>
-                        <input
-                          type="date"
-                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                          value={eventForm.repeatUntil}
-                          onChange={(inputEvent) =>
-                            setEventForm({ ...eventForm, repeatUntil: inputEvent.target.value })
-                          }
-                          required
-                        />
-                      </label>
-                    ) : null}
                   </div>
 
-                  <button
-                    type="submit"
-                    disabled={eventSubmitting}
-                    className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {eventSubmitting ? "Speichert..." : "Termin speichern"}
-                  </button>
-                </form>
-              </SectionCard>
-            ) : (
-              <SectionCard
-                title="Zu- und Absagen"
-                description="Spielerinnen sehen hier nur die Teamtermine sowie ihre Rueckmeldung."
-              >
-                <div className="rounded-3xl border border-blue-100 bg-blue-50 px-5 py-4 text-sm text-slate-700">
-                  Trainings, Spiele und weitere Termine sind hier gesammelt. Die Einstellungen fuer
-                  Wiederholungen und Abstimmungsfristen bleiben bewusst nur fuer Trainer, Admin und
-                  Vorstand sichtbar.
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">
+                      Beschreibung
+                    </span>
+                    <textarea
+                      rows={3}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      value={eventForm.description}
+                      onChange={(inputEvent) =>
+                        setEventForm({ ...eventForm, description: inputEvent.target.value })
+                      }
+                    />
+                  </label>
+
+                  <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={eventForm.repeatWeekly}
+                      onChange={(inputEvent) =>
+                        setEventForm({ ...eventForm, repeatWeekly: inputEvent.target.checked })
+                      }
+                    />
+                    <span className="text-sm text-slate-700">
+                      Jede Woche am gleichen Wochentag wiederholen
+                    </span>
+                  </label>
+
+                  {eventForm.repeatWeekly ? (
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-slate-700">
+                        Wiederholen bis
+                      </span>
+                      <input
+                        type="date"
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                        value={eventForm.repeatUntil}
+                        onChange={(inputEvent) =>
+                          setEventForm({ ...eventForm, repeatUntil: inputEvent.target.value })
+                        }
+                        required
+                      />
+                    </label>
+                  ) : null}
                 </div>
-              </SectionCard>
-            )}
-          </div>
+
+                <button
+                  type="submit"
+                  disabled={eventSubmitting}
+                  className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {eventSubmitting ? "Speichert..." : "Termin speichern"}
+                </button>
+              </form>
+            </SectionCard>
+          ) : null}
         </div>
       ) : null}
 
