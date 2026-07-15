@@ -907,9 +907,9 @@ export default function TeamDetailPage() {
                     return (
                       <div
                         key={match.id}
-                        className="rounded-3xl border border-slate-200 bg-slate-50 p-5"
+                        className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
                       >
-                        <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -921,43 +921,11 @@ export default function TeamDetailPage() {
                                 </span>
                               ) : null}
                             </div>
-
-                            <div className="mt-4 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
-                              <div className="flex items-center gap-3">
-                                {renderMatchLogo(match.homeLogoUrl, homeTeamName, "h-12 w-12")}
-                                <div className="min-w-0">
-                                  <p className="break-words text-sm font-semibold leading-snug text-slate-900">
-                                    {homeTeamName}
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="text-center">
-                                <p className="text-base font-semibold text-slate-900">
-                                  {match.result || "- : -"}
-                                </p>
-                              </div>
-
-                              <div className="flex items-center justify-start gap-3 sm:justify-end">
-                                <div className="min-w-0 text-left sm:text-right">
-                                  <p className="break-words text-sm font-semibold leading-snug text-slate-900">
-                                    {awayTeamName}
-                                  </p>
-                                </div>
-                                {renderMatchLogo(match.awayLogoUrl, awayTeamName, "h-12 w-12")}
-                              </div>
-                            </div>
-
-                            <p className="mt-4 text-sm text-slate-600">
-                              {new Date(match.kickoffAt).toLocaleString("de-DE")}
-                            </p>
-                            <p className="mt-1 text-sm text-slate-500">{match.location}</p>
                           </div>
-
                           {canManageMatchesHere ? (
                             <div className="flex flex-wrap items-center justify-end gap-2">
                               <input
-                                className="w-40 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                className="w-28 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                                 value={matchResultDrafts[match.id] ?? (match.result ?? "")}
                                 placeholder="Ergebnis"
                                 onChange={(event) =>
@@ -993,6 +961,37 @@ export default function TeamDetailPage() {
                               </button>
                             </div>
                           ) : null}
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-[minmax(0,1fr)_72px_minmax(0,1fr)] items-center gap-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            {renderMatchLogo(match.homeLogoUrl, homeTeamName, "h-11 w-11")}
+                            <div className="min-w-0">
+                              <p className="line-clamp-2 text-sm font-semibold leading-tight text-slate-900">
+                                {homeTeamName}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="rounded-2xl bg-white px-2 py-2 text-center shadow-sm">
+                            <p className="text-sm font-semibold text-slate-900">
+                              {match.result || "- : -"}
+                            </p>
+                          </div>
+
+                          <div className="flex min-w-0 items-center justify-end gap-3">
+                            <div className="min-w-0 text-right">
+                              <p className="line-clamp-2 text-sm font-semibold leading-tight text-slate-900">
+                                {awayTeamName}
+                              </p>
+                            </div>
+                            {renderMatchLogo(match.awayLogoUrl, awayTeamName, "h-11 w-11")}
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
+                          <p>{new Date(match.kickoffAt).toLocaleString("de-DE")}</p>
+                          <p>{match.location}</p>
                         </div>
                       </div>
                     );
@@ -1053,35 +1052,33 @@ export default function TeamDetailPage() {
                                   key={match.id}
                                   className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                                 >
-                                  <div className="flex flex-wrap items-start justify-between gap-4">
-                                    <div className="min-w-0 flex-1">
-                                      <p className="text-sm font-semibold text-slate-900">
-                                        {(match.competition || "Spiel").trim()}
-                                      </p>
-                                      <div className="mt-3 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
-                                        <div className="flex items-center gap-3">
-                                          {renderMatchLogo(match.homeLogoUrl, homeTeamName, "h-11 w-11")}
-                                          <p className="min-w-0 break-words text-sm font-semibold leading-snug text-slate-900">
-                                            {homeTeamName}
-                                          </p>
-                                        </div>
-
-                                        <p className="text-center text-sm font-semibold text-slate-700">
-                                          {match.result || "- : -"}
-                                        </p>
-
-                                        <div className="flex items-center justify-start gap-3 sm:justify-end">
-                                          <p className="min-w-0 break-words text-sm font-semibold leading-snug text-slate-900 sm:text-right">
-                                            {awayTeamName}
-                                          </p>
-                                          {renderMatchLogo(match.awayLogoUrl, awayTeamName, "h-11 w-11")}
-                                        </div>
-                                      </div>
-                                      <p className="mt-3 text-sm text-slate-500">
-                                        {new Date(match.kickoffAt).toLocaleString("de-DE")}
+                                  <p className="text-sm font-semibold text-slate-900">
+                                    {(match.competition || "Spiel").trim()}
+                                  </p>
+                                  <div className="mt-3 grid grid-cols-[minmax(0,1fr)_68px_minmax(0,1fr)] items-center gap-3">
+                                    <div className="flex min-w-0 items-center gap-3">
+                                      {renderMatchLogo(match.homeLogoUrl, homeTeamName, "h-10 w-10")}
+                                      <p className="min-w-0 line-clamp-2 text-sm font-semibold leading-tight text-slate-900">
+                                        {homeTeamName}
                                       </p>
                                     </div>
+
+                                    <div className="rounded-2xl bg-white px-2 py-2 text-center shadow-sm">
+                                      <p className="text-sm font-semibold text-slate-700">
+                                        {match.result || "- : -"}
+                                      </p>
+                                    </div>
+
+                                    <div className="flex min-w-0 items-center justify-end gap-3">
+                                      <p className="min-w-0 line-clamp-2 text-right text-sm font-semibold leading-tight text-slate-900">
+                                        {awayTeamName}
+                                      </p>
+                                      {renderMatchLogo(match.awayLogoUrl, awayTeamName, "h-10 w-10")}
+                                    </div>
                                   </div>
+                                  <p className="mt-3 text-sm text-slate-500">
+                                    {new Date(match.kickoffAt).toLocaleString("de-DE")}
+                                  </p>
                                 </div>
                               );
                             })}
