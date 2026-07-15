@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Navigate } from "react-router-dom";
 import { ImagePlus, Shield } from "lucide-react";
 import SectionCard from "@/components/SectionCard";
 import { useAppStore } from "@/store";
@@ -18,16 +19,7 @@ export default function SettingsPage() {
   );
 
   if (currentUser?.role !== "admin") {
-    return (
-      <SectionCard
-        title="Einstellungen"
-        description="Dieser Bereich ist nur fuer Vereinsadmins sichtbar."
-      >
-        <p className="text-sm text-slate-600">
-          Bitte mit einem Admin-Zugang anmelden, um das Teamwappen zu aendern.
-        </p>
-      </SectionCard>
-    );
+    return <Navigate to="/dashboard" replace />;
   }
 
   return (

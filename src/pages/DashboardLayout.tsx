@@ -407,24 +407,21 @@ export default function DashboardLayout() {
       </aside>
 
       <div className="flex min-h-screen flex-1 flex-col">
-        <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/80 backdrop-blur">
+        <header className="sticky top-0 z-20 border-b border-white/10 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-700 text-white backdrop-blur">
           <div className="flex h-20 items-center justify-between px-4 sm:px-6">
             <div className="flex items-center gap-3">
               <button
-                className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-700 shadow-sm md:hidden"
+                className="rounded-2xl border border-white/15 bg-white/10 p-3 text-white shadow-sm md:hidden"
                 onClick={() => setSidebarOpen(true)}
               >
                 <Menu size={20} />
               </button>
-              <div className="hidden sm:block">
-                <p className="text-sm font-semibold text-slate-900">{settings.clubName}</p>
-              </div>
             </div>
 
             <div className="flex items-center gap-3">
               <Link
                 to="/dashboard/messages"
-                className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-white/15 hover:shadow-md"
               >
                 <Bell size={18} />
                 <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-700 px-1 text-[11px] font-semibold text-white">
@@ -435,7 +432,7 @@ export default function DashboardLayout() {
                 <button
                   type="button"
                   onClick={() => setProfileMenuOpen((open) => !open)}
-                  className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:px-4"
+                  className="rounded-2xl border border-white/15 bg-white px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:px-4"
                 >
                   <p className="text-sm font-medium text-slate-900">
                     {currentUser?.fullName ?? "Profil"}
@@ -461,13 +458,15 @@ export default function DashboardLayout() {
                     >
                       Mein Profil bearbeiten
                     </Link>
-                    <Link
-                      to="/dashboard/settings"
-                      onClick={() => setProfileMenuOpen(false)}
-                      className="block rounded-xl px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
-                    >
-                      Einstellungen
-                    </Link>
+                    {currentUser?.role === "admin" ? (
+                      <Link
+                        to="/dashboard/settings"
+                        onClick={() => setProfileMenuOpen(false)}
+                        className="block rounded-xl px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
+                      >
+                        Einstellungen
+                      </Link>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => {

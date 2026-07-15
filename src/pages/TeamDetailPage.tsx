@@ -254,6 +254,26 @@ export default function TeamDetailPage() {
   const getAwayTeamName = (match: (typeof teamMatches)[number]) =>
     match.awayTeamName || (match.isHome ? match.opponent : team.name);
 
+  const renderMatchLogo = (
+    logoUrl: string | null | undefined,
+    teamName: string,
+    sizeClass = "h-12 w-12",
+  ) =>
+    logoUrl ? (
+      <img
+        src={logoUrl}
+        alt={teamName}
+        className={`${sizeClass} shrink-0 rounded-full border border-slate-200 bg-white object-contain p-1.5 shadow-sm`}
+        loading="lazy"
+      />
+    ) : (
+      <div
+        className={`${sizeClass} flex shrink-0 items-center justify-center rounded-full border border-blue-100 bg-white text-blue-900 shadow-sm`}
+      >
+        <Shield size={16} />
+      </div>
+    );
+
   const getConditionBadgeClassName = (condition: string) => {
     switch (condition.toLowerCase()) {
       case "neu":
@@ -627,41 +647,19 @@ export default function TeamDetailPage() {
                   </div>
                   {nextMatch ? (
                     <div className="mt-4 space-y-2">
-                      <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
                         <div className="flex items-center gap-3">
-                          {nextMatch.homeLogoUrl ? (
-                            <img
-                              src={nextMatch.homeLogoUrl}
-                              alt={getHomeTeamName(nextMatch)}
-                              className="h-10 w-10 rounded-2xl border border-slate-200 bg-white object-contain p-1"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-100 text-blue-900">
-                              <Shield size={16} />
-                            </div>
-                          )}
-                          <p className="min-w-0 truncate text-sm font-semibold text-slate-900">
+                          {renderMatchLogo(nextMatch.homeLogoUrl, getHomeTeamName(nextMatch), "h-12 w-12")}
+                          <p className="min-w-0 break-words text-sm font-semibold leading-snug text-slate-900">
                             {getHomeTeamName(nextMatch)}
                           </p>
                         </div>
                         <p className="text-center text-sm font-semibold text-slate-500">vs.</p>
                         <div className="flex items-center justify-start gap-3 sm:justify-end">
-                          <p className="min-w-0 truncate text-sm font-semibold text-slate-900 sm:text-right">
+                          <p className="min-w-0 break-words text-sm font-semibold leading-snug text-slate-900 sm:text-right">
                             {getAwayTeamName(nextMatch)}
                           </p>
-                          {nextMatch.awayLogoUrl ? (
-                            <img
-                              src={nextMatch.awayLogoUrl}
-                              alt={getAwayTeamName(nextMatch)}
-                              className="h-10 w-10 rounded-2xl border border-slate-200 bg-white object-contain p-1"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-100 text-blue-900">
-                              <Shield size={16} />
-                            </div>
-                          )}
+                          {renderMatchLogo(nextMatch.awayLogoUrl, getAwayTeamName(nextMatch), "h-12 w-12")}
                         </div>
                       </div>
                       <p className="text-sm text-slate-600">
@@ -686,21 +684,10 @@ export default function TeamDetailPage() {
                   </div>
                   {lastMatch ? (
                     <div className="mt-4 space-y-2">
-                      <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
                         <div className="flex items-center gap-3">
-                          {lastMatch.homeLogoUrl ? (
-                            <img
-                              src={lastMatch.homeLogoUrl}
-                              alt={getHomeTeamName(lastMatch)}
-                              className="h-10 w-10 rounded-2xl border border-slate-200 bg-white object-contain p-1"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-100 text-blue-900">
-                              <Shield size={16} />
-                            </div>
-                          )}
-                          <p className="min-w-0 truncate text-sm font-semibold text-slate-900">
+                          {renderMatchLogo(lastMatch.homeLogoUrl, getHomeTeamName(lastMatch), "h-12 w-12")}
+                          <p className="min-w-0 break-words text-sm font-semibold leading-snug text-slate-900">
                             {getHomeTeamName(lastMatch)}
                           </p>
                         </div>
@@ -708,21 +695,10 @@ export default function TeamDetailPage() {
                           {lastMatch.result || "vs."}
                         </p>
                         <div className="flex items-center justify-start gap-3 sm:justify-end">
-                          <p className="min-w-0 truncate text-sm font-semibold text-slate-900 sm:text-right">
+                          <p className="min-w-0 break-words text-sm font-semibold leading-snug text-slate-900 sm:text-right">
                             {getAwayTeamName(lastMatch)}
                           </p>
-                          {lastMatch.awayLogoUrl ? (
-                            <img
-                              src={lastMatch.awayLogoUrl}
-                              alt={getAwayTeamName(lastMatch)}
-                              className="h-10 w-10 rounded-2xl border border-slate-200 bg-white object-contain p-1"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-100 text-blue-900">
-                              <Shield size={16} />
-                            </div>
-                          )}
+                          {renderMatchLogo(lastMatch.awayLogoUrl, getAwayTeamName(lastMatch), "h-12 w-12")}
                         </div>
                       </div>
                       <p className="text-sm text-slate-600">
@@ -946,22 +922,11 @@ export default function TeamDetailPage() {
                               ) : null}
                             </div>
 
-                            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                            <div className="mt-4 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
                               <div className="flex items-center gap-3">
-                                {match.homeLogoUrl ? (
-                                  <img
-                                    src={match.homeLogoUrl}
-                                    alt={homeTeamName}
-                                    className="h-12 w-12 rounded-2xl border border-slate-200 bg-white object-contain p-1"
-                                    loading="lazy"
-                                  />
-                                ) : (
-                                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-900">
-                                    <Shield size={18} />
-                                  </div>
-                                )}
+                                {renderMatchLogo(match.homeLogoUrl, homeTeamName, "h-12 w-12")}
                                 <div className="min-w-0">
-                                  <p className="truncate text-sm font-semibold text-slate-900">
+                                  <p className="break-words text-sm font-semibold leading-snug text-slate-900">
                                     {homeTeamName}
                                   </p>
                                 </div>
@@ -975,22 +940,11 @@ export default function TeamDetailPage() {
 
                               <div className="flex items-center justify-start gap-3 sm:justify-end">
                                 <div className="min-w-0 text-left sm:text-right">
-                                  <p className="truncate text-sm font-semibold text-slate-900">
+                                  <p className="break-words text-sm font-semibold leading-snug text-slate-900">
                                     {awayTeamName}
                                   </p>
                                 </div>
-                                {match.awayLogoUrl ? (
-                                  <img
-                                    src={match.awayLogoUrl}
-                                    alt={awayTeamName}
-                                    className="h-12 w-12 rounded-2xl border border-slate-200 bg-white object-contain p-1"
-                                    loading="lazy"
-                                  />
-                                ) : (
-                                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-900">
-                                    <Shield size={18} />
-                                  </div>
-                                )}
+                                {renderMatchLogo(match.awayLogoUrl, awayTeamName, "h-12 w-12")}
                               </div>
                             </div>
 
@@ -1104,21 +1058,10 @@ export default function TeamDetailPage() {
                                       <p className="text-sm font-semibold text-slate-900">
                                         {(match.competition || "Spiel").trim()}
                                       </p>
-                                      <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                                      <div className="mt-3 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
                                         <div className="flex items-center gap-3">
-                                          {match.homeLogoUrl ? (
-                                            <img
-                                              src={match.homeLogoUrl}
-                                              alt={homeTeamName}
-                                              className="h-10 w-10 rounded-2xl border border-slate-200 bg-white object-contain p-1"
-                                              loading="lazy"
-                                            />
-                                          ) : (
-                                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-100 text-blue-900">
-                                              <Shield size={16} />
-                                            </div>
-                                          )}
-                                          <p className="min-w-0 truncate text-sm font-semibold text-slate-900">
+                                          {renderMatchLogo(match.homeLogoUrl, homeTeamName, "h-11 w-11")}
+                                          <p className="min-w-0 break-words text-sm font-semibold leading-snug text-slate-900">
                                             {homeTeamName}
                                           </p>
                                         </div>
@@ -1128,21 +1071,10 @@ export default function TeamDetailPage() {
                                         </p>
 
                                         <div className="flex items-center justify-start gap-3 sm:justify-end">
-                                          <p className="min-w-0 truncate text-sm font-semibold text-slate-900 sm:text-right">
+                                          <p className="min-w-0 break-words text-sm font-semibold leading-snug text-slate-900 sm:text-right">
                                             {awayTeamName}
                                           </p>
-                                          {match.awayLogoUrl ? (
-                                            <img
-                                              src={match.awayLogoUrl}
-                                              alt={awayTeamName}
-                                              className="h-10 w-10 rounded-2xl border border-slate-200 bg-white object-contain p-1"
-                                              loading="lazy"
-                                            />
-                                          ) : (
-                                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-100 text-blue-900">
-                                              <Shield size={16} />
-                                            </div>
-                                          )}
+                                          {renderMatchLogo(match.awayLogoUrl, awayTeamName, "h-11 w-11")}
                                         </div>
                                       </div>
                                       <p className="mt-3 text-sm text-slate-500">
