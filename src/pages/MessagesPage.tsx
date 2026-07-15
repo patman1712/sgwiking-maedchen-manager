@@ -18,6 +18,10 @@ export default function MessagesPage() {
   const sendMessage = useAppStore((state) => state.sendMessage);
   const deleteConversation = useAppStore((state) => state.deleteConversation);
   const [draft, setDraft] = useState("");
+  const [directChatOpen, setDirectChatOpen] = useState(false);
+  const [directChatUserId, setDirectChatUserId] = useState("");
+  const [teamChatOpen, setTeamChatOpen] = useState(false);
+  const [selectedTeamChatId, setSelectedTeamChatId] = useState("");
   const [createTeamChannelOpen, setCreateTeamChannelOpen] = useState(false);
   const [teamChannelTeamId, setTeamChannelTeamId] = useState("");
   const [teamChannelTitle, setTeamChannelTitle] = useState("");
@@ -196,6 +200,35 @@ export default function MessagesPage() {
     ));
   };
 
+  const renderUserSelectionCards = () => {
+    const groups = userGroups.map((group) => ({
+      ...group,
+      users: group.users.filter((user) => user.id !== currentUserId),
+    }));
+
+    return groups.map((group) => (
+      <div key={group.label} className="space-y-2">
+        <p className="text-sm font-semibold text-slate-800">{group.label}</p>
+        <div className="grid gap-2">
+          {group.users.map((user) => (
+            <button
+              key={user.id}
+              type="button"
+              onClick={() => setDirectChatUserId(user.id)}
+              className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                directChatUserId === user.id
+                  ? "border-blue-300 bg-blue-50 text-blue-900 shadow-sm"
+                  : "border-slate-200 bg-slate-50 text-slate-700 hover:border-blue-200 hover:bg-white"
+              }`}
+            >
+              {user.fullName}
+            </button>
+          ))}
+        </div>
+      </div>
+    ));
+  };
+
   const getConversationTypeLabel = (conversation: (typeof availableConversations)[number]) => {
     if (conversation.type === "team") {
       return "Teamchannel";
@@ -211,45 +244,27 @@ export default function MessagesPage() {
         description="Direktchat oder Teamchat oeffnen und sofort weiterschreiben."
         actions={
           <div className="flex flex-wrap gap-2">
-            <select
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
-              defaultValue=""
-              onChange={async (event) => {
-                if (!event.target.value) {
-                  return;
-                }
-                const conversationId = await ensureDirectConversation(event.target.value);
-                if (conversationId) {
-                  setSearchParams({ conversation: conversationId });
-                }
-                event.target.value = "";
+            <button
+              type="button"
+              onClick={() => {
+                setDirectChatUserId("");
+                setDirectChatOpen(true);
               }}
+              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-white"
             >
-              <option value="">Direktchat starten</option>
-              {renderUserOptions()}
-            </select>
+              Direktchat starten
+            </button>
 
-            <select
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
-              defaultValue=""
-              onChange={async (event) => {
-                if (!event.target.value) {
-                  return;
-                }
-                const conversationId = await ensureTeamConversation(event.target.value);
-                if (conversationId) {
-                  setSearchParams({ conversation: conversationId });
-                }
-                event.target.value = "";
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedTeamChatId(availableTeamsForChat[0]?.id ?? "");
+                setTeamChatOpen(true);
               }}
+              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-white"
             >
-              <option value="">Teamchat oeffnen</option>
-              {availableTeamsForChat.map((team) => (
-                <option key={team.id} value={team.id}>
-                  {team.name}
-                </option>
-              ))}
-            </select>
+              Teamchat oeffnen
+            </button>
 
             <button
               type="button"
@@ -405,6 +420,123 @@ export default function MessagesPage() {
           </div>
         )}
       </SectionCard>
+
+      {directChatOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
+                  Direktchat
+                </p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">
+                  Person auswaehlen
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDirectChatOpen(false)}
+                className="rounded-2xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-6 max-h-[26rem] space-y-5 overflow-y-auto pr-1">
+              {renderUserSelectionCards()}
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDirectChatOpen(false)}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                disabled={!directChatUserId}
+                onClick={async () => {
+                  const conversationId = await ensureDirectConversation(directChatUserId);
+                  if (conversationId) {
+                    setDirectChatOpen(false);
+                    setSearchParams({ conversation: conversationId });
+                  }
+                }}
+                className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Oeffnen
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {teamChatOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
+                  Teamchat
+                </p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">
+                  Mannschaft auswaehlen
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTeamChatOpen(false)}
+                className="rounded-2xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-3">
+              {availableTeamsForChat.map((team) => (
+                <button
+                  key={team.id}
+                  type="button"
+                  onClick={() => setSelectedTeamChatId(team.id)}
+                  className={`rounded-2xl border px-4 py-3 text-left text-sm font-medium transition ${
+                    selectedTeamChatId === team.id
+                      ? "border-blue-300 bg-blue-50 text-blue-900 shadow-sm"
+                      : "border-slate-200 bg-slate-50 text-slate-700 hover:border-blue-200 hover:bg-white"
+                  }`}
+                >
+                  {team.name}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setTeamChatOpen(false)}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                disabled={!selectedTeamChatId}
+                onClick={async () => {
+                  const conversationId = await ensureTeamConversation(selectedTeamChatId);
+                  if (conversationId) {
+                    setTeamChatOpen(false);
+                    setSearchParams({ conversation: conversationId });
+                  }
+                }}
+                className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Oeffnen
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {createTeamChannelOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
