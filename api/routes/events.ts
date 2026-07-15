@@ -21,6 +21,12 @@ const ensureTeamExists = (teamId: string) =>
     | { id: string; name: string }
     | undefined
 
+type EventResponseDetail = {
+  userId: string
+  fullName: string
+  status: 'accepted' | 'declined'
+}
+
 const buildPayload = (teamId: string, actorId: string) => {
   const manualEvents = (
     db.prepare(
@@ -72,6 +78,7 @@ const buildPayload = (teamId: string, actorId: string) => {
     string,
     { eventId: string; acceptedCount: number; declinedCount: number; currentUserStatus: 'accepted' | 'declined' | null }
   >()
+  const responseDetails = new Map<string, EventResponseDetail[]>()
 
   responseRows.forEach((row) => {
     const current = summaries.get(row.event_id) ?? {
@@ -94,6 +101,18 @@ const buildPayload = (teamId: string, actorId: string) => {
     }
 
     summaries.set(row.event_id, current)
+
+    const user = getUserRowById(row.user_id)
+    const existingDetails = responseDetails.get(row.event_id) ?? []
+    if (user) {
+      existingDetails.push({
+        userId: row.user_id,
+        fullName: user.full_name,
+        status: row.status,
+      })
+      existingDetails.sort((left, right) => left.fullName.localeCompare(right.fullName, 'de'))
+      responseDetails.set(row.event_id, existingDetails)
+    }
   })
 
   const settingsRow = db.prepare(
@@ -107,6 +126,15 @@ const buildPayload = (teamId: string, actorId: string) => {
   return {
     manualEvents,
     responseSummaries: Array.from(summaries.values()),
+    responseDetails: Array.from(responseDetails.entries()).map(([eventId, responses]) => ({
+      eventId,
+      acceptedUsers: responses
+        .filter((entry) => entry.status === 'accepted')
+        .map(({ userId, fullName }) => ({ userId, fullName })),
+      declinedUsers: responses
+        .filter((entry) => entry.status === 'declined')
+        .map(({ userId, fullName }) => ({ userId, fullName })),
+    })),
     settings: {
       responseCloseHoursBefore: Number(settingsRow?.response_close_hours_before ?? 24),
     },
