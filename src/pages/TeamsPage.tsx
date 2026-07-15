@@ -50,6 +50,19 @@ export default function TeamsPage() {
       minute: "2-digit",
     }).format(new Date(kickoffAt));
 
+  const renderTeamLogo = (logoUrl: string | null | undefined, teamName: string) =>
+    logoUrl ? (
+      <img
+        src={logoUrl}
+        alt={teamName}
+        className="h-10 w-10 rounded-full border border-white/80 bg-white object-contain shadow-sm"
+      />
+    ) : (
+      <div className="flex h-10 w-10 items-center justify-center rounded-full border border-blue-100 bg-white text-blue-700 shadow-sm">
+        <Volleyball size={16} />
+      </div>
+    );
+
   return (
     <div className="space-y-6">
       <SectionCard
@@ -165,16 +178,36 @@ export default function TeamsPage() {
                     </div>
 
                     <div className="grid gap-3">
-                      <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 px-4 py-4">
-                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                      <div className="rounded-2xl border border-blue-100 bg-blue-50/90 px-4 py-4 shadow-sm">
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
                           <CalendarDays size={15} />
                           Naechstes Spiel
                         </div>
                         {nextMatch ? (
-                          <div className="mt-3 space-y-1">
-                            <p className="text-sm font-semibold text-slate-900">
-                              {getHomeTeamName(nextMatch)} - {getAwayTeamName(nextMatch)}
-                            </p>
+                          <div className="mt-3 space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex min-w-0 flex-1 items-center gap-3">
+                                {renderTeamLogo(
+                                  nextMatch.homeLogoUrl,
+                                  getHomeTeamName(nextMatch),
+                                )}
+                                <p className="truncate text-sm font-semibold text-slate-900">
+                                  {getHomeTeamName(nextMatch)}
+                                </p>
+                              </div>
+                              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-500">
+                                vs
+                              </span>
+                              <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+                                <p className="truncate text-right text-sm font-semibold text-slate-900">
+                                  {getAwayTeamName(nextMatch)}
+                                </p>
+                                {renderTeamLogo(
+                                  nextMatch.awayLogoUrl,
+                                  getAwayTeamName(nextMatch),
+                                )}
+                              </div>
+                            </div>
                             <p className="text-sm text-slate-600">
                               {formatMatchDate(nextMatch.kickoffAt)}
                             </p>
@@ -187,16 +220,36 @@ export default function TeamsPage() {
                         )}
                       </div>
 
-                      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      <div className="rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-4 shadow-sm">
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
                           <CalendarDays size={15} />
                           Letztes Spiel
                         </div>
                         {lastMatch ? (
-                          <div className="mt-3 space-y-1">
-                            <p className="text-sm font-semibold text-slate-900">
-                              {getHomeTeamName(lastMatch)} - {getAwayTeamName(lastMatch)}
-                            </p>
+                          <div className="mt-3 space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex min-w-0 flex-1 items-center gap-3">
+                                {renderTeamLogo(
+                                  lastMatch.homeLogoUrl,
+                                  getHomeTeamName(lastMatch),
+                                )}
+                                <p className="truncate text-sm font-semibold text-slate-900">
+                                  {getHomeTeamName(lastMatch)}
+                                </p>
+                              </div>
+                              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-500">
+                                vs
+                              </span>
+                              <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+                                <p className="truncate text-right text-sm font-semibold text-slate-900">
+                                  {getAwayTeamName(lastMatch)}
+                                </p>
+                                {renderTeamLogo(
+                                  lastMatch.awayLogoUrl,
+                                  getAwayTeamName(lastMatch),
+                                )}
+                              </div>
+                            </div>
                             <p className="text-sm text-slate-600">
                               {formatMatchDate(lastMatch.kickoffAt)}
                             </p>
