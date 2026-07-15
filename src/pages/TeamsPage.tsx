@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Volleyball } from "lucide-react";
+import { CalendarDays, ChevronRight, MapPin, Plus, Volleyball, X } from "lucide-react";
 import SectionCard from "@/components/SectionCard";
 import { useAppStore } from "@/store";
 
@@ -17,9 +17,11 @@ const emptyForm = {
 export default function TeamsPage() {
   const teams = useAppStore((state) => state.teams);
   const users = useAppStore((state) => state.users);
+  const matches = useAppStore((state) => state.matches);
   const addTeam = useAppStore((state) => state.addTeam);
   const currentUserId = useAppStore((state) => state.currentUserId);
   const [form, setForm] = useState(emptyForm);
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const currentUser = useMemo(
     () => users.find((user) => user.id === currentUserId) ?? null,
     [currentUserId, users],
@@ -37,14 +39,43 @@ export default function TeamsPage() {
 
     return teams.filter((team) => currentUser.teamIds.includes(team.id));
   }, [canManageTeams, currentUser, teams]);
+  const now = Date.now();
+
+  const formatMatchDate = (kickoffAt: string) =>
+    new Intl.DateTimeFormat("de-DE", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(kickoffAt));
 
   return (
-    <div className={canManageTeams ? "grid gap-6 xl:grid-cols-[1.2fr_0.8fr]" : "grid gap-6"}>
+    <div className="space-y-6">
       <SectionCard
         title="Mannschaften"
-        description="Wie im Maintextildruck-Manager: links die aktiven Bereiche, rechts direkte Erfassung."
+        description="Alle Teams kompakt im Ueberblick mit Teamfoto, naechstem Spiel und letztem Ergebnis."
       >
-        <div className="space-y-4">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm text-slate-600">
+            {visibleTeams.length === 1
+              ? "1 Mannschaft sichtbar"
+              : `${visibleTeams.length} Mannschaften sichtbar`}
+          </div>
+
+          {canManageTeams ? (
+            <button
+              type="button"
+              onClick={() => setShowCreateForm((current) => !current)}
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
+            >
+              {showCreateForm ? <X size={18} /> : <Plus size={18} />}
+              {showCreateForm ? "Formular schliessen" : "Neue Mannschaft anlegen"}
+            </button>
+          ) : null}
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
           {visibleTeams.map((team) => {
             const trainers = users.filter(
               (user) => user.role === "trainer" && user.teamIds.includes(team.id),
@@ -52,55 +83,152 @@ export default function TeamsPage() {
             const players = users.filter(
               (user) => user.role === "player" && user.teamIds.includes(team.id),
             );
+            const teamMatches = matches
+              .filter((match) => match.teamId === team.id)
+              .sort(
+                (left, right) =>
+                  new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime(),
+              );
+            const nextMatch =
+              teamMatches.find((match) => new Date(match.kickoffAt).getTime() >= now) ?? null;
+            const lastMatch =
+              [...teamMatches]
+                .reverse()
+                .find((match) => new Date(match.kickoffAt).getTime() < now) ?? null;
+            const getHomeTeamName = (match: (typeof teamMatches)[number]) =>
+              match.homeTeamName || (match.isHome ? team.name : match.opponent);
+            const getAwayTeamName = (match: (typeof teamMatches)[number]) =>
+              match.awayTeamName || (match.isHome ? match.opponent : team.name);
 
             return (
               <Link
                 key={team.id}
                 to={`/dashboard/teams/${team.id}/dashboard`}
-                className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white hover:shadow-md md:flex-row md:items-start md:justify-between"
+                className="group overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white hover:shadow-lg"
               >
-                <div className="flex gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-900 to-blue-700 text-white shadow-lg">
-                    <Volleyball size={22} />
+                <div className="flex h-full flex-col">
+                  <div className="relative h-40 overflow-hidden bg-gradient-to-br from-blue-950 via-blue-900 to-blue-700">
+                    {team.photoUrl ? (
+                      <img
+                        src={team.photoUrl}
+                        alt={team.name}
+                        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-white/15 text-white backdrop-blur">
+                          <Volleyball size={28} />
+                        </div>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-900/20 to-transparent" />
+                    <div className="absolute inset-x-0 bottom-0 p-5 text-white">
+                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-100">
+                        {team.ageGroup}
+                      </p>
+                      <div className="mt-2 flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="text-xl font-semibold">{team.name}</h3>
+                          <p className="mt-1 text-sm text-blue-50/90">{team.trainingDay}</p>
+                        </div>
+                        <ChevronRight
+                          size={20}
+                          className="mt-1 shrink-0 text-white/90 transition group-hover:translate-x-0.5"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
-                      {team.ageGroup}
-                    </p>
-                    <h3 className="mt-2 text-lg font-semibold text-slate-900">{team.name}</h3>
-                    <p className="mt-2 text-sm text-slate-600">{team.trainingDay}</p>
-                    <p className="mt-1 text-sm text-slate-500">{team.location}</p>
-                  </div>
-                </div>
 
-                <div className="grid min-w-[220px] grid-cols-2 gap-3">
-                  <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
-                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                      Trainer
-                    </p>
-                    <p className="mt-2 text-xl font-semibold text-slate-900">
-                      {trainers.length}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
-                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                      Spielerinnen
-                    </p>
-                    <p className="mt-2 text-xl font-semibold text-slate-900">
-                      {players.length}
-                    </p>
+                  <div className="flex flex-1 flex-col gap-4 p-5">
+                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                      <MapPin size={16} className="text-blue-700" />
+                      <span>{team.location}</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
+                        <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                          Trainer
+                        </p>
+                        <p className="mt-2 text-xl font-semibold text-slate-900">
+                          {trainers.length}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
+                        <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                          Spielerinnen
+                        </p>
+                        <p className="mt-2 text-xl font-semibold text-slate-900">
+                          {players.length}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3">
+                      <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 px-4 py-4">
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                          <CalendarDays size={15} />
+                          Naechstes Spiel
+                        </div>
+                        {nextMatch ? (
+                          <div className="mt-3 space-y-1">
+                            <p className="text-sm font-semibold text-slate-900">
+                              {getHomeTeamName(nextMatch)} - {getAwayTeamName(nextMatch)}
+                            </p>
+                            <p className="text-sm text-slate-600">
+                              {formatMatchDate(nextMatch.kickoffAt)}
+                            </p>
+                            <p className="text-sm text-slate-500">{nextMatch.location}</p>
+                          </div>
+                        ) : (
+                          <p className="mt-3 text-sm text-slate-500">
+                            Noch kein kommendes Spiel vorhanden.
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          <CalendarDays size={15} />
+                          Letztes Spiel
+                        </div>
+                        {lastMatch ? (
+                          <div className="mt-3 space-y-1">
+                            <p className="text-sm font-semibold text-slate-900">
+                              {getHomeTeamName(lastMatch)} - {getAwayTeamName(lastMatch)}
+                            </p>
+                            <p className="text-sm text-slate-600">
+                              {formatMatchDate(lastMatch.kickoffAt)}
+                            </p>
+                            <p className="text-sm text-slate-500">
+                              {lastMatch.result ? `Ergebnis ${lastMatch.result}` : lastMatch.location}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="mt-3 text-sm text-slate-500">
+                            Noch kein vergangenes Spiel vorhanden.
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </Link>
             );
           })}
+
+          {!visibleTeams.length ? (
+            <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
+              Fuer diesen Zugang sind aktuell keine Mannschaften sichtbar.
+            </div>
+          ) : null}
         </div>
       </SectionCard>
 
-      {canManageTeams ? (
+      {canManageTeams && showCreateForm ? (
         <SectionCard
           title="Neue Mannschaft anlegen"
-          description="Hier kannst du weitere Teams fuer neue Jahrgaenge oder Staffeln erfassen."
+          description="Hier kannst du weitere Teams fuer neue Jahrgaenge oder Staffeln anlegen."
         >
           <form
             className="space-y-4"
@@ -109,6 +237,7 @@ export default function TeamsPage() {
               const result = await addTeam(form);
               if (result.success) {
                 setForm(emptyForm);
+                setShowCreateForm(false);
               }
             }}
           >
