@@ -16,6 +16,7 @@ import { DATA_DIR } from './db.js'
 import authRoutes from './routes/auth.js'
 import bootstrapRoutes from './routes/bootstrap.js'
 import conversationsRoutes from './routes/conversations.js'
+import eventsRoutes from './routes/events.js'
 import inventoryRoutes from './routes/inventory.js'
 import matchesRoutes from './routes/matches.js'
 import messagesRoutes from './routes/messages.js'
@@ -45,6 +46,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }))
  */
 app.use('/api/auth', authRoutes)
 app.use('/api/bootstrap', bootstrapRoutes)
+app.use('/api/events', eventsRoutes)
 app.use('/api/inventory', inventoryRoutes)
 app.use('/api/teams', teamsRoutes)
 app.use('/api/users', usersRoutes)

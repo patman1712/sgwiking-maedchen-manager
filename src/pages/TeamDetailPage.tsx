@@ -10,11 +10,50 @@ const teamSections = [
   { key: "dashboard", label: "Dashboard" },
   { key: "kader", label: "Kader" },
   { key: "spielplan", label: "Spielplan" },
+  { key: "termine", label: "Termine" },
   { key: "inventar", label: "Inventar" },
   { key: "verwaltung", label: "Verwaltung" },
 ] as const;
 
 type TeamSection = (typeof teamSections)[number]["key"];
+
+type ManualTeamEvent = {
+  id: string;
+  teamId: string;
+  title: string;
+  description: string;
+  location: string;
+  startsAt: string;
+  endsAt: string | null;
+  category: string;
+  sourceType: "manual";
+  createdBy: string;
+  createdAt: string;
+};
+
+type TeamEventSummary = {
+  eventId: string;
+  acceptedCount: number;
+  declinedCount: number;
+  currentUserStatus: "accepted" | "declined" | null;
+};
+
+type TeamEventSettings = {
+  responseCloseHoursBefore: number;
+};
+
+type UnifiedTeamEvent = {
+  id: string;
+  teamId: string;
+  title: string;
+  description: string;
+  location: string;
+  startsAt: string;
+  endsAt: string | null;
+  category: string;
+  sourceType: "manual" | "match";
+  relatedMatchId?: string;
+};
 
 export default function TeamDetailPage() {
   const { teamId, section } = useParams();
@@ -120,6 +159,32 @@ export default function TeamDetailPage() {
   const [inventoryMessage, setInventoryMessage] = useState("");
   const [inventoryError, setInventoryError] = useState("");
   const [showInventoryForm, setShowInventoryForm] = useState(false);
+  const [manualEvents, setManualEvents] = useState<ManualTeamEvent[]>([]);
+  const [eventSummaries, setEventSummaries] = useState<TeamEventSummary[]>([]);
+  const [eventSettings, setEventSettings] = useState<TeamEventSettings>({
+    responseCloseHoursBefore: 24,
+  });
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventsError, setEventsError] = useState("");
+  const [eventsMessage, setEventsMessage] = useState("");
+  const [expandedFutureEvents, setExpandedFutureEvents] = useState(false);
+  const [expandedPastEvents, setExpandedPastEvents] = useState(false);
+  const [eventSubmitting, setEventSubmitting] = useState(false);
+  const [eventDeletingId, setEventDeletingId] = useState<string | null>(null);
+  const [eventResponseSavingId, setEventResponseSavingId] = useState<string | null>(null);
+  const [eventForm, setEventForm] = useState({
+    title: "",
+    description: "",
+    location: "",
+    startsAt: "",
+    endsAt: "",
+    category: "training",
+    repeatWeekly: false,
+    repeatUntil: "",
+  });
+  const [teamEventSettingsDraft, setTeamEventSettingsDraft] = useState({
+    responseCloseHoursBefore: "24",
+  });
 
   const assignedTrainers = useMemo(
     () =>
@@ -140,6 +205,7 @@ export default function TeamDetailPage() {
     currentUser?.role === "board" ||
     assignedTrainers.some((trainer) => trainer.id === currentUserId);
   const canManageMatchesHere = canManagePlayersHere;
+  const canManageEventsHere = canManagePlayersHere;
   const canManageInventoryHere = canManagePlayersHere;
   const canEditTeam =
     currentUser?.role === "admin" || currentUser?.role === "board";
@@ -401,6 +467,334 @@ export default function TeamDetailPage() {
 
     void loadLeagueTable();
   }, [activeSection, loadLeagueTable]);
+
+  const loadTeamEvents = useCallback(async () => {
+    if (!currentUserId) {
+      return;
+    }
+
+    setEventsLoading(true);
+    setEventsError("");
+
+    try {
+      const response = await fetch(
+        `/api/events?teamId=${encodeURIComponent(team.id)}&actorId=${encodeURIComponent(currentUserId)}`,
+      );
+      const data = await response.json();
+
+      if (!response.ok || data.success === false) {
+        throw new Error(data.error || "Termine konnten nicht geladen werden.");
+      }
+
+      setManualEvents(data.manualEvents ?? []);
+      setEventSummaries(data.responseSummaries ?? []);
+      setEventSettings(data.settings ?? { responseCloseHoursBefore: 24 });
+      setTeamEventSettingsDraft({
+        responseCloseHoursBefore: String(data.settings?.responseCloseHoursBefore ?? 24),
+      });
+    } catch (error) {
+      setEventsError(
+        error instanceof Error ? error.message : "Termine konnten nicht geladen werden.",
+      );
+    } finally {
+      setEventsLoading(false);
+    }
+  }, [currentUserId, team.id]);
+
+  useEffect(() => {
+    if (activeSection !== "termine") {
+      return;
+    }
+
+    void loadTeamEvents();
+  }, [activeSection, loadTeamEvents]);
+
+  const unifiedTeamEvents = useMemo<UnifiedTeamEvent[]>(() => {
+    const manual = manualEvents.map((event) => ({
+      id: event.id,
+      teamId: event.teamId,
+      title: event.title,
+      description: event.description,
+      location: event.location,
+      startsAt: event.startsAt,
+      endsAt: event.endsAt,
+      category: event.category,
+      sourceType: "manual" as const,
+    }));
+
+    const derivedMatches = teamMatches.map((match) => ({
+      id: match.id,
+      teamId: team.id,
+      title:
+        match.competition?.trim()
+          ? `${match.competition.trim()} gegen ${match.opponent}`
+          : `Spiel gegen ${match.opponent}`,
+      description: `${match.isHome ? "Heimspiel" : "Auswaertsspiel"} gegen ${match.opponent}`,
+      location: match.location,
+      startsAt: match.kickoffAt,
+      endsAt: null,
+      category: "match",
+      sourceType: "match" as const,
+      relatedMatchId: match.id,
+    }));
+
+    return [...manual, ...derivedMatches].sort(
+      (left, right) =>
+        new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime(),
+    );
+  }, [manualEvents, team.id, teamMatches]);
+
+  const eventSummaryById = useMemo(
+    () =>
+      eventSummaries.reduce<Record<string, TeamEventSummary>>((accumulator, summary) => {
+        accumulator[summary.eventId] = summary;
+        return accumulator;
+      }, {}),
+    [eventSummaries],
+  );
+
+  const getEventDeadline = useCallback(
+    (event: UnifiedTeamEvent) =>
+      new Date(
+        new Date(event.startsAt).getTime() - eventSettings.responseCloseHoursBefore * 60 * 60 * 1000,
+      ),
+    [eventSettings.responseCloseHoursBefore],
+  );
+
+  const nowDate = Date.now();
+  const activeOrUpcomingEvent = useMemo(() => {
+    const ongoing = unifiedTeamEvents.find((event) => {
+      const start = new Date(event.startsAt).getTime();
+      const end = event.endsAt ? new Date(event.endsAt).getTime() : start + 2 * 60 * 60 * 1000;
+      return start <= nowDate && end >= nowDate;
+    });
+
+    if (ongoing) {
+      return ongoing;
+    }
+
+    return unifiedTeamEvents.find((event) => new Date(event.startsAt).getTime() >= nowDate) ?? null;
+  }, [nowDate, unifiedTeamEvents]);
+
+  const futureTeamEvents = useMemo(
+    () =>
+      unifiedTeamEvents.filter(
+        (event) =>
+          new Date(event.startsAt).getTime() >= nowDate &&
+          event.id !== activeOrUpcomingEvent?.id,
+      ),
+    [activeOrUpcomingEvent?.id, nowDate, unifiedTeamEvents],
+  );
+
+  const visibleFutureEvents = futureTeamEvents.slice(0, 10);
+  const hiddenFutureEvents = futureTeamEvents.slice(10);
+  const archivedEvents = useMemo(
+    () =>
+      unifiedTeamEvents
+        .filter((event) => new Date(event.startsAt).getTime() < nowDate)
+        .slice()
+        .reverse(),
+    [nowDate, unifiedTeamEvents],
+  );
+
+  const renderEventCard = (event: UnifiedTeamEvent, emphasize = false) => {
+    const summary = eventSummaryById[event.id];
+    const deadline = getEventDeadline(event);
+    const responseClosed = deadline.getTime() <= Date.now();
+
+    return (
+      <div
+        key={event.id}
+        className={cn(
+          "rounded-3xl border p-4 shadow-sm",
+          emphasize
+            ? "border-blue-200 bg-blue-50/80"
+            : "border-slate-200 bg-slate-50",
+        )}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-700 shadow-sm">
+                {event.sourceType === "match" ? "Spiel" : event.category}
+              </span>
+              {event.sourceType === "match" ? (
+                <span className="rounded-full bg-blue-100 px-3 py-1 text-[11px] font-semibold text-blue-900">
+                  Aus Spielplan
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-3 text-lg font-semibold text-slate-900">{event.title}</p>
+            {event.description ? (
+              <p className="mt-2 text-sm text-slate-600">{event.description}</p>
+            ) : null}
+          </div>
+
+          {canManageEventsHere && event.sourceType === "manual" ? (
+            <button
+              type="button"
+              disabled={eventDeletingId === event.id}
+              onClick={async () => {
+                const confirmed = window.confirm("Termin wirklich loeschen?");
+
+                if (!confirmed || !currentUserId) {
+                  return;
+                }
+
+                setEventsError("");
+                setEventsMessage("");
+                setEventDeletingId(event.id);
+
+                try {
+                  const response = await fetch(
+                    `/api/events/${event.id}?teamId=${encodeURIComponent(team.id)}&actorId=${encodeURIComponent(currentUserId)}`,
+                    { method: "DELETE" },
+                  );
+                  const data = await response.json();
+
+                  if (!response.ok || data.success === false) {
+                    throw new Error(data.error || "Termin konnte nicht geloescht werden.");
+                  }
+
+                  setManualEvents(data.manualEvents ?? []);
+                  setEventSummaries(data.responseSummaries ?? []);
+                  setEventSettings(data.settings ?? { responseCloseHoursBefore: 24 });
+                  setEventsMessage("Termin wurde geloescht.");
+                } catch (error) {
+                  setEventsError(
+                    error instanceof Error ? error.message : "Termin konnte nicht geloescht werden.",
+                  );
+                } finally {
+                  setEventDeletingId(null);
+                }
+              }}
+              className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Trash2 size={16} />
+              {eventDeletingId === event.id ? "Loesche..." : "Loeschen"}
+            </button>
+          ) : null}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-500">
+          <span className="inline-flex items-center gap-2">
+            <CalendarDays size={15} className="text-blue-700" />
+            {new Date(event.startsAt).toLocaleString("de-DE")}
+          </span>
+          {event.location ? (
+            <span className="inline-flex items-center gap-2">
+              <MapPin size={15} className="text-blue-700" />
+              {event.location}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-700 shadow-sm">
+            Zusagen {summary?.acceptedCount ?? 0}
+          </span>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-rose-700 shadow-sm">
+            Absagen {summary?.declinedCount ?? 0}
+          </span>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
+            {responseClosed
+              ? `Abgelaufen seit ${deadline.toLocaleString("de-DE")}`
+              : `Antwort moeglich bis ${deadline.toLocaleString("de-DE")}`}
+          </span>
+          {summary?.currentUserStatus ? (
+            <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-900">
+              Deine Rueckmeldung: {summary.currentUserStatus === "accepted" ? "Zusage" : "Absage"}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={responseClosed || eventResponseSavingId === event.id}
+            onClick={async () => {
+              if (!currentUserId) {
+                return;
+              }
+
+              setEventResponseSavingId(event.id);
+              setEventsError("");
+
+              try {
+                const response = await fetch("/api/events/response", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    actorId: currentUserId,
+                    teamId: team.id,
+                    eventId: event.id,
+                    status: "accepted",
+                  }),
+                });
+                const data = await response.json();
+
+                if (!response.ok || data.success === false) {
+                  throw new Error(data.error || "Rueckmeldung konnte nicht gespeichert werden.");
+                }
+
+                setEventSummaries(data.responseSummaries ?? []);
+              } catch (error) {
+                setEventsError(
+                  error instanceof Error ? error.message : "Rueckmeldung konnte nicht gespeichert werden.",
+                );
+              } finally {
+                setEventResponseSavingId(null);
+              }
+            }}
+            className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Zusagen
+          </button>
+          <button
+            type="button"
+            disabled={responseClosed || eventResponseSavingId === event.id}
+            onClick={async () => {
+              if (!currentUserId) {
+                return;
+              }
+
+              setEventResponseSavingId(event.id);
+              setEventsError("");
+
+              try {
+                const response = await fetch("/api/events/response", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    actorId: currentUserId,
+                    teamId: team.id,
+                    eventId: event.id,
+                    status: "declined",
+                  }),
+                });
+                const data = await response.json();
+
+                if (!response.ok || data.success === false) {
+                  throw new Error(data.error || "Rueckmeldung konnte nicht gespeichert werden.");
+                }
+
+                setEventSummaries(data.responseSummaries ?? []);
+              } catch (error) {
+                setEventsError(
+                  error instanceof Error ? error.message : "Rueckmeldung konnte nicht gespeichert werden.",
+                );
+              } finally {
+                setEventResponseSavingId(null);
+              }
+            }}
+            className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Absagen
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -1256,6 +1650,410 @@ export default function TeamDetailPage() {
             </div>
           </SectionCard>
 
+        </div>
+      ) : null}
+
+      {activeSection === "termine" ? (
+        <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+          <SectionCard
+            title="Termine"
+            description="Aktueller Termin oben, danach die naechsten Termine und ein Archiv fuer Vergangenes."
+          >
+            <div className="space-y-4">
+              {eventsError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {eventsError}
+                </div>
+              ) : null}
+
+              {eventsMessage ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {eventsMessage}
+                </div>
+              ) : null}
+
+              {eventsLoading ? (
+                <div className="rounded-3xl border border-slate-200 bg-slate-50 px-6 py-10 text-sm text-slate-500">
+                  Termine werden geladen...
+                </div>
+              ) : null}
+
+              {!eventsLoading && activeOrUpcomingEvent ? (
+                <div className="space-y-3">
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
+                      Aktueller Termin
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Hier steht immer der laufende oder naechste Teamtermin ganz oben.
+                    </p>
+                  </div>
+                  {renderEventCard(activeOrUpcomingEvent, true)}
+                </div>
+              ) : null}
+
+              {!eventsLoading ? (
+                <div className="space-y-3">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-sm font-semibold text-slate-900">Naechste 10 Termine</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Trainings, Spiele und weitere Teamtermine im direkten Ueberblick.
+                    </p>
+                  </div>
+
+                  {visibleFutureEvents.length ? (
+                    visibleFutureEvents.map((event) => renderEventCard(event))
+                  ) : !activeOrUpcomingEvent ? (
+                    <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
+                      Fuer dieses Team sind noch keine anstehenden Termine vorhanden.
+                    </div>
+                  ) : null}
+
+                  {hiddenFutureEvents.length ? (
+                    <div className="space-y-3">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedFutureEvents((current) => !current)}
+                        className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        {expandedFutureEvents
+                          ? "Weitere Termine ausblenden"
+                          : `${hiddenFutureEvents.length} weitere Termine anzeigen`}
+                      </button>
+                      {expandedFutureEvents
+                        ? hiddenFutureEvents.map((event) => renderEventCard(event))
+                        : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {!eventsLoading ? (
+                <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Vergangene Termine</p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        Abgelaufene Termine wandern automatisch ins Archiv.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedPastEvents((current) => !current)}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white"
+                    >
+                      {expandedPastEvents ? "Archiv schliessen" : `Archiv oeffnen (${archivedEvents.length})`}
+                    </button>
+                  </div>
+
+                  {expandedPastEvents ? (
+                    archivedEvents.length ? (
+                      <div className="space-y-3">
+                        {archivedEvents.map((event) => renderEventCard(event))}
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-sm text-slate-500">
+                        Noch keine vergangenen Termine vorhanden.
+                      </div>
+                    )
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </SectionCard>
+
+          <div className="space-y-6">
+            {canManageEventsHere ? (
+              <SectionCard
+                title="Termineinstellungen"
+                description="Diese Einstellungen sehen nur Trainer, Admin und Vorstand."
+              >
+                <form
+                  className="space-y-4"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    if (!currentUserId) {
+                      return;
+                    }
+
+                    setEventsError("");
+                    setEventsMessage("");
+
+                    try {
+                      const response = await fetch("/api/events/settings", {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          actorId: currentUserId,
+                          teamId: team.id,
+                          responseCloseHoursBefore:
+                            Number.parseInt(teamEventSettingsDraft.responseCloseHoursBefore, 10) || 0,
+                        }),
+                      });
+                      const data = await response.json();
+
+                      if (!response.ok || data.success === false) {
+                        throw new Error(data.error || "Einstellungen konnten nicht gespeichert werden.");
+                      }
+
+                      setEventSettings(data.settings ?? { responseCloseHoursBefore: 24 });
+                      setTeamEventSettingsDraft({
+                        responseCloseHoursBefore: String(data.settings?.responseCloseHoursBefore ?? 24),
+                      });
+                      setEventsMessage("Termineinstellungen wurden gespeichert.");
+                    } catch (error) {
+                      setEventsError(
+                        error instanceof Error ? error.message : "Einstellungen konnten nicht gespeichert werden.",
+                      );
+                    }
+                  }}
+                >
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">
+                      Zu-/Absage moeglich bis wie viele Stunden vor dem Termin?
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      value={teamEventSettingsDraft.responseCloseHoursBefore}
+                      onChange={(inputEvent) =>
+                        setTeamEventSettingsDraft({
+                          responseCloseHoursBefore: inputEvent.target.value,
+                        })
+                      }
+                    />
+                  </label>
+
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-slate-700">
+                    Aktuell endet die Abstimmung{" "}
+                    <span className="font-semibold text-blue-900">
+                      {eventSettings.responseCloseHoursBefore} Stunden
+                    </span>{" "}
+                    vor dem jeweiligen Termin.
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
+                  >
+                    Einstellungen speichern
+                  </button>
+                </form>
+              </SectionCard>
+            ) : null}
+
+            {canManageEventsHere ? (
+              <SectionCard
+                title="Termin anlegen"
+                description="Trainings, Besprechungen oder weitere Teamtermine mit optionaler Wochenwiederholung."
+              >
+                <form
+                  className="space-y-4"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    if (!currentUserId) {
+                      return;
+                    }
+
+                    setEventsError("");
+                    setEventsMessage("");
+                    setEventSubmitting(true);
+
+                    try {
+                      const startsAtIso = eventForm.startsAt
+                        ? new Date(eventForm.startsAt).toISOString()
+                        : "";
+                      const endsAtIso = eventForm.endsAt
+                        ? new Date(eventForm.endsAt).toISOString()
+                        : "";
+                      const repeatUntilIso =
+                        eventForm.repeatWeekly && eventForm.repeatUntil
+                          ? new Date(`${eventForm.repeatUntil}T23:59:59`).toISOString()
+                          : "";
+
+                      const response = await fetch("/api/events", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          actorId: currentUserId,
+                          teamId: team.id,
+                          title: eventForm.title,
+                          description: eventForm.description,
+                          location: eventForm.location,
+                          startsAt: startsAtIso,
+                          endsAt: endsAtIso,
+                          category: eventForm.category,
+                          repeatWeekly: eventForm.repeatWeekly,
+                          repeatUntil: repeatUntilIso,
+                        }),
+                      });
+                      const data = await response.json();
+
+                      if (!response.ok || data.success === false) {
+                        throw new Error(data.error || "Termin konnte nicht gespeichert werden.");
+                      }
+
+                      setManualEvents(data.manualEvents ?? []);
+                      setEventSummaries(data.responseSummaries ?? []);
+                      setEventSettings(data.settings ?? { responseCloseHoursBefore: 24 });
+                      setEventForm({
+                        title: "",
+                        description: "",
+                        location: "",
+                        startsAt: "",
+                        endsAt: "",
+                        category: "training",
+                        repeatWeekly: false,
+                        repeatUntil: "",
+                      });
+                      setEventsMessage(
+                        `${data.createdCount ?? 1} Termin(e) wurden angelegt.`,
+                      );
+                    } catch (error) {
+                      setEventsError(
+                        error instanceof Error ? error.message : "Termin konnte nicht gespeichert werden.",
+                      );
+                    } finally {
+                      setEventSubmitting(false);
+                    }
+                  }}
+                >
+                  <div className="grid gap-4">
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-slate-700">Titel</span>
+                      <input
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                        value={eventForm.title}
+                        onChange={(inputEvent) =>
+                          setEventForm({ ...eventForm, title: inputEvent.target.value })
+                        }
+                        required
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-slate-700">Kategorie</span>
+                      <select
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                        value={eventForm.category}
+                        onChange={(inputEvent) =>
+                          setEventForm({ ...eventForm, category: inputEvent.target.value })
+                        }
+                      >
+                        <option value="training">Training</option>
+                        <option value="meeting">Besprechung</option>
+                        <option value="turnier">Turnier</option>
+                        <option value="sonstiges">Sonstiges</option>
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-slate-700">Ort</span>
+                      <input
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                        value={eventForm.location}
+                        onChange={(inputEvent) =>
+                          setEventForm({ ...eventForm, location: inputEvent.target.value })
+                        }
+                      />
+                    </label>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-2 block text-sm font-medium text-slate-700">
+                          Start
+                        </span>
+                        <input
+                          type="datetime-local"
+                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                          value={eventForm.startsAt}
+                          onChange={(inputEvent) =>
+                            setEventForm({ ...eventForm, startsAt: inputEvent.target.value })
+                          }
+                          required
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-2 block text-sm font-medium text-slate-700">Ende</span>
+                        <input
+                          type="datetime-local"
+                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                          value={eventForm.endsAt}
+                          onChange={(inputEvent) =>
+                            setEventForm({ ...eventForm, endsAt: inputEvent.target.value })
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-slate-700">
+                        Beschreibung
+                      </span>
+                      <textarea
+                        rows={3}
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                        value={eventForm.description}
+                        onChange={(inputEvent) =>
+                          setEventForm({ ...eventForm, description: inputEvent.target.value })
+                        }
+                      />
+                    </label>
+
+                    <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={eventForm.repeatWeekly}
+                        onChange={(inputEvent) =>
+                          setEventForm({ ...eventForm, repeatWeekly: inputEvent.target.checked })
+                        }
+                      />
+                      <span className="text-sm text-slate-700">
+                        Jede Woche am gleichen Wochentag wiederholen
+                      </span>
+                    </label>
+
+                    {eventForm.repeatWeekly ? (
+                      <label className="block">
+                        <span className="mb-2 block text-sm font-medium text-slate-700">
+                          Wiederholen bis
+                        </span>
+                        <input
+                          type="date"
+                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                          value={eventForm.repeatUntil}
+                          onChange={(inputEvent) =>
+                            setEventForm({ ...eventForm, repeatUntil: inputEvent.target.value })
+                          }
+                          required
+                        />
+                      </label>
+                    ) : null}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={eventSubmitting}
+                    className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {eventSubmitting ? "Speichert..." : "Termin speichern"}
+                  </button>
+                </form>
+              </SectionCard>
+            ) : (
+              <SectionCard
+                title="Zu- und Absagen"
+                description="Spielerinnen sehen hier nur die Teamtermine sowie ihre Rueckmeldung."
+              >
+                <div className="rounded-3xl border border-blue-100 bg-blue-50 px-5 py-4 text-sm text-slate-700">
+                  Trainings, Spiele und weitere Termine sind hier gesammelt. Die Einstellungen fuer
+                  Wiederholungen und Abstimmungsfristen bleiben bewusst nur fuer Trainer, Admin und
+                  Vorstand sichtbar.
+                </div>
+              </SectionCard>
+            )}
+          </div>
         </div>
       ) : null}
 

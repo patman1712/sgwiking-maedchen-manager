@@ -208,6 +208,42 @@ db.exec(`
     created_at TEXT NOT NULL,
     FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS team_events (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    location TEXT DEFAULT '',
+    starts_at TEXT NOT NULL,
+    ends_at TEXT DEFAULT '',
+    category TEXT DEFAULT 'training',
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS team_event_settings (
+    team_id TEXT PRIMARY KEY,
+    response_close_hours_before INTEGER NOT NULL DEFAULT 24,
+    updated_by TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY(updated_by) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS team_event_responses (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('accepted', 'declined')),
+    updated_at TEXT NOT NULL,
+    UNIQUE(event_id, user_id),
+    FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
 `)
 
 const teamColumns = (
