@@ -1,13 +1,29 @@
 import { Router, type Request, type Response } from 'express'
-import db, { createId, getBootstrapData, now } from '../db.js'
+import db, { createId, getBootstrapData, getTeamIdsByUserId, getUserRowById, now } from '../db.js'
 
 const router = Router()
 
 router.post('/team', (req: Request, res: Response) => {
-  const { teamId } = req.body as { teamId?: string }
+  const { teamId, actorId } = req.body as { teamId?: string; actorId?: string }
 
-  if (!teamId) {
+  if (!teamId || !actorId) {
     res.status(400).json({ success: false, error: 'teamId fehlt.' })
+    return
+  }
+
+  const actor = getUserRowById(actorId)
+  if (!actor) {
+    res.status(403).json({ success: false, error: 'Zugriff verweigert.' })
+    return
+  }
+
+  const canAccessTeamConversation =
+    actor.role === 'admin' ||
+    actor.role === 'board' ||
+    getTeamIdsByUserId(actorId).includes(teamId)
+
+  if (!canAccessTeamConversation) {
+    res.status(403).json({ success: false, error: 'Kein Zugriff auf diesen Teamchat.' })
     return
   }
 
@@ -16,7 +32,7 @@ router.post('/team', (req: Request, res: Response) => {
     .get(teamId) as { id: string } | undefined
 
   if (existing) {
-    res.json({ success: true, conversationId: existing.id, ...getBootstrapData(null) })
+    res.json({ success: true, conversationId: existing.id, ...getBootstrapData(actorId) })
     return
   }
 
@@ -45,7 +61,7 @@ router.post('/team', (req: Request, res: Response) => {
     insertParticipant.run(createId('participant'), conversationId, userId, timestamp)
   })
 
-  res.json({ success: true, conversationId, ...getBootstrapData(null) })
+  res.json({ success: true, conversationId, ...getBootstrapData(actorId) })
 })
 
 router.post('/direct', (req: Request, res: Response) => {
@@ -75,7 +91,7 @@ router.post('/direct', (req: Request, res: Response) => {
   })
 
   if (existing) {
-    res.json({ success: true, conversationId: existing.id, ...getBootstrapData(null) })
+    res.json({ success: true, conversationId: existing.id, ...getBootstrapData(currentUserId) })
     return
   }
 
@@ -105,7 +121,7 @@ router.post('/direct', (req: Request, res: Response) => {
     insertParticipant.run(createId('participant'), conversationId, userId, timestamp)
   })
 
-  res.json({ success: true, conversationId, ...getBootstrapData(null) })
+  res.json({ success: true, conversationId, ...getBootstrapData(currentUserId) })
 })
 
 export default router

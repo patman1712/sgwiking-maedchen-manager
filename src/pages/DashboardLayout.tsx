@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
@@ -37,8 +37,16 @@ export default function DashboardLayout() {
   const settings = useAppStore((state) => state.settings);
   const currentUserId = useAppStore((state) => state.currentUserId);
   const conversations = useAppStore((state) => state.conversations);
+  const messages = useAppStore((state) => state.messages);
   const navigate = useNavigate();
   const location = useLocation();
+  const [incomingToast, setIncomingToast] = useState<{
+    title: string;
+    content: string;
+  } | null>(null);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const latestMessageIdRef = useRef<string | null>(null);
+  const toastTimeoutRef = useRef<number | null>(null);
 
   const currentUser = useMemo(
     () => users.find((user) => user.id === currentUserId) ?? null,
@@ -60,11 +68,25 @@ export default function DashboardLayout() {
     return teams.filter((team) => currentUser.teamIds.includes(team.id));
   }, [currentUser, teams]);
 
-  const unreadHint = conversations.length;
+  const unreadHint = notificationCount;
 
   useEffect(() => {
     void fetchData();
   }, [fetchData, currentUserId]);
+
+  useEffect(() => {
+    if (!currentUserId) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void fetchData();
+      }
+    }, 4000);
+
+    return () => window.clearInterval(intervalId);
+  }, [currentUserId, fetchData]);
 
   useEffect(() => {
     if (location.pathname.startsWith("/dashboard/teams")) {
@@ -96,6 +118,72 @@ export default function DashboardLayout() {
   useEffect(() => {
     setProfileMenuOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (location.pathname.startsWith("/dashboard/messages")) {
+      setNotificationCount(0);
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const latestMessage = [...messages].sort((left, right) =>
+      right.createdAt.localeCompare(left.createdAt),
+    )[0];
+
+    if (!latestMessage) {
+      latestMessageIdRef.current = null;
+      return;
+    }
+
+    if (!latestMessageIdRef.current) {
+      latestMessageIdRef.current = latestMessage.id;
+      return;
+    }
+
+    if (latestMessage.id === latestMessageIdRef.current) {
+      return;
+    }
+
+    latestMessageIdRef.current = latestMessage.id;
+
+    if (latestMessage.senderId === currentUserId) {
+      return;
+    }
+
+    const sender = users.find((user) => user.id === latestMessage.senderId);
+    const conversation = conversations.find(
+      (entry) => entry.id === latestMessage.conversationId,
+    );
+    const title = sender?.fullName ?? "Neue Nachricht";
+    const content = conversation
+      ? `${conversation.title}: ${latestMessage.content}`
+      : latestMessage.content;
+
+    setNotificationCount((count) => count + 1);
+    setIncomingToast({ title, content });
+
+    if (toastTimeoutRef.current) {
+      window.clearTimeout(toastTimeoutRef.current);
+    }
+
+    toastTimeoutRef.current = window.setTimeout(() => {
+      setIncomingToast(null);
+    }, 5000);
+
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "granted") {
+        new Notification(title, { body: content });
+      }
+    }
+  }, [conversations, currentUserId, messages, users]);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        window.clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -424,9 +512,11 @@ export default function DashboardLayout() {
                 className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-white/15 hover:shadow-md"
               >
                 <Bell size={18} />
-                <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-700 px-1 text-[11px] font-semibold text-white">
-                  {unreadHint}
-                </span>
+                {unreadHint > 0 ? (
+                  <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-200 px-1 text-[11px] font-semibold text-blue-950">
+                    {unreadHint}
+                  </span>
+                ) : null}
               </Link>
               <div className="relative">
                 <button
@@ -483,6 +573,31 @@ export default function DashboardLayout() {
             </div>
           </div>
         </header>
+
+        {incomingToast ? (
+          <div className="pointer-events-none fixed right-4 top-24 z-50 max-w-sm sm:right-6">
+            <div className="pointer-events-auto rounded-3xl border border-blue-100 bg-white/95 p-4 shadow-2xl backdrop-blur">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
+                    Neue Nachricht
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {incomingToast.title}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIncomingToast(null)}
+                  className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <p className="mt-2 text-sm text-slate-600">{incomingToast.content}</p>
+            </div>
+          </div>
+        ) : null}
 
         <main className="flex-1 p-4 sm:p-6">
           <Outlet />

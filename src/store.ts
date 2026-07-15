@@ -696,15 +696,21 @@ export const useAppStore = create<AppState>()(
       },
       ensureTeamConversation: async (teamId) => {
         try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return null;
+          }
+
           const response = await fetch("/api/conversations/team", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ teamId }),
+            body: JSON.stringify({ teamId, actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload & {
             conversationId: string;
           };
-          applyPayload(set, data, get().currentUserId);
+          applyPayload(set, data, actorId);
 
           return data.conversationId;
         } catch {

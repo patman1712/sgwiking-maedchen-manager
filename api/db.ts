@@ -833,6 +833,39 @@ export const isAdminOrBoard = (userId: string) => {
   return row?.role === 'admin' || row?.role === 'board'
 }
 
+const getVisibleConversationRows = (userId?: string | null) => {
+  const rows = db.prepare(
+    'SELECT * FROM conversations ORDER BY updated_at DESC, created_at DESC',
+  ).all() as ConversationRow[]
+
+  if (!userId) {
+    return rows
+  }
+
+  const currentUser = getUserRowById(userId)
+  if (!currentUser) {
+    return []
+  }
+
+  if (currentUser.role === 'admin') {
+    return rows
+  }
+
+  const userTeamIds = getTeamIdsByUserId(userId)
+
+  return rows.filter((row) => {
+    if (row.type === 'team') {
+      if (currentUser.role === 'board') {
+        return true
+      }
+
+      return Boolean(row.team_id && userTeamIds.includes(row.team_id))
+    }
+
+    return getParticipantsForConversation(row).includes(userId)
+  })
+}
+
 export const canManagePlayerFromMenu = (actorId: string) => isAdminOrBoard(actorId)
 
 export const canEditPlayer = (actorId: string, playerId: string) => {
@@ -853,10 +886,8 @@ export const canEditPlayer = (actorId: string, playerId: string) => {
   return actorTeamIds.some((teamId) => playerTeamIds.includes(teamId))
 }
 
-export const getConversations = () =>
-  (
-    db.prepare('SELECT * FROM conversations ORDER BY updated_at DESC, created_at DESC').all() as ConversationRow[]
-  ).map((row) => ({
+export const getConversations = (userId?: string | null) =>
+  getVisibleConversationRows(userId).map((row) => ({
     id: row.id,
     title: row.title,
     type: row.type,
@@ -865,16 +896,21 @@ export const getConversations = () =>
     updatedAt: row.updated_at,
   }))
 
-export const getMessages = () =>
-  (
+export const getMessages = (userId?: string | null) => {
+  const visibleConversationIds = new Set(getVisibleConversationRows(userId).map((row) => row.id))
+
+  return (
     db.prepare('SELECT * FROM messages ORDER BY created_at ASC').all() as MessageRow[]
-  ).map((row) => ({
+  )
+    .filter((row) => visibleConversationIds.has(row.conversation_id))
+    .map((row) => ({
     id: row.id,
     conversationId: row.conversation_id,
     senderId: row.sender_id,
     content: row.content,
     createdAt: row.created_at,
   }))
+}
 
 export const getMatches = () =>
   (
@@ -941,8 +977,8 @@ export const getBootstrapData = (userId?: string | null) => ({
   users: getUsers(),
   matches: getMatches(),
   inventoryItems: getInventoryItems(),
-  conversations: getConversations(),
-  messages: getMessages(),
+  conversations: getConversations(userId),
+  messages: getMessages(userId),
   settings: getSettings(),
   currentUser: userId ? getUserById(userId) : null,
 })

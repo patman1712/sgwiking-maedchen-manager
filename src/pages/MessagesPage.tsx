@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Send } from "lucide-react";
 import SectionCard from "@/components/SectionCard";
@@ -15,17 +15,31 @@ export default function MessagesPage() {
   const ensureTeamConversation = useAppStore((state) => state.ensureTeamConversation);
   const sendMessage = useAppStore((state) => state.sendMessage);
   const [draft, setDraft] = useState("");
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const currentUser = useMemo(
+    () => users.find((user) => user.id === currentUserId) ?? null,
+    [currentUserId, users],
+  );
 
   const availableConversations = useMemo(
     () =>
-      [...conversations]
-        .filter(
-          (conversation) =>
-            !currentUserId || conversation.participantIds.includes(currentUserId),
-        )
-        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
-    [conversations, currentUserId],
+      [...conversations].sort((left, right) =>
+        right.updatedAt.localeCompare(left.updatedAt),
+      ),
+    [conversations],
   );
+
+  const availableTeamsForChat = useMemo(() => {
+    if (!currentUser) {
+      return [];
+    }
+
+    if (currentUser.role === "admin" || currentUser.role === "board") {
+      return teams;
+    }
+
+    return teams.filter((team) => currentUser.teamIds.includes(team.id));
+  }, [currentUser, teams]);
 
   const selectedConversationId =
     searchParams.get("conversation") ?? availableConversations[0]?.id ?? null;
@@ -39,9 +53,28 @@ export default function MessagesPage() {
     }
   }, [availableConversations, selectedConversationId, setSearchParams]);
 
+  useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      "Notification" in window &&
+      Notification.permission === "default"
+    ) {
+      void Notification.requestPermission();
+    }
+  }, []);
+
   const selectedMessages = messages
     .filter((message) => message.conversationId === selectedConversation?.id)
     .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    container.scrollTop = container.scrollHeight;
+  }, [selectedConversation?.id, selectedMessages.length]);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
@@ -89,7 +122,7 @@ export default function MessagesPage() {
               }}
             >
               <option value="">Teamchat oeffnen</option>
-              {teams.map((team) => (
+              {availableTeamsForChat.map((team) => (
                 <option key={team.id} value={team.id}>
                   {team.name}
                 </option>
@@ -147,7 +180,10 @@ export default function MessagesPage() {
       >
         {selectedConversation ? (
           <div className="flex h-[640px] flex-col">
-            <div className="flex-1 space-y-4 overflow-y-auto rounded-3xl bg-slate-50 p-4">
+            <div
+              ref={messagesContainerRef}
+              className="flex-1 space-y-4 overflow-y-auto rounded-3xl bg-slate-50 p-4"
+            >
               {selectedMessages.map((message) => {
                 const sender = users.find((user) => user.id === message.senderId);
                 const ownMessage = message.senderId === currentUserId;
@@ -193,6 +229,7 @@ export default function MessagesPage() {
               />
               <button
                 type="submit"
+                disabled={!draft.trim()}
                 className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
               >
                 <Send size={18} />
