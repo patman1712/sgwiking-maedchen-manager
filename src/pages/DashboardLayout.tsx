@@ -576,12 +576,17 @@ export default function DashboardLayout() {
 
         {incomingToast ? (
           <div className="pointer-events-none fixed right-4 top-24 z-50 max-w-sm sm:right-6">
-            <div className="pointer-events-auto rounded-3xl border border-blue-100 bg-white/95 p-4 shadow-2xl backdrop-blur">
+            <div className="pointer-events-auto overflow-hidden rounded-3xl border border-blue-100 bg-white/95 shadow-2xl backdrop-blur">
+              <div className="h-1 bg-gradient-to-r from-blue-900 via-blue-700 to-blue-500" />
+              <div className="p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
-                    Neue Nachricht
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <MessageSquare size={16} className="text-blue-700" />
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
+                      Neue Nachricht
+                    </p>
+                  </div>
                   <p className="mt-1 text-sm font-semibold text-slate-900">
                     {incomingToast.title}
                   </p>
@@ -595,6 +600,7 @@ export default function DashboardLayout() {
                 </button>
               </div>
               <p className="mt-2 text-sm text-slate-600">{incomingToast.content}</p>
+              </div>
             </div>
           </div>
         ) : null}

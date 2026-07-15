@@ -144,8 +144,11 @@ interface AppState {
     playerIds: string[],
   ) => Promise<ActionResult>;
   ensureTeamConversation: (teamId: string) => Promise<string | null>;
+  createTeamChannel: (teamId: string, title: string) => Promise<string | null>;
   ensureDirectConversation: (otherUserId: string) => Promise<string | null>;
+  createGroupConversation: (participantIds: string[], title?: string) => Promise<string | null>;
   sendMessage: (conversationId: string, content: string) => Promise<ActionResult>;
+  deleteConversation: (conversationId: string) => Promise<ActionResult>;
 }
 
 export const initialAppState = {
@@ -717,6 +720,29 @@ export const useAppStore = create<AppState>()(
           return null;
         }
       },
+      createTeamChannel: async (teamId, title) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return null;
+          }
+
+          const response = await fetch("/api/conversations/team", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ teamId, actorId, title, createNew: true }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload & {
+            conversationId: string;
+          };
+          applyPayload(set, data, actorId);
+
+          return data.conversationId;
+        } catch {
+          return null;
+        }
+      },
       ensureDirectConversation: async (otherUserId) => {
         const currentUserId = get().currentUserId;
 
@@ -734,6 +760,29 @@ export const useAppStore = create<AppState>()(
             conversationId: string;
           };
           applyPayload(set, data, currentUserId);
+
+          return data.conversationId;
+        } catch {
+          return null;
+        }
+      },
+      createGroupConversation: async (participantIds, title) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return null;
+          }
+
+          const response = await fetch("/api/conversations/group", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId, participantIds, title }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload & {
+            conversationId: string;
+          };
+          applyPayload(set, data, actorId);
 
           return data.conversationId;
         } catch {
@@ -764,6 +813,33 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Nachricht konnte nicht gesendet werden.",
+          };
+        }
+      },
+      deleteConversation: async (conversationId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/conversations/${conversationId}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Konversation konnte nicht geloescht werden.",
           };
         }
       },

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Send } from "lucide-react";
+import { Plus, Send, Trash2, UsersRound, X } from "lucide-react";
 import SectionCard from "@/components/SectionCard";
 import { useAppStore } from "@/store";
 
@@ -13,8 +13,18 @@ export default function MessagesPage() {
   const currentUserId = useAppStore((state) => state.currentUserId);
   const ensureDirectConversation = useAppStore((state) => state.ensureDirectConversation);
   const ensureTeamConversation = useAppStore((state) => state.ensureTeamConversation);
+  const createTeamChannel = useAppStore((state) => state.createTeamChannel);
+  const createGroupConversation = useAppStore((state) => state.createGroupConversation);
   const sendMessage = useAppStore((state) => state.sendMessage);
+  const deleteConversation = useAppStore((state) => state.deleteConversation);
   const [draft, setDraft] = useState("");
+  const [createTeamChannelOpen, setCreateTeamChannelOpen] = useState(false);
+  const [teamChannelTeamId, setTeamChannelTeamId] = useState("");
+  const [teamChannelTitle, setTeamChannelTitle] = useState("");
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  const [groupTitle, setGroupTitle] = useState("");
+  const [groupSelectedIds, setGroupSelectedIds] = useState<string[]>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const currentUser = useMemo(
     () => users.find((user) => user.id === currentUserId) ?? null,
@@ -29,6 +39,58 @@ export default function MessagesPage() {
     [conversations],
   );
 
+  const teamNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    teams.forEach((team) => map.set(team.id, team.name));
+    return map;
+  }, [teams]);
+
+  const userGroups = useMemo(() => {
+    const others = users.filter((user) => user.id !== currentUserId);
+    const admins = others
+      .filter((user) => user.role === "admin")
+      .sort((a, b) => a.fullName.localeCompare(b.fullName, "de"));
+    const board = others
+      .filter((user) => user.role === "board")
+      .sort((a, b) => a.fullName.localeCompare(b.fullName, "de"));
+    const trainers = others
+      .filter((user) => user.role === "trainer")
+      .sort((a, b) => a.fullName.localeCompare(b.fullName, "de"));
+    const players = others
+      .filter((user) => user.role === "player")
+      .sort((a, b) => a.fullName.localeCompare(b.fullName, "de"));
+
+    const playersByTeam = new Map<string, typeof players>();
+    players.forEach((player) => {
+      const teamKey =
+        player.teamIds
+          .map((id) => teamNameById.get(id))
+          .filter(Boolean)
+          .sort((a, b) => (a as string).localeCompare(b as string, "de"))[0] ??
+        "Ohne Team";
+
+      const list = playersByTeam.get(teamKey) ?? [];
+      list.push(player);
+      playersByTeam.set(teamKey, list);
+    });
+
+    const teamKeys = Array.from(playersByTeam.keys()).sort((a, b) =>
+      a === "Ohne Team" ? 1 : b === "Ohne Team" ? -1 : a.localeCompare(b, "de"),
+    );
+
+    return [
+      { label: "Admins", users: admins },
+      { label: "Vorstand", users: board },
+      { label: "Trainer", users: trainers },
+      ...teamKeys.map((key) => ({
+        label: key === "Ohne Team" ? "Spielerinnen (ohne Team)" : `Spielerinnen: ${key}`,
+        users: (playersByTeam.get(key) ?? []).sort((a, b) =>
+          a.fullName.localeCompare(b.fullName, "de"),
+        ),
+      })),
+    ].filter((group) => group.users.length > 0);
+  }, [currentUserId, teamNameById, users]);
+
   const availableTeamsForChat = useMemo(() => {
     if (!currentUser) {
       return [];
@@ -41,6 +103,8 @@ export default function MessagesPage() {
     return teams.filter((team) => currentUser.teamIds.includes(team.id));
   }, [currentUser, teams]);
 
+  const canCreateTeamChannels = currentUser?.role === "admin" || currentUser?.role === "trainer";
+
   const selectedConversationId =
     searchParams.get("conversation") ?? availableConversations[0]?.id ?? null;
   const selectedConversation = availableConversations.find(
@@ -52,6 +116,21 @@ export default function MessagesPage() {
       setSearchParams({ conversation: availableConversations[0].id });
     }
   }, [availableConversations, selectedConversationId, setSearchParams]);
+
+  useEffect(() => {
+    if (
+      selectedConversationId &&
+      !selectedConversation &&
+      availableConversations[0]
+    ) {
+      setSearchParams({ conversation: availableConversations[0].id });
+    }
+  }, [
+    availableConversations,
+    selectedConversation,
+    selectedConversationId,
+    setSearchParams,
+  ]);
 
   useEffect(() => {
     if (
@@ -76,6 +155,55 @@ export default function MessagesPage() {
     container.scrollTop = container.scrollHeight;
   }, [selectedConversation?.id, selectedMessages.length]);
 
+  const canDeleteSelectedConversation = useMemo(() => {
+    if (!currentUser || !selectedConversation) {
+      return false;
+    }
+
+    if (currentUser.role === "admin") {
+      return true;
+    }
+
+    if (selectedConversation.type === "direct") {
+      return selectedConversation.participantIds.includes(currentUser.id);
+    }
+
+    return (
+      currentUser.role === "trainer" &&
+      Boolean(selectedConversation.teamId) &&
+      currentUser.teamIds.includes(selectedConversation.teamId as string)
+    );
+  }, [currentUser, selectedConversation]);
+
+  const deleteDialogLabel = selectedConversation?.type === "team" ? "Teamchannel" : "Privatchat";
+
+  const renderUserOptions = (includeCurrentUser = false) => {
+    const groups = includeCurrentUser
+      ? userGroups
+      : userGroups.map((group) => ({
+          ...group,
+          users: group.users.filter((user) => user.id !== currentUserId),
+        }));
+
+    return groups.map((group) => (
+      <optgroup key={group.label} label={group.label}>
+        {group.users.map((user) => (
+          <option key={user.id} value={user.id}>
+            {user.fullName}
+          </option>
+        ))}
+      </optgroup>
+    ));
+  };
+
+  const getConversationTypeLabel = (conversation: (typeof availableConversations)[number]) => {
+    if (conversation.type === "team") {
+      return "Teamchannel";
+    }
+
+    return conversation.participantIds.length > 2 ? "Gruppenchat" : "Direktnachricht";
+  };
+
   return (
     <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
       <SectionCard
@@ -98,13 +226,7 @@ export default function MessagesPage() {
               }}
             >
               <option value="">Direktchat starten</option>
-              {users
-                .filter((user) => user.id !== currentUserId)
-                .map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.fullName}
-                  </option>
-                ))}
+              {renderUserOptions()}
             </select>
 
             <select
@@ -128,6 +250,34 @@ export default function MessagesPage() {
                 </option>
               ))}
             </select>
+
+            <button
+              type="button"
+              onClick={() => {
+                setGroupSelectedIds([]);
+                setGroupTitle("");
+                setCreateGroupOpen(true);
+              }}
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
+            >
+              <UsersRound size={18} />
+              Gruppenchat
+            </button>
+
+            {canCreateTeamChannels ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setTeamChannelTeamId(availableTeamsForChat[0]?.id ?? "");
+                  setTeamChannelTitle("");
+                  setCreateTeamChannelOpen(true);
+                }}
+                className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
+              >
+                <Plus size={18} />
+                Neuer Teamchannel
+              </button>
+            ) : null}
           </div>
         }
       >
@@ -153,8 +303,8 @@ export default function MessagesPage() {
                     <p className="text-sm font-semibold text-slate-900">
                       {conversation.title}
                     </p>
-                  <p className="mt-1 text-xs uppercase tracking-[0.18em] text-blue-700">
-                      {conversation.type === "team" ? "Teamchat" : "Direktnachricht"}
+                    <p className="mt-1 text-xs uppercase tracking-[0.18em] text-blue-700">
+                      {getConversationTypeLabel(conversation)}
                     </p>
                   </div>
                   <span className="text-xs text-slate-500">
@@ -176,6 +326,18 @@ export default function MessagesPage() {
           selectedConversation
             ? "Kommunikation innerhalb des Vereins mit gemeinsamem Verlauf."
             : "Bitte zuerst eine Konversation auswaehlen."
+        }
+        actions={
+          selectedConversation && canDeleteSelectedConversation ? (
+            <button
+              type="button"
+              onClick={() => setDeleteDialogOpen(true)}
+              className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+            >
+              <Trash2 size={18} />
+              Loeschen
+            </button>
+          ) : null
         }
       >
         {selectedConversation ? (
@@ -243,6 +405,205 @@ export default function MessagesPage() {
           </div>
         )}
       </SectionCard>
+
+      {createTeamChannelOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
+                  Neuer Teamchannel
+                </p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">
+                  Thema festlegen
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCreateTeamChannelOpen(false)}
+                className="rounded-2xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-4">
+              <label className="grid gap-2 text-sm font-medium text-slate-700">
+                Mannschaft
+                <select
+                  value={teamChannelTeamId}
+                  onChange={(event) => setTeamChannelTeamId(event.target.value)}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
+                >
+                  {availableTeamsForChat.map((team) => (
+                    <option key={team.id} value={team.id}>
+                      {team.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="grid gap-2 text-sm font-medium text-slate-700">
+                Thema (z.B. Training, Spiel gegen XYZ)
+                <input
+                  value={teamChannelTitle}
+                  onChange={(event) => setTeamChannelTitle(event.target.value)}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  placeholder="Thema eingeben..."
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setCreateTeamChannelOpen(false)}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                disabled={!teamChannelTeamId || !teamChannelTitle.trim()}
+                onClick={async () => {
+                  const conversationId = await createTeamChannel(
+                    teamChannelTeamId,
+                    teamChannelTitle,
+                  );
+                  if (conversationId) {
+                    setCreateTeamChannelOpen(false);
+                    setSearchParams({ conversation: conversationId });
+                  }
+                }}
+                className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Plus size={18} />
+                Anlegen
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {createGroupOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
+                  Gruppenchat
+                </p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">
+                  Teilnehmer auswaehlen
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCreateGroupOpen(false)}
+                className="rounded-2xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-4">
+              <label className="grid gap-2 text-sm font-medium text-slate-700">
+                Titel (optional)
+                <input
+                  value={groupTitle}
+                  onChange={(event) => setGroupTitle(event.target.value)}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  placeholder="z.B. Fahrgemeinschaft, Turnier, ..."
+                />
+              </label>
+
+              <label className="grid gap-2 text-sm font-medium text-slate-700">
+                Personen (mehrere auswahlen)
+                <select
+                  multiple
+                  value={groupSelectedIds}
+                  onChange={(event) => {
+                    const selected = Array.from(event.target.selectedOptions).map(
+                      (option) => option.value,
+                    );
+                    setGroupSelectedIds(selected);
+                  }}
+                  className="h-56 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
+                >
+                  {renderUserOptions()}
+                </select>
+              </label>
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setCreateGroupOpen(false)}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                disabled={groupSelectedIds.length === 0}
+                onClick={async () => {
+                  const conversationId = await createGroupConversation(
+                    groupSelectedIds,
+                    groupTitle.trim() ? groupTitle : undefined,
+                  );
+                  if (conversationId) {
+                    setCreateGroupOpen(false);
+                    setSearchParams({ conversation: conversationId });
+                  }
+                }}
+                className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <UsersRound size={18} />
+                Starten
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteDialogOpen && selectedConversation ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-600">
+              {deleteDialogLabel} loeschen
+            </p>
+            <p className="mt-2 text-lg font-semibold text-slate-900">
+              {selectedConversation.title}
+            </p>
+            <p className="mt-2 text-sm text-slate-600">
+              Beim Loeschen werden auch alle Nachrichten in diesem Channel entfernt.
+            </p>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteDialogOpen(false)}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const result = await deleteConversation(selectedConversation.id);
+                  if (result.success) {
+                    setDeleteDialogOpen(false);
+                  }
+                }}
+                className="inline-flex items-center gap-2 rounded-2xl bg-rose-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-700/20 transition hover:bg-rose-700"
+              >
+                <Trash2 size={18} />
+                Endgueltig loeschen
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
