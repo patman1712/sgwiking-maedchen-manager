@@ -121,6 +121,7 @@ export default function TeamDetailPage() {
     isHome: true,
   });
   const [matchResultDrafts, setMatchResultDrafts] = useState<Record<string, string>>({});
+  const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
   const [matchImporting, setMatchImporting] = useState(false);
   const [seasonDeleting, setSeasonDeleting] = useState<string | null>(null);
   const [matchImportMessage, setMatchImportMessage] = useState("");
@@ -1318,40 +1319,20 @@ export default function TeamDetailPage() {
                           </div>
                           {canManageMatchesHere ? (
                             <div className="flex flex-wrap items-center justify-end gap-2">
-                              <input
-                                className="w-28 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                                value={matchResultDrafts[match.id] ?? (match.result ?? "")}
-                                placeholder="Ergebnis"
-                                onChange={(event) =>
-                                  setMatchResultDrafts((current) => ({
-                                    ...current,
-                                    [match.id]: event.target.value,
-                                  }))
-                                }
-                              />
                               <button
                                 type="button"
-                                onClick={async () => {
-                                  const nextValue =
-                                    matchResultDrafts[match.id] ?? (match.result ?? "");
-                                  await updateMatch(match.id, { result: nextValue });
+                                onClick={() => {
+                                  setEditingMatchId((current) =>
+                                    current === match.id ? null : match.id,
+                                  );
+                                  setMatchResultDrafts((current) => ({
+                                    ...current,
+                                    [match.id]: current[match.id] ?? (match.result ?? ""),
+                                  }));
                                 }}
                                 className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-900 transition hover:bg-blue-100"
                               >
-                                Speichern
-                              </button>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  const confirmed = window.confirm("Spiel wirklich loeschen?");
-                                  if (!confirmed) {
-                                    return;
-                                  }
-                                  await deleteMatch(match.id);
-                                }}
-                                className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
-                              >
-                                Loeschen
+                                {editingMatchId === match.id ? "Bearbeitung schliessen" : "Bearbeiten"}
                               </button>
                             </div>
                           ) : null}
@@ -1387,6 +1368,48 @@ export default function TeamDetailPage() {
                           <p>{new Date(match.kickoffAt).toLocaleString("de-DE")}</p>
                           <p>{match.location}</p>
                         </div>
+
+                        {canManageMatchesHere && editingMatchId === match.id ? (
+                          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                            <input
+                              className="w-28 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                              value={matchResultDrafts[match.id] ?? (match.result ?? "")}
+                              placeholder="Ergebnis"
+                              onChange={(event) =>
+                                setMatchResultDrafts((current) => ({
+                                  ...current,
+                                  [match.id]: event.target.value,
+                                }))
+                              }
+                            />
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const nextValue =
+                                  matchResultDrafts[match.id] ?? (match.result ?? "");
+                                await updateMatch(match.id, { result: nextValue });
+                                setEditingMatchId(null);
+                              }}
+                              className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-900 transition hover:bg-blue-100"
+                            >
+                              Speichern
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const confirmed = window.confirm("Spiel wirklich loeschen?");
+                                if (!confirmed) {
+                                  return;
+                                }
+                                await deleteMatch(match.id);
+                                setEditingMatchId(null);
+                              }}
+                              className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                            >
+                              Loeschen
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
                     );
                   })}
