@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { CalendarDays, ChevronLeft, ImagePlus, MapPin, MessageSquare, Package, Shield, Trash2, Trophy } from "lucide-react";
+import { CalendarDays, ChevronLeft, ImagePlus, MapPin, MessageSquare, Package, Shield, Trash2, Trophy, X } from "lucide-react";
 import SectionCard from "@/components/SectionCard";
 import { optimizeImageForUpload } from "@/lib/image";
 import { cn } from "@/lib/utils";
@@ -36,6 +36,12 @@ type TeamEventSummary = {
   acceptedCount: number;
   declinedCount: number;
   currentUserStatus: "accepted" | "declined" | null;
+};
+
+type TeamEventResponseDetail = {
+  eventId: string;
+  acceptedUsers: Array<{ userId: string; fullName: string }>;
+  declinedUsers: Array<{ userId: string; fullName: string }>;
 };
 
 type TeamEventSettings = {
@@ -162,6 +168,7 @@ export default function TeamDetailPage() {
   const [showInventoryForm, setShowInventoryForm] = useState(false);
   const [manualEvents, setManualEvents] = useState<ManualTeamEvent[]>([]);
   const [eventSummaries, setEventSummaries] = useState<TeamEventSummary[]>([]);
+  const [eventResponseDetails, setEventResponseDetails] = useState<TeamEventResponseDetail[]>([]);
   const [eventSettings, setEventSettings] = useState<TeamEventSettings>({
     responseCloseHoursBefore: 24,
   });
@@ -188,6 +195,11 @@ export default function TeamDetailPage() {
   });
   const [showEventSettingsForm, setShowEventSettingsForm] = useState(false);
   const [showEventCreateForm, setShowEventCreateForm] = useState(false);
+  const [responseDetailsModal, setResponseDetailsModal] = useState<{
+    eventTitle: string;
+    type: "accepted" | "declined";
+    names: string[];
+  } | null>(null);
 
   const assignedTrainers = useMemo(
     () =>
@@ -494,6 +506,7 @@ export default function TeamDetailPage() {
 
       setManualEvents(data.manualEvents ?? []);
       setEventSummaries(data.responseSummaries ?? []);
+      setEventResponseDetails(data.responseDetails ?? []);
       setEventSettings(data.settings ?? { responseCloseHoursBefore: 24 });
       setTeamEventSettingsDraft({
         responseCloseHoursBefore: String(data.settings?.responseCloseHoursBefore ?? 24),
@@ -558,6 +571,14 @@ export default function TeamDetailPage() {
       }, {}),
     [eventSummaries],
   );
+  const eventResponseDetailsById = useMemo(
+    () =>
+      eventResponseDetails.reduce<Record<string, TeamEventResponseDetail>>((accumulator, detail) => {
+        accumulator[detail.eventId] = detail;
+        return accumulator;
+      }, {}),
+    [eventResponseDetails],
+  );
 
   const getEventDeadline = useCallback(
     (event: UnifiedTeamEvent) =>
@@ -594,6 +615,13 @@ export default function TeamDetailPage() {
 
   const visibleFutureEvents = futureTeamEvents.slice(0, 10);
   const hiddenFutureEvents = futureTeamEvents.slice(10);
+  const nextThreeDashboardEvents = useMemo(
+    () =>
+      unifiedTeamEvents
+        .filter((event) => new Date(event.startsAt).getTime() >= nowDate)
+        .slice(0, 3),
+    [nowDate, unifiedTeamEvents],
+  );
   const archivedEvents = useMemo(
     () =>
       unifiedTeamEvents
@@ -605,8 +633,10 @@ export default function TeamDetailPage() {
 
   const renderEventCard = (event: UnifiedTeamEvent, emphasize = false) => {
     const summary = eventSummaryById[event.id];
+    const responseDetail = eventResponseDetailsById[event.id];
     const deadline = getEventDeadline(event);
     const responseClosed = deadline.getTime() <= Date.now();
+    const canViewResponseNames = currentUser?.role === "trainer";
 
     return (
       <div
@@ -664,6 +694,7 @@ export default function TeamDetailPage() {
 
                   setManualEvents(data.manualEvents ?? []);
                   setEventSummaries(data.responseSummaries ?? []);
+                setEventResponseDetails(data.responseDetails ?? []);
                   setEventSettings(data.settings ?? { responseCloseHoursBefore: 24 });
                   setEventsMessage("Termin wurde geloescht.");
                 } catch (error) {
@@ -696,12 +727,44 @@ export default function TeamDetailPage() {
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-700 shadow-sm">
-            Zusagen {summary?.acceptedCount ?? 0}
-          </span>
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-rose-700 shadow-sm">
-            Absagen {summary?.declinedCount ?? 0}
-          </span>
+          {canViewResponseNames ? (
+            <button
+              type="button"
+              onClick={() =>
+                setResponseDetailsModal({
+                  eventTitle: event.title,
+                  type: "accepted",
+                  names: responseDetail?.acceptedUsers.map((user) => user.fullName) ?? [],
+                })
+              }
+              className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50"
+            >
+              Zusagen {summary?.acceptedCount ?? 0}
+            </button>
+          ) : (
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-700 shadow-sm">
+              Zusagen {summary?.acceptedCount ?? 0}
+            </span>
+          )}
+          {canViewResponseNames ? (
+            <button
+              type="button"
+              onClick={() =>
+                setResponseDetailsModal({
+                  eventTitle: event.title,
+                  type: "declined",
+                  names: responseDetail?.declinedUsers.map((user) => user.fullName) ?? [],
+                })
+              }
+              className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-rose-700 shadow-sm transition hover:bg-rose-50"
+            >
+              Absagen {summary?.declinedCount ?? 0}
+            </button>
+          ) : (
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-rose-700 shadow-sm">
+              Absagen {summary?.declinedCount ?? 0}
+            </span>
+          )}
           <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
             {responseClosed
               ? `Abgelaufen seit ${deadline.toLocaleString("de-DE")}`
@@ -744,6 +807,7 @@ export default function TeamDetailPage() {
                 }
 
                 setEventSummaries(data.responseSummaries ?? []);
+                setEventResponseDetails(data.responseDetails ?? []);
               } catch (error) {
                 setEventsError(
                   error instanceof Error ? error.message : "Rueckmeldung konnte nicht gespeichert werden.",
@@ -785,6 +849,7 @@ export default function TeamDetailPage() {
                 }
 
                 setEventSummaries(data.responseSummaries ?? []);
+                setEventResponseDetails(data.responseDetails ?? []);
               } catch (error) {
                 setEventsError(
                   error instanceof Error ? error.message : "Rueckmeldung konnte nicht gespeichert werden.",
@@ -804,6 +869,47 @@ export default function TeamDetailPage() {
 
   return (
     <div className="space-y-6">
+      {responseDetailsModal ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/35 p-4">
+          <div className="w-full max-w-md rounded-[2rem] border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
+                  {responseDetailsModal.type === "accepted" ? "Zusagen" : "Absagen"}
+                </p>
+                <h3 className="mt-2 text-xl font-semibold text-slate-900">
+                  {responseDetailsModal.eventTitle}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setResponseDetailsModal(null)}
+                className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-2">
+              {responseDetailsModal.names.length ? (
+                responseDetailsModal.names.map((name) => (
+                  <div
+                    key={name}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700"
+                  >
+                    {name}
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                  Noch keine Rueckmeldungen vorhanden.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <Link
@@ -1104,15 +1210,27 @@ export default function TeamDetailPage() {
                       <p className="text-sm text-slate-600">
                         {new Date(lastMatch.kickoffAt).toLocaleString("de-DE")}
                       </p>
-                      <p className="text-sm text-slate-700">
-                        Ergebnis: {lastMatch.result || "Noch offen"}
-                      </p>
                     </div>
                   ) : (
                     <p className="mt-4 text-sm text-slate-500">Noch kein Spiel eingetragen.</p>
                   )}
                 </div>
               </div>
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              title="Naechste 3 Termine"
+              description="Trainings, Spiele und weitere Termine direkt im Team-Dashboard."
+            >
+              <div className="space-y-3">
+                {nextThreeDashboardEvents.length ? (
+                  nextThreeDashboardEvents.map((event) => renderEventCard(event))
+                ) : (
+                  <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
+                    Fuer dieses Team sind aktuell keine kommenden Termine vorhanden.
+                  </div>
+                )}
               </div>
             </SectionCard>
 

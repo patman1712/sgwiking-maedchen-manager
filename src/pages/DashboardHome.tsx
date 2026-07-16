@@ -320,7 +320,7 @@ export default function DashboardHome() {
     const cardContent = (
       <>
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
               {team?.name ?? "Mannschaft"}
             </p>
@@ -331,18 +331,18 @@ export default function DashboardHome() {
           </span>
         </div>
 
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
+          <div className="flex min-w-0 items-center gap-3">
             {renderTeamLogo(match.homeLogoUrl, homeTeamName)}
-            <p className="line-clamp-2 text-sm font-semibold text-slate-900">
+            <p className="min-w-0 break-words text-sm font-semibold leading-snug text-slate-900">
               {homeTeamName}
             </p>
           </div>
-          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-500">
+          <span className="text-center text-xs font-semibold uppercase tracking-[0.18em] text-blue-500">
             vs
           </span>
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
-            <p className="line-clamp-2 text-right text-sm font-semibold text-slate-900">
+          <div className="flex min-w-0 items-center justify-start gap-3 sm:justify-end">
+            <p className="min-w-0 break-words text-sm font-semibold leading-snug text-slate-900 sm:text-right">
               {awayTeamName}
             </p>
             {renderTeamLogo(match.awayLogoUrl, awayTeamName)}
@@ -404,7 +404,7 @@ export default function DashboardHome() {
               <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-700 shadow-sm">
                 {event.sourceType === "match" ? "Spiel" : event.category}
               </span>
-              <span className="rounded-full bg-blue-100 px-3 py-1 text-[11px] font-semibold text-blue-900">
+              <span className="rounded-full border border-blue-100 bg-white px-3 py-1 text-[11px] font-semibold text-blue-900">
                 {team?.name ?? "Mannschaft"}
               </span>
             </div>
@@ -623,11 +623,11 @@ export default function DashboardHome() {
             const teamCardContent = (
               <>
                 <div className="flex items-start justify-between gap-4">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
                       {team.ageGroup}
                     </p>
-                    <h3 className="mt-2 text-lg font-semibold text-slate-900">
+                    <h3 className="mt-2 break-words text-lg font-semibold leading-snug text-slate-900">
                       {team.name}
                     </h3>
                   </div>
