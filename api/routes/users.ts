@@ -19,13 +19,48 @@ const router = Router()
 const uploadDir = path.join(DATA_DIR, 'uploads', 'players')
 fs.mkdirSync(uploadDir, { recursive: true })
 
+const playerDocumentColumns = {
+  member: 'is_member_file_url',
+  membershipApplication: 'membership_application_file_url',
+  medicalCertificate: 'medical_certificate_file_url',
+  photoConsentSocial: 'photo_consent_social_file_url',
+} as const
+
+type PlayerDocumentType = keyof typeof playerDocumentColumns
+
+const isPlayerDocumentType = (value: string): value is PlayerDocumentType =>
+  value in playerDocumentColumns
+
+const deleteUploadedFile = (fileUrl?: string | null) => {
+  if (!fileUrl) {
+    return
+  }
+
+  const cleanPath = fileUrl.split('?')[0]
+  const filename = path.basename(cleanPath)
+
+  if (!filename) {
+    return
+  }
+
+  try {
+    fs.unlinkSync(path.join(uploadDir, filename))
+  } catch {
+    return
+  }
+}
+
 const storage = multer.diskStorage({
   destination: (_req, _file, callback) => {
     callback(null, uploadDir)
   },
   filename: (req, file, callback) => {
     const extension = path.extname(file.originalname) || '.jpg'
-    callback(null, `player-${req.params.id}-${Date.now()}${extension}`)
+    const documentType =
+      typeof req.params.documentType === 'string' && isPlayerDocumentType(req.params.documentType)
+        ? `-${req.params.documentType}`
+        : ''
+    callback(null, `player-${req.params.id}${documentType}-${Date.now()}${extension}`)
   },
 })
 
@@ -103,7 +138,26 @@ router.get('/', (_req: Request, res: Response) => {
 })
 
 router.post('/', (req: Request, res: Response) => {
-  const { actorId, fullName, email, password, phone, role, teamIds, notes } = req.body as {
+  const {
+    actorId,
+    fullName,
+    email,
+    password,
+    phone,
+    role,
+    teamIds,
+    notes,
+    memberNumber,
+    birthday,
+    address,
+    parentName,
+    parentPhone,
+    parentEmail,
+    isMember,
+    hasMembershipApplication,
+    hasMedicalCertificate,
+    hasPhotoConsentSocial,
+  } = req.body as {
     actorId?: string
     fullName?: string
     email?: string
@@ -112,6 +166,16 @@ router.post('/', (req: Request, res: Response) => {
     role?: 'admin' | 'trainer' | 'player' | 'board'
     teamIds?: string[]
     notes?: string
+    memberNumber?: string
+    birthday?: string
+    address?: string
+    parentName?: string
+    parentPhone?: string
+    parentEmail?: string
+    isMember?: boolean
+    hasMembershipApplication?: boolean
+    hasMedicalCertificate?: boolean
+    hasPhotoConsentSocial?: boolean
   }
 
   if (!fullName || !email || !password || !role) {
@@ -156,11 +220,15 @@ router.post('/', (req: Request, res: Response) => {
       has_membership_application,
       has_medical_certificate,
       has_photo_consent_social,
+      is_member_file_url,
+      membership_application_file_url,
+      medical_certificate_file_url,
+      photo_consent_social_file_url,
       must_change_password,
       privacy_accepted_at,
       created_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertMember = db.prepare(`
     INSERT INTO team_members (id, team_id, user_id, membership_role, created_at)
@@ -181,16 +249,20 @@ router.post('/', (req: Request, res: Response) => {
       role,
       notes ?? '',
       null,
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
-      0,
-      0,
-      0,
-      0,
+      memberNumber ?? '',
+      birthday ?? '',
+      address ?? '',
+      parentName ?? '',
+      parentPhone ?? '',
+      parentEmail ?? '',
+      isMember ? 1 : 0,
+      hasMembershipApplication ? 1 : 0,
+      hasMedicalCertificate ? 1 : 0,
+      hasPhotoConsentSocial ? 1 : 0,
+      null,
+      null,
+      null,
+      null,
       role === 'player' ? 1 : 0,
       null,
       timestamp,
@@ -280,6 +352,7 @@ router.put('/:id', (req: Request, res: Response) => {
   const isSelfUpdate = actorId === id
   const targetRole = role ?? user.role
   const wantsMembershipUpdate = Array.isArray(teamIds)
+  const canManagePlayerDocuments = isAdminOrBoard(actorId)
 
   if (targetRole === 'player') {
     if (wantsMembershipUpdate) {
@@ -294,6 +367,20 @@ router.put('/:id', (req: Request, res: Response) => {
       res.status(403).json({
         success: false,
         error: 'Diese Spielerin kann nur von Admin, Vorstand oder den zustaendigen Trainern bearbeitet werden.',
+      })
+      return
+    }
+
+    const wantsDocumentStatusUpdate =
+      typeof isMember === 'boolean' ||
+      typeof hasMembershipApplication === 'boolean' ||
+      typeof hasMedicalCertificate === 'boolean' ||
+      typeof hasPhotoConsentSocial === 'boolean'
+
+    if (wantsDocumentStatusUpdate && !canManagePlayerDocuments) {
+      res.status(403).json({
+        success: false,
+        error: 'Unterlagen koennen nur von Admin oder Vorstand abgehakt werden.',
       })
       return
     }
@@ -488,6 +575,56 @@ router.post('/:id/avatar', upload.single('avatar'), (req: Request, res: Response
   res.json({
     success: true,
     avatarUrl,
+    ...getBootstrapData(actorId),
+  })
+})
+
+router.post('/:id/documents/:documentType', upload.single('document'), (req: Request, res: Response) => {
+  const { id, documentType } = req.params
+  const actorId = req.body.actorId as string | undefined
+  const user = getUserRowById(id)
+
+  if (!user || user.role !== 'player') {
+    res.status(404).json({ success: false, error: 'Spielerin nicht gefunden.' })
+    return
+  }
+
+  if (!actorId) {
+    res.status(400).json({ success: false, error: 'Fehlender Benutzerkontext.' })
+    return
+  }
+
+  if (!isAdminOrBoard(actorId)) {
+    res.status(403).json({
+      success: false,
+      error: 'Unterlagen koennen nur von Admin oder Vorstand hochgeladen werden.',
+    })
+    return
+  }
+
+  if (!isPlayerDocumentType(documentType)) {
+    res.status(400).json({ success: false, error: 'Unbekannter Unterlagentyp.' })
+    return
+  }
+
+  if (!req.file) {
+    res.status(400).json({ success: false, error: 'Bitte zuerst eine Datei auswaehlen.' })
+    return
+  }
+
+  const columnName = playerDocumentColumns[documentType]
+  const existingRow = db
+    .prepare(`SELECT ${columnName} AS url FROM users WHERE id = ?`)
+    .get(id) as { url: string | null } | undefined
+
+  deleteUploadedFile(existingRow?.url ?? null)
+
+  const documentUrl = `/uploads/players/${req.file.filename}?v=${encodeURIComponent(now())}`
+  db.prepare(`UPDATE users SET ${columnName} = ? WHERE id = ?`).run(documentUrl, id)
+
+  res.json({
+    success: true,
+    documentUrl,
     ...getBootstrapData(actorId),
   })
 })

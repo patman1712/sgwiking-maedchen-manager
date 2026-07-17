@@ -134,6 +134,10 @@ db.exec(`
     has_membership_application INTEGER NOT NULL DEFAULT 0,
     has_medical_certificate INTEGER NOT NULL DEFAULT 0,
     has_photo_consent_social INTEGER NOT NULL DEFAULT 0,
+    is_member_file_url TEXT DEFAULT NULL,
+    membership_application_file_url TEXT DEFAULT NULL,
+    medical_certificate_file_url TEXT DEFAULT NULL,
+    photo_consent_social_file_url TEXT DEFAULT NULL,
     must_change_password INTEGER NOT NULL DEFAULT 0,
     privacy_accepted_at TEXT DEFAULT NULL,
     created_at TEXT NOT NULL
@@ -329,6 +333,26 @@ if (!userColumns.includes('has_medical_certificate')) {
 if (!userColumns.includes('has_photo_consent_social')) {
   db.prepare(
     'ALTER TABLE users ADD COLUMN has_photo_consent_social INTEGER NOT NULL DEFAULT 0',
+  ).run()
+}
+
+if (!userColumns.includes('is_member_file_url')) {
+  db.prepare('ALTER TABLE users ADD COLUMN is_member_file_url TEXT DEFAULT NULL').run()
+}
+
+if (!userColumns.includes('membership_application_file_url')) {
+  db.prepare(
+    'ALTER TABLE users ADD COLUMN membership_application_file_url TEXT DEFAULT NULL',
+  ).run()
+}
+
+if (!userColumns.includes('medical_certificate_file_url')) {
+  db.prepare('ALTER TABLE users ADD COLUMN medical_certificate_file_url TEXT DEFAULT NULL').run()
+}
+
+if (!userColumns.includes('photo_consent_social_file_url')) {
+  db.prepare(
+    'ALTER TABLE users ADD COLUMN photo_consent_social_file_url TEXT DEFAULT NULL',
   ).run()
 }
 
@@ -747,6 +771,10 @@ type UserRow = {
   has_membership_application: number
   has_medical_certificate: number
   has_photo_consent_social: number
+  is_member_file_url: string | null
+  membership_application_file_url: string | null
+  medical_certificate_file_url: string | null
+  photo_consent_social_file_url: string | null
   must_change_password: number
   privacy_accepted_at: string | null
   created_at: string
@@ -860,6 +888,10 @@ export const mapUser = (row: UserRow, includePassword = false) => {
     hasMembershipApplication: Boolean(row.has_membership_application),
     hasMedicalCertificate: Boolean(row.has_medical_certificate),
     hasPhotoConsentSocial: Boolean(row.has_photo_consent_social),
+    isMemberFileUrl: row.is_member_file_url || null,
+    membershipApplicationFileUrl: row.membership_application_file_url || null,
+    medicalCertificateFileUrl: row.medical_certificate_file_url || null,
+    photoConsentSocialFileUrl: row.photo_consent_social_file_url || null,
     mustChangePassword,
     privacyAcceptedAt,
     requiresOnboarding: row.role === 'player' && (mustChangePassword || !privacyAcceptedAt),

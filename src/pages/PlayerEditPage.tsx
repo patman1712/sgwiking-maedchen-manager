@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ChevronLeft, ImagePlus, Pencil, Shield, Trash2, X } from "lucide-react";
+import { ChevronLeft, Download, FileText, ImagePlus, Pencil, Shield, Trash2, X } from "lucide-react";
 import SectionCard from "@/components/SectionCard";
 import { optimizeImageForUpload } from "@/lib/image";
 import { useAppStore } from "@/store";
+import type { PlayerDocumentType, UserProfile } from "@/types";
 
 function formatValue(value?: string | null) {
   return value && value.trim() ? value : "Nicht hinterlegt";
@@ -58,6 +59,53 @@ function DetailField({
   );
 }
 
+const playerDocumentDefinitions: Array<{
+  key: PlayerDocumentType;
+  label: string;
+  statusKey:
+    | "isMember"
+    | "hasMembershipApplication"
+    | "hasMedicalCertificate"
+    | "hasPhotoConsentSocial";
+  fileKey:
+    | "isMemberFileUrl"
+    | "membershipApplicationFileUrl"
+    | "medicalCertificateFileUrl"
+    | "photoConsentSocialFileUrl";
+}> = [
+  {
+    key: "member",
+    label: "Mitglied",
+    statusKey: "isMember",
+    fileKey: "isMemberFileUrl",
+  },
+  {
+    key: "membershipApplication",
+    label: "Mitgliedsantrag",
+    statusKey: "hasMembershipApplication",
+    fileKey: "membershipApplicationFileUrl",
+  },
+  {
+    key: "medicalCertificate",
+    label: "Aerztliches Attest",
+    statusKey: "hasMedicalCertificate",
+    fileKey: "medicalCertificateFileUrl",
+  },
+  {
+    key: "photoConsentSocial",
+    label: "Fotorecht Social Media",
+    statusKey: "hasPhotoConsentSocial",
+    fileKey: "photoConsentSocialFileUrl",
+  },
+];
+
+const createEmptyDocumentFiles = (): Record<PlayerDocumentType, File | null> => ({
+  member: null,
+  membershipApplication: null,
+  medicalCertificate: null,
+  photoConsentSocial: null,
+});
+
 export default function PlayerEditPage() {
   const { playerId } = useParams();
   const users = useAppStore((state) => state.users);
@@ -66,10 +114,12 @@ export default function PlayerEditPage() {
   const updateUser = useAppStore((state) => state.updateUser);
   const deleteUser = useAppStore((state) => state.deleteUser);
   const uploadUserAvatar = useAppStore((state) => state.uploadUserAvatar);
+  const uploadPlayerDocument = useAppStore((state) => state.uploadPlayerDocument);
   const navigate = useNavigate();
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [documentUploading, setDocumentUploading] = useState(false);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -107,6 +157,7 @@ export default function PlayerEditPage() {
   const canEdit = isPrivilegedViewer;
   const canManageMemberships =
     currentUser?.role === "admin" || currentUser?.role === "board";
+  const canManageDocuments = canManageMemberships;
   const canDelete = canManageMemberships;
 
   const [form, setForm] = useState(() => ({
@@ -127,6 +178,7 @@ export default function PlayerEditPage() {
     hasPhotoConsentSocial: player?.hasPhotoConsentSocial ?? false,
     password: "",
   }));
+  const [documentFiles, setDocumentFiles] = useState(createEmptyDocumentFiles());
 
   useEffect(() => {
     if (!player) {
@@ -151,6 +203,7 @@ export default function PlayerEditPage() {
       hasPhotoConsentSocial: player.hasPhotoConsentSocial ?? false,
       password: "",
     });
+    setDocumentFiles(createEmptyDocumentFiles());
     setIsEditing(false);
     setError("");
     setSuccess("");
@@ -167,6 +220,37 @@ export default function PlayerEditPage() {
   const visibleTeamNames = player.teamIds
     .map((teamId) => teams.find((entry) => entry.id === teamId)?.name ?? teamId)
     .filter(Boolean);
+
+  const saveDocumentUploads = async (userId: string) => {
+    for (const [documentType, file] of Object.entries(documentFiles) as Array<
+      [PlayerDocumentType, File | null]
+    >) {
+      if (!file) {
+        continue;
+      }
+
+      const uploadFile =
+        file.type.startsWith("image/") && file.type !== "image/svg+xml"
+          ? await optimizeImageForUpload(file)
+          : file;
+      const result = await uploadPlayerDocument(userId, documentType, uploadFile);
+
+      if (!result.success) {
+        throw new Error(result.error ?? "Unterlage konnte nicht gespeichert werden.");
+      }
+    }
+  };
+
+  const getPlayerDocumentUrl = <
+    Key extends
+      | "isMemberFileUrl"
+      | "membershipApplicationFileUrl"
+      | "medicalCertificateFileUrl"
+      | "photoConsentSocialFileUrl",
+  >(
+    source: UserProfile,
+    key: Key,
+  ) => source[key];
 
   return (
     <div className="space-y-6">
@@ -365,36 +449,54 @@ export default function PlayerEditPage() {
                 event.preventDefault();
                 setError("");
                 setSuccess("");
+                try {
+                  const result = await updateUser({
+                    userId: player.id,
+                    fullName: form.fullName,
+                    email: form.email,
+                    phone: form.phone,
+                    notes: form.notes,
+                    teamIds: canManageMemberships ? form.teamIds : undefined,
+                    memberNumber: form.memberNumber,
+                    birthday: form.birthday,
+                    address: form.address,
+                    parentName: form.parentName,
+                    parentPhone: form.parentPhone,
+                    parentEmail: form.parentEmail,
+                    isMember: canManageDocuments ? form.isMember : undefined,
+                    hasMembershipApplication: canManageDocuments
+                      ? form.hasMembershipApplication
+                      : undefined,
+                    hasMedicalCertificate: canManageDocuments
+                      ? form.hasMedicalCertificate
+                      : undefined,
+                    hasPhotoConsentSocial: canManageDocuments
+                      ? form.hasPhotoConsentSocial
+                      : undefined,
+                    password: form.password.trim() || undefined,
+                    role: "player",
+                  });
 
-                const result = await updateUser({
-                  userId: player.id,
-                  fullName: form.fullName,
-                  email: form.email,
-                  phone: form.phone,
-                  notes: form.notes,
-                  teamIds: canManageMemberships ? form.teamIds : undefined,
-                  memberNumber: form.memberNumber,
-                  birthday: form.birthday,
-                  address: form.address,
-                  parentName: form.parentName,
-                  parentPhone: form.parentPhone,
-                  parentEmail: form.parentEmail,
-                  isMember: form.isMember,
-                  hasMembershipApplication: form.hasMembershipApplication,
-                  hasMedicalCertificate: form.hasMedicalCertificate,
-                  hasPhotoConsentSocial: form.hasPhotoConsentSocial,
-                  password: form.password.trim() || undefined,
-                  role: "player",
-                });
+                  if (!result.success) {
+                    setError(result.error ?? "Spielerin konnte nicht gespeichert werden.");
+                    return;
+                  }
 
-                if (!result.success) {
-                  setError(result.error ?? "Spielerin konnte nicht gespeichert werden.");
-                  return;
+                  setDocumentUploading(true);
+                  await saveDocumentUploads(player.id);
+                  setForm((current) => ({ ...current, password: "" }));
+                  setDocumentFiles(createEmptyDocumentFiles());
+                  setSuccess("Die Spielerin wurde gespeichert.");
+                  setIsEditing(false);
+                } catch (saveError) {
+                  setError(
+                    saveError instanceof Error
+                      ? saveError.message
+                      : "Spielerin konnte nicht gespeichert werden.",
+                  );
+                } finally {
+                  setDocumentUploading(false);
                 }
-
-                setForm((current) => ({ ...current, password: "" }));
-                setSuccess("Die Spielerin wurde gespeichert.");
-                setIsEditing(false);
               }}
             >
               {error ? (
@@ -516,45 +618,77 @@ export default function PlayerEditPage() {
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
                   Unterlagen
                 </p>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={form.isMember}
-                      onChange={(event) => setForm({ ...form, isMember: event.target.checked })}
-                    />
-                    <span className="text-sm text-slate-700">Mitglied</span>
-                  </label>
-                  <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={form.hasMembershipApplication}
-                      onChange={(event) =>
-                        setForm({ ...form, hasMembershipApplication: event.target.checked })
-                      }
-                    />
-                    <span className="text-sm text-slate-700">Mitgliedsantrag</span>
-                  </label>
-                  <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={form.hasMedicalCertificate}
-                      onChange={(event) =>
-                        setForm({ ...form, hasMedicalCertificate: event.target.checked })
-                      }
-                    />
-                    <span className="text-sm text-slate-700">Aerztliches Attest</span>
-                  </label>
-                  <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={form.hasPhotoConsentSocial}
-                      onChange={(event) =>
-                        setForm({ ...form, hasPhotoConsentSocial: event.target.checked })
-                      }
-                    />
-                    <span className="text-sm text-slate-700">Fotorecht Social Media</span>
-                  </label>
+                {!canManageDocuments ? (
+                  <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                    Unterlagen koennen nur von Admin oder Vorstand geaendert werden. Trainer sehen
+                    den Status hier nur zur Kontrolle.
+                  </div>
+                ) : null}
+                <div className="mt-4 space-y-3">
+                  {playerDocumentDefinitions.map((entry) => {
+                    const currentFileUrl = getPlayerDocumentUrl(player, entry.fileKey);
+                    return (
+                      <div
+                        key={entry.key}
+                        className="rounded-2xl border border-slate-200 bg-white p-4"
+                      >
+                        <label className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={form[entry.statusKey]}
+                            disabled={!canManageDocuments}
+                            onChange={(event) =>
+                              setForm({
+                                ...form,
+                                [entry.statusKey]: event.target.checked,
+                              })
+                            }
+                          />
+                          <span className="text-sm font-medium text-slate-700">
+                            {entry.label}
+                          </span>
+                        </label>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-3">
+                          {currentFileUrl ? (
+                            <a
+                              href={currentFileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                            >
+                              <Download size={16} />
+                              Datei oeffnen
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-500">
+                              <FileText size={16} />
+                              Keine Datei hinterlegt
+                            </span>
+                          )}
+                        </div>
+
+                        {canManageDocuments ? (
+                          <label className="mt-3 block">
+                            <span className="mb-2 block text-sm font-medium text-slate-700">
+                              Datei hochladen oder ersetzen
+                            </span>
+                            <input
+                              type="file"
+                              accept=".png,.jpg,.jpeg,.webp,.pdf,.svg,.doc,.docx"
+                              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-blue-700 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-800"
+                              onChange={(event) =>
+                                setDocumentFiles((current) => ({
+                                  ...current,
+                                  [entry.key]: event.target.files?.[0] ?? null,
+                                }))
+                              }
+                            />
+                          </label>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -639,9 +773,10 @@ export default function PlayerEditPage() {
               <div className="flex flex-wrap gap-3">
                 <button
                   type="submit"
+                  disabled={documentUploading}
                   className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
                 >
-                  Spielerin speichern
+                  {documentUploading ? "Wird gespeichert..." : "Spielerin speichern"}
                 </button>
                 <button
                   type="button"
@@ -705,19 +840,38 @@ export default function PlayerEditPage() {
                       Unterlagen
                     </p>
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
-                      <StatusBadge label="Mitglied" active={Boolean(player.isMember)} />
-                      <StatusBadge
-                        label="Mitgliedsantrag"
-                        active={Boolean(player.hasMembershipApplication)}
-                      />
-                      <StatusBadge
-                        label="Aerztliches Attest"
-                        active={Boolean(player.hasMedicalCertificate)}
-                      />
-                      <StatusBadge
-                        label="Fotorecht Social Media"
-                        active={Boolean(player.hasPhotoConsentSocial)}
-                      />
+                      {playerDocumentDefinitions.map((entry) => {
+                        const currentFileUrl = getPlayerDocumentUrl(player, entry.fileKey);
+                        return (
+                          <div
+                            key={entry.key}
+                            className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                          >
+                            <StatusBadge
+                              label={entry.label}
+                              active={Boolean(player[entry.statusKey])}
+                            />
+                            <div className="mt-3">
+                              {currentFileUrl ? (
+                                <a
+                                  href={currentFileUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                                >
+                                  <Download size={16} />
+                                  Datei oeffnen
+                                </a>
+                              ) : (
+                                <span className="inline-flex items-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-500">
+                                  <FileText size={16} />
+                                  Keine Datei
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 

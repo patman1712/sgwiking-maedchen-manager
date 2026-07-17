@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
+import { Plus, X } from "lucide-react";
 import SectionCard from "@/components/SectionCard";
+import { optimizeImageForUpload } from "@/lib/image";
 import { useAppStore } from "@/store";
-import type { UserRole } from "@/types";
+import type { PlayerDocumentType, UserRole } from "@/types";
 
 interface PeopleManagementPageProps {
   role: Extract<UserRole, "trainer" | "player" | "board">;
@@ -50,6 +52,33 @@ const roleConfig = {
   },
 } as const;
 
+const playerDocumentDefinitions: Array<{
+  key: PlayerDocumentType;
+  label: string;
+  statusKey:
+    | "isMember"
+    | "hasMembershipApplication"
+    | "hasMedicalCertificate"
+    | "hasPhotoConsentSocial";
+}> = [
+  { key: "member", label: "Mitglied", statusKey: "isMember" },
+  {
+    key: "membershipApplication",
+    label: "Mitgliedsantrag",
+    statusKey: "hasMembershipApplication",
+  },
+  {
+    key: "medicalCertificate",
+    label: "Aerztliches Attest",
+    statusKey: "hasMedicalCertificate",
+  },
+  {
+    key: "photoConsentSocial",
+    label: "Fotorecht Social Media",
+    statusKey: "hasPhotoConsentSocial",
+  },
+];
+
 const createEmptyForm = (role: Extract<UserRole, "trainer" | "player" | "board">) => ({
   fullName: "",
   email: "",
@@ -58,6 +87,23 @@ const createEmptyForm = (role: Extract<UserRole, "trainer" | "player" | "board">
   role,
   teamIds: [] as string[],
   notes: "",
+  memberNumber: "",
+  birthday: "",
+  address: "",
+  parentName: "",
+  parentPhone: "",
+  parentEmail: "",
+  isMember: false,
+  hasMembershipApplication: false,
+  hasMedicalCertificate: false,
+  hasPhotoConsentSocial: false,
+});
+
+const createEmptyDocumentFiles = (): Record<PlayerDocumentType, File | null> => ({
+  member: null,
+  membershipApplication: null,
+  medicalCertificate: null,
+  photoConsentSocial: null,
 });
 
 export default function PeopleManagementPage({
@@ -69,9 +115,13 @@ export default function PeopleManagementPage({
   const currentUserId = useAppStore((state) => state.currentUserId);
   const addUser = useAppStore((state) => state.addUser);
   const updateUser = useAppStore((state) => state.updateUser);
+  const uploadPlayerDocument = useAppStore((state) => state.uploadPlayerDocument);
   const navigate = useNavigate();
   const [form, setForm] = useState(createEmptyForm(role));
+  const [documentFiles, setDocumentFiles] = useState(createEmptyDocumentFiles());
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [showFormModal, setShowFormModal] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const currentUser = useMemo(
     () => users.find((user) => user.id === currentUserId) ?? null,
@@ -91,6 +141,14 @@ export default function PeopleManagementPage({
         .sort((left, right) => left.fullName.localeCompare(right.fullName, "de")),
     [role, users],
   );
+
+  const openCreateModal = () => {
+    setSelectedUserId(null);
+    setForm(createEmptyForm(role));
+    setDocumentFiles(createEmptyDocumentFiles());
+    setError("");
+    setShowFormModal(true);
+  };
 
   const startEdit = (userId: string) => {
     if (role === "player") {
@@ -114,13 +172,47 @@ export default function PeopleManagementPage({
       role,
       teamIds: user.teamIds,
       notes: user.notes,
+      memberNumber: user.memberNumber ?? "",
+      birthday: user.birthday ?? "",
+      address: user.address ?? "",
+      parentName: user.parentName ?? "",
+      parentPhone: user.parentPhone ?? "",
+      parentEmail: user.parentEmail ?? "",
+      isMember: user.isMember ?? false,
+      hasMembershipApplication: user.hasMembershipApplication ?? false,
+      hasMedicalCertificate: user.hasMedicalCertificate ?? false,
+      hasPhotoConsentSocial: user.hasPhotoConsentSocial ?? false,
     });
+    setDocumentFiles(createEmptyDocumentFiles());
+    setShowFormModal(true);
   };
 
   const resetForm = () => {
     setSelectedUserId(null);
     setError("");
     setForm(createEmptyForm(role));
+    setDocumentFiles(createEmptyDocumentFiles());
+    setShowFormModal(false);
+  };
+
+  const saveDocumentUploads = async (userId: string) => {
+    for (const [documentType, file] of Object.entries(documentFiles) as Array<
+      [PlayerDocumentType, File | null]
+    >) {
+      if (!file) {
+        continue;
+      }
+
+      const uploadFile =
+        file.type.startsWith("image/") && file.type !== "image/svg+xml"
+          ? await optimizeImageForUpload(file)
+          : file;
+      const uploadResult = await uploadPlayerDocument(userId, documentType, uploadFile);
+
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error ?? "Unterlage konnte nicht hochgeladen werden.");
+      }
+    }
   };
 
   return (
@@ -195,13 +287,72 @@ export default function PeopleManagementPage({
         </div>
       </SectionCard>
 
-      <SectionCard title={config.formTitle} description={config.formDescription}>
-        {!canManageFromMenu ? (
-          <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-            Dieser Bereich kann nur von Admin oder Vorstand bearbeitet werden.
+      <SectionCard title="Verwaltung" description={config.formDescription}>
+        <div className="space-y-4">
+          <div className="rounded-3xl border border-blue-100 bg-blue-50/70 p-5">
+            <p className="text-sm font-semibold text-blue-950">
+              {role === "player"
+                ? "Neue Spielerinnen werden direkt ueber ein Popup angelegt."
+                : `Neue ${config.roleLabel.toLowerCase()} werden direkt ueber ein Popup angelegt.`}
+            </p>
+            <p className="mt-2 text-sm text-slate-600">
+              {role === "player"
+                ? "Dort koennen direkt Teams, Elternkontakte und Unterlagen gepflegt werden, ohne die Liste zu verlaengern."
+                : "So bleibt die Uebersicht kompakt und die Personenliste nutzt die volle Breite."}
+            </p>
           </div>
-        ) : (
-          <>
+
+          {!canManageFromMenu ? (
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+              Dieser Bereich kann nur von Admin oder Vorstand bearbeitet werden.
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-950 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
+            >
+              <Plus size={18} />
+              {config.roleLabel} anlegen
+            </button>
+          )}
+        </div>
+      </SectionCard>
+
+      {showFormModal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4"
+          onClick={() => {
+            if (!saving) {
+              resetForm();
+            }
+          }}
+        >
+          <div
+            className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-semibold text-slate-900">
+                  {selectedUserId ? `${config.roleLabel} bearbeiten` : `${config.roleLabel} anlegen`}
+                </h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  {role === "player"
+                    ? "Mit Teamzuordnung, Elternkontakten und Unterlagen in einem Schritt."
+                    : "Zugangsdaten und Teamzuordnung kompakt im Popup pflegen."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={resetForm}
+                disabled={saving}
+                className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-600 transition hover:bg-slate-50"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
             {error ? (
               <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                 {error}
@@ -212,40 +363,84 @@ export default function PeopleManagementPage({
               className="space-y-4"
               onSubmit={async (event) => {
                 event.preventDefault();
+                setError("");
+                setSaving(true);
 
-                const payload = {
-                  ...form,
-                  role,
-                  teamIds: config.showTeams ? form.teamIds : [],
-                };
+                try {
+                  const payload = {
+                    ...form,
+                    role,
+                    teamIds: config.showTeams ? form.teamIds : [],
+                  };
 
-                const result = selectedUserId
-                  ? await updateUser({
-                      userId: selectedUserId,
-                      fullName: payload.fullName,
-                      email: payload.email,
-                      password: payload.password.trim() || undefined,
-                      phone: payload.phone,
-                      role,
-                      teamIds: payload.teamIds,
-                      notes: payload.notes,
-                    })
-                  : await addUser({
-                      fullName: payload.fullName,
-                      email: payload.email,
-                      password: payload.password,
-                      phone: payload.phone,
-                      role,
-                      teamIds: payload.teamIds,
-                      notes: payload.notes,
-                    });
+                  const result = selectedUserId
+                    ? await updateUser({
+                        userId: selectedUserId,
+                        fullName: payload.fullName,
+                        email: payload.email,
+                        password: payload.password.trim() || undefined,
+                        phone: payload.phone,
+                        role,
+                        teamIds: payload.teamIds,
+                        notes: payload.notes,
+                        memberNumber: payload.memberNumber,
+                        birthday: payload.birthday,
+                        address: payload.address,
+                        parentName: payload.parentName,
+                        parentPhone: payload.parentPhone,
+                        parentEmail: payload.parentEmail,
+                        isMember: role === "player" ? payload.isMember : undefined,
+                        hasMembershipApplication:
+                          role === "player" ? payload.hasMembershipApplication : undefined,
+                        hasMedicalCertificate:
+                          role === "player" ? payload.hasMedicalCertificate : undefined,
+                        hasPhotoConsentSocial:
+                          role === "player" ? payload.hasPhotoConsentSocial : undefined,
+                      })
+                    : await addUser({
+                        fullName: payload.fullName,
+                        email: payload.email,
+                        password: payload.password,
+                        phone: payload.phone,
+                        role,
+                        teamIds: payload.teamIds,
+                        notes: payload.notes,
+                        memberNumber: payload.memberNumber,
+                        birthday: payload.birthday,
+                        address: payload.address,
+                        parentName: payload.parentName,
+                        parentPhone: payload.parentPhone,
+                        parentEmail: payload.parentEmail,
+                        isMember: role === "player" ? payload.isMember : undefined,
+                        hasMembershipApplication:
+                          role === "player" ? payload.hasMembershipApplication : undefined,
+                        hasMedicalCertificate:
+                          role === "player" ? payload.hasMedicalCertificate : undefined,
+                        hasPhotoConsentSocial:
+                          role === "player" ? payload.hasPhotoConsentSocial : undefined,
+                      });
 
-                if (!result.success) {
-                  setError(result.error ?? "Speichern nicht moeglich.");
-                  return;
+                  if (!result.success) {
+                    setError(result.error ?? "Speichern nicht moeglich.");
+                    return;
+                  }
+
+                  const targetUserId = selectedUserId ?? result.userId ?? null;
+
+                  if (role === "player" && targetUserId) {
+                    await saveDocumentUploads(targetUserId);
+                  }
+
+                  resetForm();
+                } catch (saveError) {
+                  setError(
+                    saveError instanceof Error
+                      ? saveError.message
+                      : "Speichern nicht moeglich.",
+                  );
+                } finally {
+                  setSaving(false);
                 }
-
-                resetForm();
               }}
             >
               <label className="block">
@@ -285,6 +480,7 @@ export default function PeopleManagementPage({
                     {selectedUserId ? "Neues Passwort" : "Passwort"}
                   </span>
                   <input
+                    type="password"
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                     value={form.password}
                     onChange={(event) => setForm({ ...form, password: event.target.value })}
@@ -292,7 +488,7 @@ export default function PeopleManagementPage({
                     placeholder={
                       selectedUserId
                         ? "Leer lassen, wenn es unveraendert bleiben soll"
-                        : ""
+                        : "Startpasswort vergeben"
                     }
                   />
                 </label>
@@ -305,6 +501,133 @@ export default function PeopleManagementPage({
                   />
                 </label>
               </div>
+
+              {role === "player" ? (
+                <>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-slate-700">
+                        Mitgliedsnummer
+                      </span>
+                      <input
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                        value={form.memberNumber}
+                        onChange={(event) =>
+                          setForm({ ...form, memberNumber: event.target.value })
+                        }
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-slate-700">
+                        Geburtstag
+                      </span>
+                      <input
+                        type="date"
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                        value={form.birthday}
+                        onChange={(event) => setForm({ ...form, birthday: event.target.value })}
+                      />
+                    </label>
+                  </div>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">Anschrift</span>
+                    <textarea
+                      className="min-h-24 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      value={form.address}
+                      onChange={(event) => setForm({ ...form, address: event.target.value })}
+                    />
+                  </label>
+
+                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                      Kontakt Eltern
+                    </p>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-2 block text-sm font-medium text-slate-700">Name</span>
+                        <input
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          value={form.parentName}
+                          onChange={(event) =>
+                            setForm({ ...form, parentName: event.target.value })
+                          }
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-2 block text-sm font-medium text-slate-700">
+                          Handynummer
+                        </span>
+                        <input
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          value={form.parentPhone}
+                          onChange={(event) =>
+                            setForm({ ...form, parentPhone: event.target.value })
+                          }
+                        />
+                      </label>
+                    </div>
+                    <label className="mt-4 block">
+                      <span className="mb-2 block text-sm font-medium text-slate-700">E-Mail</span>
+                      <input
+                        type="email"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                        value={form.parentEmail}
+                        onChange={(event) =>
+                          setForm({ ...form, parentEmail: event.target.value })
+                        }
+                      />
+                    </label>
+                  </div>
+
+                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                      Unterlagen
+                    </p>
+                    <div className="mt-4 space-y-3">
+                      {playerDocumentDefinitions.map((entry) => (
+                        <div
+                          key={entry.key}
+                          className="rounded-2xl border border-slate-200 bg-white p-4"
+                        >
+                          <label className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={form[entry.statusKey]}
+                              onChange={(event) =>
+                                setForm({
+                                  ...form,
+                                  [entry.statusKey]: event.target.checked,
+                                })
+                              }
+                            />
+                            <span className="text-sm font-medium text-slate-700">
+                              {entry.label}
+                            </span>
+                          </label>
+
+                          <label className="mt-3 block">
+                            <span className="mb-2 block text-sm font-medium text-slate-700">
+                              Datei optional
+                            </span>
+                            <input
+                              type="file"
+                              accept=".png,.jpg,.jpeg,.webp,.pdf,.svg,.doc,.docx"
+                              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-blue-700 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-800"
+                              onChange={(event) =>
+                                setDocumentFiles((current) => ({
+                                  ...current,
+                                  [entry.key]: event.target.files?.[0] ?? null,
+                                }))
+                              }
+                            />
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : null}
 
               {config.showTeams ? (
                 <div>
@@ -348,24 +671,28 @@ export default function PeopleManagementPage({
               <div className="flex flex-wrap gap-3">
                 <button
                   type="submit"
-                  className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
+                  disabled={saving}
+                  className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {selectedUserId ? `${config.roleLabel} speichern` : `${config.roleLabel} anlegen`}
+                  {saving
+                    ? "Wird gespeichert..."
+                    : selectedUserId
+                      ? `${config.roleLabel} speichern`
+                      : `${config.roleLabel} anlegen`}
                 </button>
-                {selectedUserId ? (
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Abbrechen
-                  </button>
-                ) : null}
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  disabled={saving}
+                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Abbrechen
+                </button>
               </div>
             </form>
-          </>
-        )}
-      </SectionCard>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

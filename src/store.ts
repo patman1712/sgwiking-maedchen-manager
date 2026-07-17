@@ -7,6 +7,7 @@ import type {
   InventoryItem,
   Match,
   Message,
+  PlayerDocumentType,
   Team,
   UserProfile,
   UserRole,
@@ -40,6 +41,10 @@ interface UserInput {
   hasMembershipApplication?: boolean;
   hasMedicalCertificate?: boolean;
   hasPhotoConsentSocial?: boolean;
+  isMemberFileUrl?: string | null;
+  membershipApplicationFileUrl?: string | null;
+  medicalCertificateFileUrl?: string | null;
+  photoConsentSocialFileUrl?: string | null;
 }
 
 interface ApiStatePayload {
@@ -57,6 +62,7 @@ interface ApiStatePayload {
 interface ActionResult {
   success: boolean;
   error?: string;
+  userId?: string;
 }
 
 interface UserUpdateInput {
@@ -78,6 +84,10 @@ interface UserUpdateInput {
   hasMembershipApplication?: boolean;
   hasMedicalCertificate?: boolean;
   hasPhotoConsentSocial?: boolean;
+  isMemberFileUrl?: string | null;
+  membershipApplicationFileUrl?: string | null;
+  medicalCertificateFileUrl?: string | null;
+  photoConsentSocialFileUrl?: string | null;
 }
 
 interface AppState {
@@ -129,6 +139,11 @@ interface AppState {
   updateUser: (input: UserUpdateInput) => Promise<ActionResult>;
   deleteUser: (userId: string) => Promise<ActionResult>;
   uploadUserAvatar: (userId: string, file: File) => Promise<ActionResult>;
+  uploadPlayerDocument: (
+    userId: string,
+    documentType: PlayerDocumentType,
+    file: File,
+  ) => Promise<ActionResult>;
   addMatch: (input: {
     teamId: string;
     opponent: string;
@@ -592,10 +607,10 @@ export const useAppStore = create<AppState>()(
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ ...input, actorId }),
           });
-          const data = (await readJson(response)) as ApiStatePayload;
+          const data = (await readJson(response)) as ApiStatePayload & { userId?: string };
           applyPayload(set, data, get().currentUserId);
 
-          return { success: true };
+          return { success: true, userId: data.userId };
         } catch (error) {
           return {
             success: false,
@@ -688,6 +703,36 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Profilbild konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      uploadPlayerDocument: async (userId, documentType, file) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("document", file);
+          payload.append("actorId", actorId);
+
+          const response = await fetch(`/api/users/${userId}/documents/${documentType}`, {
+            method: "POST",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Unterlage konnte nicht gespeichert werden.",
           };
         }
       },

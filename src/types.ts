@@ -1,4 +1,9 @@
 export type UserRole = "admin" | "trainer" | "player" | "board";
+export type PlayerDocumentType =
+  | "member"
+  | "membershipApplication"
+  | "medicalCertificate"
+  | "photoConsentSocial";
 
 export interface Team {
   id: string;
@@ -81,6 +86,10 @@ export interface UserProfile {
   hasMembershipApplication?: boolean;
   hasMedicalCertificate?: boolean;
   hasPhotoConsentSocial?: boolean;
+  isMemberFileUrl?: string | null;
+  membershipApplicationFileUrl?: string | null;
+  medicalCertificateFileUrl?: string | null;
+  photoConsentSocialFileUrl?: string | null;
   mustChangePassword?: boolean;
   privacyAcceptedAt?: string | null;
   requiresOnboarding?: boolean;
