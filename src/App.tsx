@@ -4,6 +4,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import BoardPage from "@/pages/BoardPage";
 import DashboardHome from "@/pages/DashboardHome";
 import DashboardLayout from "@/pages/DashboardLayout";
+import FirstLoginPage from "@/pages/FirstLoginPage";
 import Login from "@/pages/Login";
 import MessagesPage from "@/pages/MessagesPage";
 import PlayersPage from "@/pages/PlayersPage";
@@ -112,6 +113,14 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<Login />} />
+        <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute allowPendingOnboarding>
+              <FirstLoginPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/dashboard"
           element={

@@ -81,6 +81,9 @@ export interface UserProfile {
   hasMembershipApplication?: boolean;
   hasMedicalCertificate?: boolean;
   hasPhotoConsentSocial?: boolean;
+  mustChangePassword?: boolean;
+  privacyAcceptedAt?: string | null;
+  requiresOnboarding?: boolean;
   createdAt: string;
 }
 

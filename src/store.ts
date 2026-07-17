@@ -152,6 +152,11 @@ interface AppState {
     notes: string;
     password?: string;
   }) => Promise<ActionResult>;
+  completeFirstLogin: (input: {
+    currentPassword: string;
+    newPassword: string;
+    acceptPrivacy: boolean;
+  }) => Promise<ActionResult>;
   setTeamMembership: (
     teamId: string,
     trainerIds: string[],
@@ -785,6 +790,33 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Profil konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      completeFirstLogin: async (input) => {
+        try {
+          const currentUserId = get().currentUserId;
+
+          if (!currentUserId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch("/api/auth/complete-first-login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId: currentUserId, ...input }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, currentUserId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Erstlogin konnte nicht abgeschlossen werden.",
           };
         }
       },

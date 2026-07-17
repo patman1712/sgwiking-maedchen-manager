@@ -134,6 +134,8 @@ db.exec(`
     has_membership_application INTEGER NOT NULL DEFAULT 0,
     has_medical_certificate INTEGER NOT NULL DEFAULT 0,
     has_photo_consent_social INTEGER NOT NULL DEFAULT 0,
+    must_change_password INTEGER NOT NULL DEFAULT 0,
+    privacy_accepted_at TEXT DEFAULT NULL,
     created_at TEXT NOT NULL
   );
 
@@ -328,6 +330,14 @@ if (!userColumns.includes('has_photo_consent_social')) {
   db.prepare(
     'ALTER TABLE users ADD COLUMN has_photo_consent_social INTEGER NOT NULL DEFAULT 0',
   ).run()
+}
+
+if (!userColumns.includes('must_change_password')) {
+  db.prepare('ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0').run()
+}
+
+if (!userColumns.includes('privacy_accepted_at')) {
+  db.prepare('ALTER TABLE users ADD COLUMN privacy_accepted_at TEXT DEFAULT NULL').run()
 }
 
 const matchColumns = (
@@ -737,6 +747,8 @@ type UserRow = {
   has_membership_application: number
   has_medical_certificate: number
   has_photo_consent_social: number
+  must_change_password: number
+  privacy_accepted_at: string | null
   created_at: string
 }
 
@@ -827,6 +839,8 @@ export const getTeamIdsByUserId = (userId: string) =>
   ).map((row) => row.team_id)
 
 export const mapUser = (row: UserRow, includePassword = false) => {
+  const mustChangePassword = Boolean(row.must_change_password)
+  const privacyAcceptedAt = row.privacy_accepted_at || null
   const base = {
     id: row.id,
     fullName: row.full_name,
@@ -846,6 +860,9 @@ export const mapUser = (row: UserRow, includePassword = false) => {
     hasMembershipApplication: Boolean(row.has_membership_application),
     hasMedicalCertificate: Boolean(row.has_medical_certificate),
     hasPhotoConsentSocial: Boolean(row.has_photo_consent_social),
+    mustChangePassword,
+    privacyAcceptedAt,
+    requiresOnboarding: row.role === 'player' && (mustChangePassword || !privacyAcceptedAt),
     createdAt: row.created_at,
   }
 

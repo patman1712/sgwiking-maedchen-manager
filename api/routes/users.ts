@@ -156,9 +156,11 @@ router.post('/', (req: Request, res: Response) => {
       has_membership_application,
       has_medical_certificate,
       has_photo_consent_social,
+      must_change_password,
+      privacy_accepted_at,
       created_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertMember = db.prepare(`
     INSERT INTO team_members (id, team_id, user_id, membership_role, created_at)
@@ -189,6 +191,8 @@ router.post('/', (req: Request, res: Response) => {
       0,
       0,
       0,
+      role === 'player' ? 1 : 0,
+      null,
       timestamp,
     )
 
@@ -363,7 +367,9 @@ router.put('/:id', (req: Request, res: Response) => {
           is_member = ?,
           has_membership_application = ?,
           has_medical_certificate = ?,
-          has_photo_consent_social = ?
+          has_photo_consent_social = ?,
+          must_change_password = ?,
+          privacy_accepted_at = ?
         WHERE id = ?
       `).run(
         fullName,
@@ -382,6 +388,8 @@ router.put('/:id', (req: Request, res: Response) => {
         nextHasMembershipApplication,
         nextHasMedicalCertificate,
         nextHasPhotoConsentSocial,
+        user.must_change_password,
+        user.privacy_accepted_at,
         id,
       )
     } else {
@@ -402,7 +410,9 @@ router.put('/:id', (req: Request, res: Response) => {
           is_member = ?,
           has_membership_application = ?,
           has_medical_certificate = ?,
-          has_photo_consent_social = ?
+          has_photo_consent_social = ?,
+          must_change_password = ?,
+          privacy_accepted_at = ?
         WHERE id = ?
       `).run(
         fullName,
@@ -420,6 +430,8 @@ router.put('/:id', (req: Request, res: Response) => {
         nextHasMembershipApplication,
         nextHasMedicalCertificate,
         nextHasPhotoConsentSocial,
+        user.must_change_password,
+        user.privacy_accepted_at,
         id,
       )
     }
