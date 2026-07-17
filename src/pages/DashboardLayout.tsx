@@ -316,12 +316,16 @@ export default function DashboardLayout() {
                           currentUser?.role === "board" ||
                           (currentUser?.role === "trainer" &&
                             currentUser.teamIds.includes(team.id));
+                        const showCashbook = showManagement;
                         const subItems = [
                           { key: "dashboard", label: "Dashboard" },
                           { key: "kader", label: "Kader" },
                           { key: "spielplan", label: "Spielplan" },
                           { key: "termine", label: "Termine" },
                           { key: "inventar", label: "Inventar" },
+                          ...(showCashbook
+                            ? [{ key: "kasse" as const, label: "Schiri-Kasse" }]
+                            : []),
                           ...(showManagement
                             ? [{ key: "verwaltung" as const, label: "Verwaltung" }]
                             : []),

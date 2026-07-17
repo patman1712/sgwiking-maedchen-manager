@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type {
   AppSettings,
+  CashbookEntry,
   Conversation,
   InventoryItem,
   Match,
@@ -46,6 +47,7 @@ interface ApiStatePayload {
   users: UserProfile[];
   matches: Match[];
   inventoryItems: InventoryItem[];
+  cashbookEntries: CashbookEntry[];
   conversations: Conversation[];
   messages: Message[];
   settings: AppSettings;
@@ -83,6 +85,7 @@ interface AppState {
   users: UserProfile[];
   matches: Match[];
   inventoryItems: InventoryItem[];
+  cashbookEntries: CashbookEntry[];
   conversations: Conversation[];
   messages: Message[];
   settings: AppSettings;
@@ -111,6 +114,17 @@ interface AppState {
     imageFile?: File | null;
   }) => Promise<ActionResult>;
   deleteInventoryItem: (itemId: string) => Promise<ActionResult>;
+  addCashbookEntry: (input: {
+    teamId: string;
+    entryType: "in" | "out";
+    amount: string;
+    title: string;
+    notes: string;
+    bookedAt?: string;
+    receiptFile?: File | null;
+  }) => Promise<ActionResult>;
+  uploadCashbookReceipt: (entryId: string, file: File) => Promise<ActionResult>;
+  setCashbookOriginalReceived: (entryId: string, value: boolean) => Promise<ActionResult>;
   addUser: (input: UserInput) => Promise<ActionResult>;
   updateUser: (input: UserUpdateInput) => Promise<ActionResult>;
   deleteUser: (userId: string) => Promise<ActionResult>;
@@ -156,6 +170,7 @@ export const initialAppState = {
   users: [] as UserProfile[],
   matches: [] as Match[],
   inventoryItems: [] as InventoryItem[],
+  cashbookEntries: [] as CashbookEntry[],
   conversations: [] as Conversation[],
   messages: [] as Message[],
   settings: {
@@ -192,6 +207,7 @@ const applyPayload = (
     users: payload.users,
     matches: payload.matches,
     inventoryItems: payload.inventoryItems,
+    cashbookEntries: payload.cashbookEntries,
     conversations: payload.conversations,
     messages: payload.messages,
     settings: payload.settings,
@@ -463,6 +479,103 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Inventar konnte nicht geloescht werden.",
+          };
+        }
+      },
+      addCashbookEntry: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("actorId", actorId);
+          payload.append("teamId", input.teamId);
+          payload.append("entryType", input.entryType);
+          payload.append("amount", input.amount);
+          payload.append("title", input.title);
+          payload.append("notes", input.notes);
+          if (input.bookedAt) {
+            payload.append("bookedAt", input.bookedAt);
+          }
+          if (input.receiptFile) {
+            payload.append("receipt", input.receiptFile);
+          }
+
+          const response = await fetch("/api/cashbook", {
+            method: "POST",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Buchung konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      uploadCashbookReceipt: async (entryId, file) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("actorId", actorId);
+          payload.append("receipt", file);
+
+          const response = await fetch(`/api/cashbook/${entryId}/receipt`, {
+            method: "POST",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Beleg konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      setCashbookOriginalReceived: async (entryId, value) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/cashbook/${entryId}/original-received`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId, value }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Beleg-Status konnte nicht gespeichert werden.",
           };
         }
       },

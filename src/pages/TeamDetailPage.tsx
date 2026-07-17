@@ -1,6 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { CalendarDays, ChevronLeft, ImagePlus, MapPin, MessageSquare, Package, Shield, Trash2, Trophy, X } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  CalendarDays,
+  CheckCircle2,
+  ChevronLeft,
+  Download,
+  FileText,
+  ImagePlus,
+  MapPin,
+  MessageSquare,
+  Package,
+  Shield,
+  Trash2,
+  Trophy,
+  Wallet,
+  X,
+} from "lucide-react";
 import SectionCard from "@/components/SectionCard";
 import { optimizeImageForUpload } from "@/lib/image";
 import { cn } from "@/lib/utils";
@@ -12,6 +29,7 @@ const teamSections = [
   { key: "spielplan", label: "Spielplan" },
   { key: "termine", label: "Termine" },
   { key: "inventar", label: "Inventar" },
+  { key: "kasse", label: "Schiri-Kasse" },
   { key: "verwaltung", label: "Verwaltung" },
 ] as const;
 
@@ -67,6 +85,7 @@ export default function TeamDetailPage() {
   const users = useAppStore((state) => state.users);
   const matches = useAppStore((state) => state.matches);
   const inventoryItems = useAppStore((state) => state.inventoryItems);
+  const cashbookEntries = useAppStore((state) => state.cashbookEntries);
   const conversations = useAppStore((state) => state.conversations);
   const currentUserId = useAppStore((state) => state.currentUserId);
   const updateTeam = useAppStore((state) => state.updateTeam);
@@ -79,6 +98,9 @@ export default function TeamDetailPage() {
   );
   const addInventoryItem = useAppStore((state) => state.addInventoryItem);
   const deleteInventoryItem = useAppStore((state) => state.deleteInventoryItem);
+  const addCashbookEntry = useAppStore((state) => state.addCashbookEntry);
+  const uploadCashbookReceipt = useAppStore((state) => state.uploadCashbookReceipt);
+  const setCashbookOriginalReceived = useAppStore((state) => state.setCashbookOriginalReceived);
   const addMatch = useAppStore((state) => state.addMatch);
   const updateMatch = useAppStore((state) => state.updateMatch);
   const deleteMatch = useAppStore((state) => state.deleteMatch);
@@ -94,12 +116,17 @@ export default function TeamDetailPage() {
     currentUser?.role === "admin" ||
     currentUser?.role === "board" ||
     (currentUser?.role === "trainer" && currentUser.teamIds.includes(teamId ?? ""));
+  const canViewCashbook = canViewTeamManagement;
   const visibleTeamSections = useMemo(
     () =>
       teamSections.filter((entry) =>
-        entry.key === "verwaltung" ? canViewTeamManagement : true,
+        entry.key === "verwaltung"
+          ? canViewTeamManagement
+          : entry.key === "kasse"
+            ? canViewCashbook
+            : true,
       ),
-    [canViewTeamManagement],
+    [canViewCashbook, canViewTeamManagement],
   );
   const activeSection = visibleTeamSections.some((entry) => entry.key === section)
     ? (section as TeamSection)
@@ -166,6 +193,26 @@ export default function TeamDetailPage() {
   const [inventoryMessage, setInventoryMessage] = useState("");
   const [inventoryError, setInventoryError] = useState("");
   const [showInventoryForm, setShowInventoryForm] = useState(false);
+  const [cashbookForm, setCashbookForm] = useState<{
+    entryType: "in" | "out";
+    amount: string;
+    title: string;
+    notes: string;
+    bookedAt: string;
+  }>({
+    entryType: "in",
+    amount: "",
+    title: "",
+    notes: "",
+    bookedAt: "",
+  });
+  const [cashbookReceiptFile, setCashbookReceiptFile] = useState<File | null>(null);
+  const [cashbookSubmitting, setCashbookSubmitting] = useState(false);
+  const [cashbookReceiptUploadingId, setCashbookReceiptUploadingId] = useState<string | null>(null);
+  const [cashbookOriginalSavingId, setCashbookOriginalSavingId] = useState<string | null>(null);
+  const [cashbookMessage, setCashbookMessage] = useState("");
+  const [cashbookError, setCashbookError] = useState("");
+  const [showCashbookForm, setShowCashbookForm] = useState(false);
   const [manualEvents, setManualEvents] = useState<ManualTeamEvent[]>([]);
   const [eventSummaries, setEventSummaries] = useState<TeamEventSummary[]>([]);
   const [eventResponseDetails, setEventResponseDetails] = useState<TeamEventResponseDetail[]>([]);
@@ -316,6 +363,38 @@ export default function TeamDetailPage() {
     [inventoryItems, team.id],
   );
 
+  const teamCashbookEntries = useMemo(
+    () =>
+      cashbookEntries
+        .filter((entry) => entry.teamId === team.id)
+        .slice()
+        .sort(
+          (left, right) =>
+            new Date(right.bookedAt).getTime() - new Date(left.bookedAt).getTime(),
+        ),
+    [cashbookEntries, team.id],
+  );
+
+  const cashbookTotals = useMemo(() => {
+    return teamCashbookEntries.reduce(
+      (accumulator, entry) => {
+        if (entry.entryType === "in") {
+          accumulator.inCents += entry.amountCents;
+        } else {
+          accumulator.outCents += entry.amountCents;
+        }
+        accumulator.balanceCents = accumulator.inCents - accumulator.outCents;
+        return accumulator;
+      },
+      { inCents: 0, outCents: 0, balanceCents: 0 },
+    );
+  }, [teamCashbookEntries]);
+
+  const userNameById = useMemo(
+    () => new Map(users.map((user) => [user.id, user.fullName])),
+    [users],
+  );
+
   const inventoryItemsByCategory = useMemo(
     () =>
       teamInventoryItems.reduce<Record<string, typeof teamInventoryItems>>((accumulator, item) => {
@@ -372,6 +451,32 @@ export default function TeamDetailPage() {
         return "border-slate-200 bg-slate-100 text-slate-700";
     }
   };
+
+  const canToggleCashbookOriginal =
+    currentUser?.role === "admin" || currentUser?.role === "board";
+
+  const cashbookEuroFormatter = useMemo(
+    () => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }),
+    [],
+  );
+
+  const formatCashbookAmount = (amountCents: number) =>
+    cashbookEuroFormatter.format(amountCents / 100);
+
+  const formatCashbookDate = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    return date.toLocaleDateString("de-DE", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
+
+  const isReceiptPreviewableImage = (url: string) =>
+    /\.(png|jpe?g|webp|gif|bmp|svg)(\?|$)/i.test(url);
 
   const seasonLabelForKickoff = (kickoffAt: string) => {
     const date = new Date(kickoffAt);
@@ -2557,6 +2662,456 @@ export default function TeamDetailPage() {
                   <button
                     type="button"
                     onClick={() => setShowInventoryForm(false)}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                  >
+                    Abbrechen
+                  </button>
+                </div>
+              </form>
+            </SectionCard>
+          ) : null}
+        </div>
+      ) : null}
+
+      {activeSection === "kasse" ? (
+        <div className="space-y-6">
+          <SectionCard
+            title="Schiri-Kasse"
+            description="Kassenbuch fuer Ein- und Auszahlungen inkl. Beleg-Upload und Originalkontrolle."
+          >
+            <div className="space-y-4">
+              {cashbookError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {cashbookError}
+                </div>
+              ) : null}
+
+              {cashbookMessage ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {cashbookMessage}
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-4">
+                <div>
+                  <p className="text-sm font-semibold text-blue-950">Zugriff & Kontrolle</p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Trainer koennen Buchungen erfassen und Belege hochladen. Den Haken fuer den
+                    Originalbeleg kann nur Vorstand oder Admin setzen.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCashbookError("");
+                    setCashbookMessage("");
+                    setShowCashbookForm((current) => !current);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-950 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
+                >
+                  <Wallet size={18} />
+                  {showCashbookForm ? "Formular schliessen" : "Buchung hinzufuegen"}
+                </button>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-3xl border border-emerald-100 bg-emerald-50/60 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                    Einzahlungen
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold text-emerald-950">
+                    {formatCashbookAmount(cashbookTotals.inCents)}
+                  </p>
+                </div>
+                <div className="rounded-3xl border border-rose-100 bg-rose-50/60 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-rose-700">
+                    Auszahlungen
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold text-rose-950">
+                    {formatCashbookAmount(cashbookTotals.outCents)}
+                  </p>
+                </div>
+                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Saldo
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold text-slate-900">
+                    {formatCashbookAmount(cashbookTotals.balanceCents)}
+                  </p>
+                </div>
+              </div>
+
+              {teamCashbookEntries.length ? (
+                <div className="space-y-3">
+                  {teamCashbookEntries.map((entry) => {
+                    const isIn = entry.entryType === "in";
+                    const createdByName = userNameById.get(entry.createdBy) ?? "Unbekannt";
+                    const originalByName = entry.originalReceivedBy
+                      ? userNameById.get(entry.originalReceivedBy) ?? "Unbekannt"
+                      : null;
+                    const receiptUrl = entry.receiptUrl ?? null;
+                    const receiptIsImage = receiptUrl ? isReceiptPreviewableImage(receiptUrl) : false;
+
+                    return (
+                      <div
+                        key={entry.id}
+                        className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className={cn(
+                                  "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold",
+                                  isIn
+                                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                    : "border-rose-200 bg-rose-50 text-rose-700",
+                                )}
+                              >
+                                {isIn ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                                {isIn ? "Einzahlung" : "Auszahlung"}
+                              </span>
+                              <p className="text-lg font-semibold text-slate-900">{entry.title}</p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                                {formatCashbookDate(entry.bookedAt)}
+                              </span>
+                              <span className="text-xs text-slate-500">
+                                eingetragen von {createdByName}
+                              </span>
+                            </div>
+
+                            {entry.notes ? (
+                              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                                {entry.notes}
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <div className="space-y-3 text-right">
+                            <p
+                              className={cn(
+                                "text-2xl font-semibold",
+                                isIn ? "text-emerald-700" : "text-rose-700",
+                              )}
+                            >
+                              {isIn ? "+" : "-"}
+                              {formatCashbookAmount(entry.amountCents)}
+                            </p>
+
+                            <div className="flex flex-wrap justify-end gap-2">
+                              {receiptUrl ? (
+                                <>
+                                  {receiptIsImage ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setImageModal({
+                                          src: receiptUrl,
+                                          alt: `Beleg ${entry.title}`,
+                                        })
+                                      }
+                                      className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                                    >
+                                      <FileText size={16} />
+                                      Vorschau
+                                    </button>
+                                  ) : null}
+                                  <a
+                                    href={receiptUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                                  >
+                                    <Download size={16} />
+                                    Download
+                                  </a>
+                                </>
+                              ) : (
+                                <div className="inline-flex items-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-500">
+                                  <FileText size={16} />
+                                  Kein Beleg
+                                </div>
+                              )}
+
+                              <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-950 to-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:-translate-y-0.5">
+                                <input
+                                  type="file"
+                                  accept=".png,.jpg,.jpeg,.webp,.pdf,.svg"
+                                  className="hidden"
+                                  disabled={cashbookReceiptUploadingId === entry.id}
+                                  onChange={async (event) => {
+                                    const file = event.target.files?.[0] ?? null;
+                                    event.target.value = "";
+                                    if (!file) {
+                                      return;
+                                    }
+
+                                    setCashbookError("");
+                                    setCashbookMessage("");
+                                    setCashbookReceiptUploadingId(entry.id);
+
+                                    try {
+                                      const shouldOptimize =
+                                        file.type.startsWith("image/") &&
+                                        file.type !== "image/svg+xml";
+                                      const uploadFile = shouldOptimize
+                                        ? await optimizeImageForUpload(file)
+                                        : file;
+                                      const result = await uploadCashbookReceipt(entry.id, uploadFile);
+
+                                      if (!result.success) {
+                                        setCashbookError(
+                                          result.error ?? "Beleg konnte nicht hochgeladen werden.",
+                                        );
+                                      } else {
+                                        setCashbookMessage("Beleg wurde gespeichert.");
+                                      }
+                                    } catch {
+                                      setCashbookError("Beleg konnte nicht verarbeitet werden.");
+                                    } finally {
+                                      setCashbookReceiptUploadingId(null);
+                                    }
+                                  }}
+                                />
+                                <ImagePlus size={16} />
+                                {cashbookReceiptUploadingId === entry.id
+                                  ? "Laedt..."
+                                  : receiptUrl
+                                    ? "Beleg ersetzen"
+                                    : "Beleg hochladen"}
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                          <label className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={entry.originalReceived}
+                              disabled={
+                                !canToggleCashbookOriginal ||
+                                cashbookOriginalSavingId === entry.id
+                              }
+                              onChange={async (event) => {
+                                if (!canToggleCashbookOriginal) {
+                                  return;
+                                }
+
+                                setCashbookError("");
+                                setCashbookMessage("");
+                                setCashbookOriginalSavingId(entry.id);
+                                const result = await setCashbookOriginalReceived(
+                                  entry.id,
+                                  event.target.checked,
+                                );
+
+                                if (!result.success) {
+                                  setCashbookError(
+                                    result.error ?? "Status konnte nicht gespeichert werden.",
+                                  );
+                                } else {
+                                  setCashbookMessage("Status wurde aktualisiert.");
+                                }
+
+                                setCashbookOriginalSavingId(null);
+                              }}
+                            />
+                            <span className="text-sm font-semibold text-slate-700">
+                              Originalbeleg an Vorstand uebergeben
+                            </span>
+                          </label>
+
+                          {entry.originalReceived ? (
+                            <span className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700">
+                              <CheckCircle2 size={16} />
+                              {entry.originalReceivedAt
+                                ? `bestaetigt am ${formatCashbookDate(entry.originalReceivedAt)}`
+                                : "bestaetigt"}
+                              {originalByName ? ` (${originalByName})` : ""}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-slate-500">
+                              {canToggleCashbookOriginal
+                                ? "Noch nicht bestaetigt"
+                                : "Trainer sieht den Status nur"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
+                  <p className="text-sm font-semibold text-slate-900">
+                    Noch keine Buchungen fuer {team.name}
+                  </p>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Hier koennen Schiri-Einzahlungen, Auszahlungen oder sonstige Kassenbewegungen
+                    sauber dokumentiert werden.
+                  </p>
+                </div>
+              )}
+            </div>
+          </SectionCard>
+
+          {showCashbookForm ? (
+            <SectionCard
+              title="Neue Buchung"
+              description="Einzahlung oder Auszahlung erfassen, optional direkt mit Beleg."
+            >
+              <form
+                className="space-y-4"
+                onSubmit={async (event) => {
+                  event.preventDefault();
+                  setCashbookError("");
+                  setCashbookMessage("");
+                  setCashbookSubmitting(true);
+
+                  try {
+                    const bookedAt = cashbookForm.bookedAt
+                      ? new Date(cashbookForm.bookedAt).toISOString()
+                      : undefined;
+
+                    const receiptFile = cashbookReceiptFile
+                      ? cashbookReceiptFile.type.startsWith("image/") &&
+                        cashbookReceiptFile.type !== "image/svg+xml"
+                        ? await optimizeImageForUpload(cashbookReceiptFile)
+                        : cashbookReceiptFile
+                      : null;
+
+                    const result = await addCashbookEntry({
+                      teamId: team.id,
+                      entryType: cashbookForm.entryType,
+                      amount: cashbookForm.amount,
+                      title: cashbookForm.title,
+                      notes: cashbookForm.notes,
+                      bookedAt,
+                      receiptFile,
+                    });
+
+                    if (!result.success) {
+                      setCashbookError(
+                        result.error ?? "Buchung konnte nicht gespeichert werden.",
+                      );
+                      return;
+                    }
+
+                    setCashbookForm({
+                      entryType: "in",
+                      amount: "",
+                      title: "",
+                      notes: "",
+                      bookedAt: "",
+                    });
+                    setCashbookReceiptFile(null);
+                    event.currentTarget.reset();
+                    setCashbookMessage("Buchung wurde gespeichert.");
+                    setShowCashbookForm(false);
+                  } catch {
+                    setCashbookError("Beleg konnte nicht verarbeitet werden.");
+                  } finally {
+                    setCashbookSubmitting(false);
+                  }
+                }}
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">Typ</span>
+                    <select
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      value={cashbookForm.entryType}
+                      onChange={(event) =>
+                        setCashbookForm({
+                          ...cashbookForm,
+                          entryType: event.target.value === "out" ? "out" : "in",
+                        })
+                      }
+                    >
+                      <option value="in">Einzahlung</option>
+                      <option value="out">Auszahlung</option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">Betrag</span>
+                    <input
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      value={cashbookForm.amount}
+                      onChange={(event) =>
+                        setCashbookForm({ ...cashbookForm, amount: event.target.value })
+                      }
+                      placeholder="z. B. 15,00"
+                      required
+                    />
+                  </label>
+                </div>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Titel</span>
+                  <input
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    value={cashbookForm.title}
+                    onChange={(event) =>
+                      setCashbookForm({ ...cashbookForm, title: event.target.value })
+                    }
+                    placeholder="z. B. Schiri Heimspiel, Fahrtkosten, Material"
+                    required
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Buchungsdatum</span>
+                  <input
+                    type="date"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    value={cashbookForm.bookedAt}
+                    onChange={(event) =>
+                      setCashbookForm({ ...cashbookForm, bookedAt: event.target.value })
+                    }
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Notizen</span>
+                  <textarea
+                    rows={3}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    value={cashbookForm.notes}
+                    onChange={(event) =>
+                      setCashbookForm({ ...cashbookForm, notes: event.target.value })
+                    }
+                    placeholder="Optional: Details zum Vorgang, wer gezahlt hat, etc."
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Beleg optional</span>
+                  <input
+                    type="file"
+                    accept=".png,.jpg,.jpeg,.webp,.pdf,.svg"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-blue-700 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-800"
+                    onChange={(event) => setCashbookReceiptFile(event.target.files?.[0] ?? null)}
+                  />
+                </label>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="submit"
+                    disabled={cashbookSubmitting}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-950 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    <Wallet size={18} />
+                    {cashbookSubmitting ? "Wird gespeichert..." : "Buchung speichern"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowCashbookForm(false)}
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
                   >
                     Abbrechen

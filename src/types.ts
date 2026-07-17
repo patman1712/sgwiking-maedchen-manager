@@ -42,6 +42,25 @@ export interface InventoryItem {
   createdAt: string;
 }
 
+export type CashbookEntryType = "in" | "out";
+
+export interface CashbookEntry {
+  id: string;
+  teamId: string;
+  entryType: CashbookEntryType;
+  amountCents: number;
+  title: string;
+  notes: string;
+  bookedAt: string;
+  receiptUrl?: string | null;
+  originalReceived: boolean;
+  originalReceivedBy?: string | null;
+  originalReceivedAt?: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface UserProfile {
   id: string;
   fullName: string;

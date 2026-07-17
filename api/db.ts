@@ -244,6 +244,26 @@ db.exec(`
     FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS team_cashbook_entries (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    entry_type TEXT NOT NULL CHECK(entry_type IN ('in', 'out')),
+    amount_cents INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    notes TEXT DEFAULT '',
+    booked_at TEXT NOT NULL,
+    receipt_url TEXT DEFAULT NULL,
+    original_received INTEGER NOT NULL DEFAULT 0,
+    original_received_by TEXT DEFAULT NULL,
+    original_received_at TEXT DEFAULT NULL,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(original_received_by) REFERENCES users(id) ON DELETE SET NULL
+  );
 `)
 
 const teamColumns = (
@@ -769,6 +789,23 @@ type InventoryItemRow = {
   created_at: string
 }
 
+type CashbookEntryRow = {
+  id: string
+  team_id: string
+  entry_type: 'in' | 'out'
+  amount_cents: number
+  title: string
+  notes: string
+  booked_at: string
+  receipt_url: string | null
+  original_received: number
+  original_received_by: string | null
+  original_received_at: string | null
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
 export const mapTeam = (row: TeamRow) => ({
   id: row.id,
   name: row.name,
@@ -987,6 +1024,65 @@ export const getInventoryItems = () =>
     createdAt: row.created_at,
   }))
 
+export const getCashbookEntries = (userId?: string | null) => {
+  if (!userId) {
+    return []
+  }
+
+  const actor = getUserRowById(userId)
+  if (!actor) {
+    return []
+  }
+
+  const rows = db.prepare(
+    'SELECT * FROM team_cashbook_entries ORDER BY booked_at DESC, created_at DESC',
+  ).all() as CashbookEntryRow[]
+
+  if (actor.role === 'admin' || actor.role === 'board') {
+    return rows.map((row) => ({
+      id: row.id,
+      teamId: row.team_id,
+      entryType: row.entry_type,
+      amountCents: Number(row.amount_cents) || 0,
+      title: row.title,
+      notes: row.notes || '',
+      bookedAt: row.booked_at,
+      receiptUrl: row.receipt_url || null,
+      originalReceived: Boolean(row.original_received),
+      originalReceivedBy: row.original_received_by || null,
+      originalReceivedAt: row.original_received_at || null,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }))
+  }
+
+  if (actor.role !== 'trainer') {
+    return []
+  }
+
+  const actorTeamIds = new Set(getTeamIdsByUserId(userId))
+
+  return rows
+    .filter((row) => actorTeamIds.has(row.team_id))
+    .map((row) => ({
+      id: row.id,
+      teamId: row.team_id,
+      entryType: row.entry_type,
+      amountCents: Number(row.amount_cents) || 0,
+      title: row.title,
+      notes: row.notes || '',
+      bookedAt: row.booked_at,
+      receiptUrl: row.receipt_url || null,
+      originalReceived: Boolean(row.original_received),
+      originalReceivedBy: row.original_received_by || null,
+      originalReceivedAt: row.original_received_at || null,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }))
+}
+
 export const getSetting = (key: string) => {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
     | { value: string }
@@ -1013,6 +1109,7 @@ export const getBootstrapData = (userId?: string | null) => ({
   users: getUsers(),
   matches: getMatches(),
   inventoryItems: getInventoryItems(),
+  cashbookEntries: getCashbookEntries(userId),
   conversations: getConversations(userId),
   messages: getMessages(userId),
   settings: getSettings(),
