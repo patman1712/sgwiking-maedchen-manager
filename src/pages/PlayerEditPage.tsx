@@ -181,7 +181,7 @@ export default function PlayerEditPage() {
   const [documentFiles, setDocumentFiles] = useState(createEmptyDocumentFiles());
 
   useEffect(() => {
-    if (!player) {
+    if (!playerId || !player) {
       return;
     }
 
@@ -207,7 +207,7 @@ export default function PlayerEditPage() {
     setIsEditing(false);
     setError("");
     setSuccess("");
-  }, [player]);
+  }, [playerId, player?.id]);
 
   if (!playerId || !player) {
     return <Navigate to="/dashboard/players" replace />;
