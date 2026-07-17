@@ -96,6 +96,26 @@ export interface UserProfile {
   createdAt: string;
 }
 
+export interface PendingPlayerApplication {
+  id: string;
+  teamId: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  birthday?: string;
+  address: string;
+  parentName: string;
+  parentPhone: string;
+  parentEmail: string;
+  notes: string;
+  requestedBy: string;
+  requestedAt: string;
+  status: "pending" | "approved" | "rejected";
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  createdUserId?: string | null;
+}
+
 export type ConversationType = "team" | "direct";
 
 export interface Conversation {

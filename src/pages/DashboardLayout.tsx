@@ -22,6 +22,7 @@ const menuItems = [
   { to: "/dashboard/teams", label: "Mannschaften", icon: Volleyball },
   { to: "__members__", label: "Mitglieder", icon: Users },
   { to: "/dashboard/messages", label: "Nachrichten", icon: MessageSquare },
+  { to: "__board__", label: "Vorstand", icon: Briefcase },
 ] as const;
 
 export default function DashboardLayout() {
@@ -485,6 +486,54 @@ export default function DashboardLayout() {
                       ))}
                     </div>
                   ) : null}
+                </div>
+              );
+            }
+
+            if (item.to === "__board__") {
+              if (!canViewMemberLists) {
+                return null;
+              }
+
+              const boardAreaActive =
+                location.pathname.startsWith("/dashboard/board") &&
+                location.pathname.includes("/mailbox");
+
+              return (
+                <div key={item.to} className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => navigate("/dashboard/board/mailbox")}
+                      className={cn(
+                        "flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all",
+                        boardAreaActive
+                          ? "bg-white text-blue-950 shadow-lg"
+                          : "text-blue-100 hover:bg-white/10 hover:text-white",
+                      )}
+                    >
+                      <Icon size={18} />
+                      <span>{item.label}</span>
+                    </button>
+                  </div>
+
+                  <div className="ml-4 space-y-1 border-l border-white/15 pl-4">
+                    <NavLink
+                      to="/dashboard/board/mailbox"
+                      onClick={() => setSidebarOpen(false)}
+                      className={({ isActive }) =>
+                        cn(
+                          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
+                          isActive
+                            ? "bg-white text-blue-950 shadow"
+                            : "text-blue-100/90 hover:bg-white/10 hover:text-white",
+                        )
+                      }
+                    >
+                      <MessageSquare size={16} />
+                      <span>Postfach</span>
+                    </NavLink>
+                  </div>
                 </div>
               );
             }

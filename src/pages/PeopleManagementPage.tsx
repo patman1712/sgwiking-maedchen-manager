@@ -287,20 +287,21 @@ export default function PeopleManagementPage({
         </div>
       </SectionCard>
 
-      <SectionCard title="Verwaltung" description={config.formDescription}>
+      <SectionCard
+        title={role === "player" ? "Spielerin anlegen" : "Verwaltung"}
+        description={role === "player" ? undefined : config.formDescription}
+      >
         <div className="space-y-4">
-          <div className="rounded-3xl border border-blue-100 bg-blue-50/70 p-5">
-            <p className="text-sm font-semibold text-blue-950">
-              {role === "player"
-                ? "Neue Spielerinnen werden direkt ueber ein Popup angelegt."
-                : `Neue ${config.roleLabel.toLowerCase()} werden direkt ueber ein Popup angelegt.`}
-            </p>
-            <p className="mt-2 text-sm text-slate-600">
-              {role === "player"
-                ? "Dort koennen direkt Teams, Elternkontakte und Unterlagen gepflegt werden, ohne die Liste zu verlaengern."
-                : "So bleibt die Uebersicht kompakt und die Personenliste nutzt die volle Breite."}
-            </p>
-          </div>
+          {role !== "player" ? (
+            <div className="rounded-3xl border border-blue-100 bg-blue-50/70 p-5">
+              <p className="text-sm font-semibold text-blue-950">
+                {`Neue ${config.roleLabel.toLowerCase()} werden direkt ueber ein Popup angelegt.`}
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                So bleibt die Uebersicht kompakt und die Personenliste nutzt die volle Breite.
+              </p>
+            </div>
+          ) : null}
 
           {!canManageFromMenu ? (
             <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">

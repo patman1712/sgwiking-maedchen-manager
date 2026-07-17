@@ -12,6 +12,7 @@ import {
   MapPin,
   MessageSquare,
   Package,
+  Plus,
   Shield,
   Trash2,
   Trophy,
@@ -105,6 +106,7 @@ export default function TeamDetailPage() {
   const updateMatch = useAppStore((state) => state.updateMatch);
   const deleteMatch = useAppStore((state) => state.deleteMatch);
   const ensureTeamConversation = useAppStore((state) => state.ensureTeamConversation);
+  const submitPlayerApplication = useAppStore((state) => state.submitPlayerApplication);
   const navigate = useNavigate();
 
   const team = teams.find((entry) => entry.id === teamId);
@@ -213,6 +215,21 @@ export default function TeamDetailPage() {
   const [cashbookMessage, setCashbookMessage] = useState("");
   const [cashbookError, setCashbookError] = useState("");
   const [showCashbookForm, setShowCashbookForm] = useState(false);
+  const [showPlayerApplicationForm, setShowPlayerApplicationForm] = useState(false);
+  const [playerApplicationSubmitting, setPlayerApplicationSubmitting] = useState(false);
+  const [playerApplicationMessage, setPlayerApplicationMessage] = useState("");
+  const [playerApplicationError, setPlayerApplicationError] = useState("");
+  const [playerApplicationForm, setPlayerApplicationForm] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+    birthday: "",
+    address: "",
+    parentName: "",
+    parentPhone: "",
+    parentEmail: "",
+    notes: "",
+  });
   const [manualEvents, setManualEvents] = useState<ManualTeamEvent[]>([]);
   const [eventSummaries, setEventSummaries] = useState<TeamEventSummary[]>([]);
   const [eventResponseDetails, setEventResponseDetails] = useState<TeamEventResponseDetail[]>([]);
@@ -1408,6 +1425,30 @@ export default function TeamDetailPage() {
             title="Spielerinnen"
             description="Hier werden nur die bereits zugewiesenen Spielerinnen dieser Mannschaft angezeigt."
           >
+            {canManagePlayersHere ? (
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-4">
+                <div>
+                  <p className="text-sm font-semibold text-blue-950">Neue Spielerin anmelden</p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Trainer koennen neue Spielerinnen vormerken. Die Freischaltung landet zuerst im
+                    Postfach von Vorstand und Admin.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPlayerApplicationError("");
+                    setPlayerApplicationMessage("");
+                    setShowPlayerApplicationForm((current) => !current);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-950 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
+                >
+                  <Plus size={18} />
+                  {showPlayerApplicationForm ? "Formular schliessen" : "Spielerin anmelden"}
+                </button>
+              </div>
+            ) : null}
+
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {assignedPlayers.length ? (
                 assignedPlayers.map((player) => (
@@ -1476,6 +1517,234 @@ export default function TeamDetailPage() {
                 </div>
               )}
             </div>
+
+            {playerApplicationError ? (
+              <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {playerApplicationError}
+              </div>
+            ) : null}
+
+            {playerApplicationMessage ? (
+              <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {playerApplicationMessage}
+              </div>
+            ) : null}
+
+            {canManagePlayersHere && showPlayerApplicationForm ? (
+              <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <form
+                  className="space-y-4"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    setPlayerApplicationError("");
+                    setPlayerApplicationMessage("");
+                    setPlayerApplicationSubmitting(true);
+
+                    const result = await submitPlayerApplication({
+                      teamId: team.id,
+                      fullName: playerApplicationForm.fullName,
+                      email: playerApplicationForm.email,
+                      phone: playerApplicationForm.phone,
+                      birthday: playerApplicationForm.birthday,
+                      address: playerApplicationForm.address,
+                      parentName: playerApplicationForm.parentName,
+                      parentPhone: playerApplicationForm.parentPhone,
+                      parentEmail: playerApplicationForm.parentEmail,
+                      notes: playerApplicationForm.notes,
+                    });
+
+                    if (!result.success) {
+                      setPlayerApplicationError(
+                        result.error ?? "Anmeldung konnte nicht gespeichert werden.",
+                      );
+                      setPlayerApplicationSubmitting(false);
+                      return;
+                    }
+
+                    setPlayerApplicationForm({
+                      fullName: "",
+                      email: "",
+                      phone: "",
+                      birthday: "",
+                      address: "",
+                      parentName: "",
+                      parentPhone: "",
+                      parentEmail: "",
+                      notes: "",
+                    });
+                    setShowPlayerApplicationForm(false);
+                    setPlayerApplicationMessage(
+                      "Anmeldung wurde an das Postfach von Vorstand und Admin weitergegeben.",
+                    );
+                    setPlayerApplicationSubmitting(false);
+                  }}
+                >
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-slate-700">Name</span>
+                      <input
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                        value={playerApplicationForm.fullName}
+                        onChange={(event) =>
+                          setPlayerApplicationForm({
+                            ...playerApplicationForm,
+                            fullName: event.target.value,
+                          })
+                        }
+                        required
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-slate-700">
+                        Geburtstag
+                      </span>
+                      <input
+                        type="date"
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                        value={playerApplicationForm.birthday}
+                        onChange={(event) =>
+                          setPlayerApplicationForm({
+                            ...playerApplicationForm,
+                            birthday: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-slate-700">E-Mail</span>
+                      <input
+                        type="email"
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                        value={playerApplicationForm.email}
+                        onChange={(event) =>
+                          setPlayerApplicationForm({
+                            ...playerApplicationForm,
+                            email: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-slate-700">
+                        Telefon
+                      </span>
+                      <input
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                        value={playerApplicationForm.phone}
+                        onChange={(event) =>
+                          setPlayerApplicationForm({
+                            ...playerApplicationForm,
+                            phone: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                  </div>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">Anschrift</span>
+                    <textarea
+                      rows={3}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      value={playerApplicationForm.address}
+                      onChange={(event) =>
+                        setPlayerApplicationForm({
+                          ...playerApplicationForm,
+                          address: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+
+                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                      Kontakt Eltern
+                    </p>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-2 block text-sm font-medium text-slate-700">Name</span>
+                        <input
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          value={playerApplicationForm.parentName}
+                          onChange={(event) =>
+                            setPlayerApplicationForm({
+                              ...playerApplicationForm,
+                              parentName: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-2 block text-sm font-medium text-slate-700">
+                          Telefonnummer
+                        </span>
+                        <input
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          value={playerApplicationForm.parentPhone}
+                          onChange={(event) =>
+                            setPlayerApplicationForm({
+                              ...playerApplicationForm,
+                              parentPhone: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                    </div>
+                    <label className="mt-4 block">
+                      <span className="mb-2 block text-sm font-medium text-slate-700">E-Mail</span>
+                      <input
+                        type="email"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                        value={playerApplicationForm.parentEmail}
+                        onChange={(event) =>
+                          setPlayerApplicationForm({
+                            ...playerApplicationForm,
+                            parentEmail: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                  </div>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">Notizen</span>
+                    <textarea
+                      rows={3}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      value={playerApplicationForm.notes}
+                      onChange={(event) =>
+                        setPlayerApplicationForm({
+                          ...playerApplicationForm,
+                          notes: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="submit"
+                      disabled={playerApplicationSubmitting}
+                      className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {playerApplicationSubmitting
+                        ? "Wird gesendet..."
+                        : "An Vorstand senden"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowPlayerApplicationForm(false)}
+                      className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                </form>
+              </div>
+            ) : null}
 
             <div className="mt-6 rounded-3xl bg-blue-50 px-5 py-4 text-sm text-blue-900">
               Teamzuweisungen werden im Bereich{" "}

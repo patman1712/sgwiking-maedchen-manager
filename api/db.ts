@@ -270,6 +270,30 @@ db.exec(`
     FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY(original_received_by) REFERENCES users(id) ON DELETE SET NULL
   );
+
+  CREATE TABLE IF NOT EXISTS pending_player_applications (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    full_name TEXT NOT NULL,
+    email TEXT DEFAULT '',
+    phone TEXT DEFAULT '',
+    birthday TEXT DEFAULT '',
+    address TEXT DEFAULT '',
+    parent_name TEXT DEFAULT '',
+    parent_phone TEXT DEFAULT '',
+    parent_email TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    requested_by TEXT NOT NULL,
+    requested_at TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('pending', 'approved', 'rejected')) DEFAULT 'pending',
+    reviewed_by TEXT DEFAULT NULL,
+    reviewed_at TEXT DEFAULT NULL,
+    created_user_id TEXT DEFAULT NULL,
+    FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY(requested_by) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY(created_user_id) REFERENCES users(id) ON DELETE SET NULL
+  );
 `)
 
 const teamColumns = (
@@ -846,6 +870,26 @@ type CashbookEntryRow = {
   updated_at: string
 }
 
+type PendingPlayerApplicationRow = {
+  id: string
+  team_id: string
+  full_name: string
+  email: string
+  phone: string
+  birthday: string
+  address: string
+  parent_name: string
+  parent_phone: string
+  parent_email: string
+  notes: string
+  requested_by: string
+  requested_at: string
+  status: 'pending' | 'approved' | 'rejected'
+  reviewed_by: string | null
+  reviewed_at: string | null
+  created_user_id: string | null
+}
+
 export const mapTeam = (row: TeamRow) => ({
   id: row.id,
   name: row.name,
@@ -1132,6 +1176,45 @@ export const getCashbookEntries = (userId?: string | null) => {
     }))
 }
 
+export const getPendingPlayerApplications = (userId?: string | null) => {
+  if (!userId) {
+    return []
+  }
+
+  const actor = getUserRowById(userId)
+  if (!actor) {
+    return []
+  }
+
+  const rows = db.prepare(
+    "SELECT * FROM pending_player_applications WHERE status = 'pending' ORDER BY requested_at DESC",
+  ).all() as PendingPlayerApplicationRow[]
+
+  if (actor.role === 'admin' || actor.role === 'board') {
+    return rows.map((row) => ({
+      id: row.id,
+      teamId: row.team_id,
+      fullName: row.full_name,
+      email: row.email || '',
+      phone: row.phone || '',
+      birthday: row.birthday || '',
+      address: row.address || '',
+      parentName: row.parent_name || '',
+      parentPhone: row.parent_phone || '',
+      parentEmail: row.parent_email || '',
+      notes: row.notes || '',
+      requestedBy: row.requested_by,
+      requestedAt: row.requested_at,
+      status: row.status,
+      reviewedBy: row.reviewed_by || null,
+      reviewedAt: row.reviewed_at || null,
+      createdUserId: row.created_user_id || null,
+    }))
+  }
+
+  return []
+}
+
 export const getSetting = (key: string) => {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
     | { value: string }
@@ -1159,6 +1242,7 @@ export const getBootstrapData = (userId?: string | null) => ({
   matches: getMatches(),
   inventoryItems: getInventoryItems(),
   cashbookEntries: getCashbookEntries(userId),
+  pendingPlayerApplications: getPendingPlayerApplications(userId),
   conversations: getConversations(userId),
   messages: getMessages(userId),
   settings: getSettings(),

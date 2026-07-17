@@ -21,6 +21,7 @@ import eventsRoutes from './routes/events.js'
 import inventoryRoutes from './routes/inventory.js'
 import matchesRoutes from './routes/matches.js'
 import messagesRoutes from './routes/messages.js'
+import playerApplicationsRoutes from './routes/player-applications.js'
 import settingsRoutes from './routes/settings.js'
 import teamsRoutes, { startAutomaticFussballDeImports } from './routes/teams.js'
 import usersRoutes from './routes/users.js'
@@ -55,6 +56,7 @@ app.use('/api/users', usersRoutes)
 app.use('/api/matches', matchesRoutes)
 app.use('/api/conversations', conversationsRoutes)
 app.use('/api/messages', messagesRoutes)
+app.use('/api/player-applications', playerApplicationsRoutes)
 app.use('/api/settings', settingsRoutes)
 app.use('/uploads', express.static(uploadPath))
 

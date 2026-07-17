@@ -7,6 +7,7 @@ import type {
   InventoryItem,
   Match,
   Message,
+  PendingPlayerApplication,
   PlayerDocumentType,
   Team,
   UserProfile,
@@ -53,6 +54,7 @@ interface ApiStatePayload {
   matches: Match[];
   inventoryItems: InventoryItem[];
   cashbookEntries: CashbookEntry[];
+  pendingPlayerApplications: PendingPlayerApplication[];
   conversations: Conversation[];
   messages: Message[];
   settings: AppSettings;
@@ -96,6 +98,7 @@ interface AppState {
   matches: Match[];
   inventoryItems: InventoryItem[];
   cashbookEntries: CashbookEntry[];
+  pendingPlayerApplications: PendingPlayerApplication[];
   conversations: Conversation[];
   messages: Message[];
   settings: AppSettings;
@@ -144,6 +147,23 @@ interface AppState {
     documentType: PlayerDocumentType,
     file: File,
   ) => Promise<ActionResult>;
+  submitPlayerApplication: (input: {
+    teamId: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    birthday?: string;
+    address: string;
+    parentName: string;
+    parentPhone: string;
+    parentEmail: string;
+    notes: string;
+  }) => Promise<ActionResult>;
+  approvePlayerApplication: (
+    applicationId: string,
+    input: { email: string; password: string },
+  ) => Promise<ActionResult>;
+  rejectPlayerApplication: (applicationId: string) => Promise<ActionResult>;
   addMatch: (input: {
     teamId: string;
     opponent: string;
@@ -191,6 +211,7 @@ export const initialAppState = {
   matches: [] as Match[],
   inventoryItems: [] as InventoryItem[],
   cashbookEntries: [] as CashbookEntry[],
+  pendingPlayerApplications: [] as PendingPlayerApplication[],
   conversations: [] as Conversation[],
   messages: [] as Message[],
   settings: {
@@ -228,6 +249,7 @@ const applyPayload = (
     matches: payload.matches,
     inventoryItems: payload.inventoryItems,
     cashbookEntries: payload.cashbookEntries,
+    pendingPlayerApplications: payload.pendingPlayerApplications,
     conversations: payload.conversations,
     messages: payload.messages,
     settings: payload.settings,
@@ -733,6 +755,87 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Unterlage konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      submitPlayerApplication: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch("/api/player-applications", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...input, actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Anmeldung konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      approvePlayerApplication: async (applicationId, input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/player-applications/${applicationId}/approve`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...input, actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Freischaltung konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      rejectPlayerApplication: async (applicationId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/player-applications/${applicationId}/reject`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Anmeldung konnte nicht abgelehnt werden.",
           };
         }
       },

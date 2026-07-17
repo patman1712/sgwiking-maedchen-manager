@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { BrowserRouter as Router, Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import BoardPage from "@/pages/BoardPage";
+import BoardMailboxPage from "@/pages/BoardMailboxPage";
 import DashboardHome from "@/pages/DashboardHome";
 import DashboardLayout from "@/pages/DashboardLayout";
 import FirstLoginPage from "@/pages/FirstLoginPage";
@@ -137,6 +138,7 @@ export default function App() {
           <Route path="players" element={<PlayersPage />} />
           <Route path="players/:playerId" element={<PlayerEditPage />} />
           <Route path="board" element={<BoardPage />} />
+          <Route path="board/mailbox" element={<BoardMailboxPage />} />
           <Route path="users" element={<Navigate to="/dashboard/trainers" replace />} />
           <Route path="messages" element={<MessagesPage />} />
           <Route path="profile" element={<ProfilePage />} />
