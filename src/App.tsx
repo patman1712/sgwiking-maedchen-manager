@@ -5,6 +5,7 @@ import BoardPage from "@/pages/BoardPage";
 import BoardMailboxPage from "@/pages/BoardMailboxPage";
 import DashboardHome from "@/pages/DashboardHome";
 import DashboardLayout from "@/pages/DashboardLayout";
+import FleaMarketPage from "@/pages/FleaMarketPage";
 import FirstLoginPage from "@/pages/FirstLoginPage";
 import Login from "@/pages/Login";
 import MessagesPage from "@/pages/MessagesPage";
@@ -141,6 +142,7 @@ export default function App() {
           <Route path="board/mailbox" element={<BoardMailboxPage />} />
           <Route path="users" element={<Navigate to="/dashboard/trainers" replace />} />
           <Route path="messages" element={<MessagesPage />} />
+          <Route path="flohmarkt" element={<FleaMarketPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>

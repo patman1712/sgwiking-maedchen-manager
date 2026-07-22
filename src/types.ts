@@ -116,6 +116,40 @@ export interface PendingPlayerApplication {
   createdUserId?: string | null;
 }
 
+export type MatchRescheduleRequestStatus = "pending" | "in_progress" | "done";
+
+export interface MatchRescheduleRequest {
+  id: string;
+  teamId: string;
+  matchId?: string | null;
+  matchLabel: string;
+  proposedKickoffAt: string;
+  reason: string;
+  coordinationNotes: string;
+  requestedBy: string;
+  requestedAt: string;
+  status: MatchRescheduleRequestStatus;
+  handledBy?: string | null;
+  handledAt?: string | null;
+  completedBy?: string | null;
+  completedAt?: string | null;
+}
+
+export interface FleaMarketListing {
+  id: string;
+  title: string;
+  description: string;
+  condition: string;
+  priceCents: number;
+  contactName: string;
+  contactPhone: string;
+  contactEmail: string;
+  imageUrls: string[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type ConversationType = "team" | "direct";
 
 export interface Conversation {

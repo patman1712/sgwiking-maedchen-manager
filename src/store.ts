@@ -4,8 +4,10 @@ import type {
   AppSettings,
   CashbookEntry,
   Conversation,
+  FleaMarketListing,
   InventoryItem,
   Match,
+  MatchRescheduleRequest,
   Message,
   PendingPlayerApplication,
   PlayerDocumentType,
@@ -55,6 +57,8 @@ interface ApiStatePayload {
   inventoryItems: InventoryItem[];
   cashbookEntries: CashbookEntry[];
   pendingPlayerApplications: PendingPlayerApplication[];
+  matchRescheduleRequests: MatchRescheduleRequest[];
+  fleaMarketListings: FleaMarketListing[];
   conversations: Conversation[];
   messages: Message[];
   settings: AppSettings;
@@ -99,6 +103,8 @@ interface AppState {
   inventoryItems: InventoryItem[];
   cashbookEntries: CashbookEntry[];
   pendingPlayerApplications: PendingPlayerApplication[];
+  matchRescheduleRequests: MatchRescheduleRequest[];
+  fleaMarketListings: FleaMarketListing[];
   conversations: Conversation[];
   messages: Message[];
   settings: AppSettings;
@@ -164,6 +170,29 @@ interface AppState {
     input: { email: string; password: string },
   ) => Promise<ActionResult>;
   rejectPlayerApplication: (applicationId: string) => Promise<ActionResult>;
+  clearPlayerApplicationTrash: () => Promise<ActionResult>;
+  submitMatchRescheduleRequest: (input: {
+    teamId: string;
+    matchId?: string | null;
+    matchLabel: string;
+    proposedKickoffAt: string;
+    reason: string;
+    coordinationNotes: string;
+  }) => Promise<ActionResult>;
+  setMatchRescheduleRequestInProgress: (requestId: string) => Promise<ActionResult>;
+  completeMatchRescheduleRequest: (requestId: string) => Promise<ActionResult>;
+  clearMatchRescheduleTrash: () => Promise<ActionResult>;
+  addFleaMarketListing: (input: {
+    title: string;
+    description: string;
+    condition: string;
+    price: string;
+    contactName: string;
+    contactPhone: string;
+    contactEmail: string;
+    imageFiles: File[];
+  }) => Promise<ActionResult>;
+  deleteFleaMarketListing: (listingId: string) => Promise<ActionResult>;
   addMatch: (input: {
     teamId: string;
     opponent: string;
@@ -212,6 +241,8 @@ export const initialAppState = {
   inventoryItems: [] as InventoryItem[],
   cashbookEntries: [] as CashbookEntry[],
   pendingPlayerApplications: [] as PendingPlayerApplication[],
+  matchRescheduleRequests: [] as MatchRescheduleRequest[],
+  fleaMarketListings: [] as FleaMarketListing[],
   conversations: [] as Conversation[],
   messages: [] as Message[],
   settings: {
@@ -250,6 +281,8 @@ const applyPayload = (
     inventoryItems: payload.inventoryItems,
     cashbookEntries: payload.cashbookEntries,
     pendingPlayerApplications: payload.pendingPlayerApplications,
+    matchRescheduleRequests: payload.matchRescheduleRequests,
+    fleaMarketListings: payload.fleaMarketListings,
     conversations: payload.conversations,
     messages: payload.messages,
     settings: payload.settings,
@@ -836,6 +869,208 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Anmeldung konnte nicht abgelehnt werden.",
+          };
+        }
+      },
+      clearPlayerApplicationTrash: async () => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch("/api/player-applications/trash", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Papierkorb konnte nicht geleert werden.",
+          };
+        }
+      },
+      submitMatchRescheduleRequest: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch("/api/match-reschedule-requests", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...input, actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Spielverlegungsantrag konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      setMatchRescheduleRequestInProgress: async (requestId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/match-reschedule-requests/${requestId}/in-progress`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Bearbeitungsstatus konnte nicht gesetzt werden.",
+          };
+        }
+      },
+      completeMatchRescheduleRequest: async (requestId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/match-reschedule-requests/${requestId}/complete`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Antrag konnte nicht als erledigt markiert werden.",
+          };
+        }
+      },
+      clearMatchRescheduleTrash: async () => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch("/api/match-reschedule-requests/trash", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Papierkorb konnte nicht geleert werden.",
+          };
+        }
+      },
+      addFleaMarketListing: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("actorId", actorId);
+          payload.append("title", input.title);
+          payload.append("description", input.description);
+          payload.append("condition", input.condition);
+          payload.append("price", input.price);
+          payload.append("contactName", input.contactName);
+          payload.append("contactPhone", input.contactPhone);
+          payload.append("contactEmail", input.contactEmail);
+
+          input.imageFiles.forEach((file) => {
+            payload.append("images", file);
+          });
+
+          const response = await fetch("/api/fleamarket", {
+            method: "POST",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Angebot konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      deleteFleaMarketListing: async (listingId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/fleamarket/${listingId}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Angebot konnte nicht geloescht werden.",
           };
         }
       },

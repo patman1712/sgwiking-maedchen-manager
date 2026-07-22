@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
@@ -8,6 +8,7 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  ShoppingBag,
   Shield,
   ShieldCheck,
   Users,
@@ -22,8 +23,13 @@ const menuItems = [
   { to: "/dashboard/teams", label: "Mannschaften", icon: Volleyball },
   { to: "__members__", label: "Mitglieder", icon: Users },
   { to: "/dashboard/messages", label: "Nachrichten", icon: MessageSquare },
+  { to: "/dashboard/flohmarkt", label: "Flohmarkt", icon: ShoppingBag },
   { to: "__board__", label: "Vorstand", icon: Briefcase },
 ] as const;
+
+const StableSidebarLogo = memo(function StableSidebarLogo({ src }: { src: string }) {
+  return <img src={src} alt="Teamwappen" className="h-full w-full object-contain" />;
+});
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -213,11 +219,7 @@ export default function DashboardLayout() {
           <Link to="/dashboard" className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl">
               {settings.logoUrl ? (
-                <img
-                  src={settings.logoUrl}
-                  alt="Teamwappen"
-                  className="h-full w-full object-contain"
-                />
+                <StableSidebarLogo src={settings.logoUrl} />
               ) : (
                 <div className="flex h-full w-full items-center justify-center rounded-2xl bg-white/15 text-white">
                   <ShieldCheck size={22} />

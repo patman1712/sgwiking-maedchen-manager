@@ -105,6 +105,9 @@ export default function TeamDetailPage() {
   const addMatch = useAppStore((state) => state.addMatch);
   const updateMatch = useAppStore((state) => state.updateMatch);
   const deleteMatch = useAppStore((state) => state.deleteMatch);
+  const submitMatchRescheduleRequest = useAppStore(
+    (state) => state.submitMatchRescheduleRequest,
+  );
   const ensureTeamConversation = useAppStore((state) => state.ensureTeamConversation);
   const submitPlayerApplication = useAppStore((state) => state.submitPlayerApplication);
   const navigate = useNavigate();
@@ -157,6 +160,17 @@ export default function TeamDetailPage() {
   });
   const [matchResultDrafts, setMatchResultDrafts] = useState<Record<string, string>>({});
   const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleSubmitting, setRescheduleSubmitting] = useState(false);
+  const [rescheduleMessage, setRescheduleMessage] = useState("");
+  const [rescheduleError, setRescheduleError] = useState("");
+  const [rescheduleForm, setRescheduleForm] = useState({
+    selectedMatchId: "",
+    manualMatchLabel: "",
+    proposedKickoffAt: "",
+    reason: "",
+    coordinationNotes: "",
+  });
   const [matchImporting, setMatchImporting] = useState(false);
   const [seasonDeleting, setSeasonDeleting] = useState<string | null>(null);
   const [matchImportMessage, setMatchImportMessage] = useState("");
@@ -357,6 +371,10 @@ export default function TeamDetailPage() {
       teamMatches.find((match) => new Date(match.kickoffAt).getTime() > nowDate) ?? null
     );
   }, [teamMatches]);
+  const upcomingTeamMatches = useMemo(
+    () => teamMatches.filter((match) => new Date(match.kickoffAt).getTime() > Date.now()),
+    [teamMatches],
+  );
   const lastMatch = useMemo(() => {
     const nowDate = Date.now();
     const pastMatches = teamMatches.filter(
@@ -433,6 +451,9 @@ export default function TeamDetailPage() {
 
   const getAwayTeamName = (match: (typeof teamMatches)[number]) =>
     match.awayTeamName || (match.isHome ? match.opponent : team.name);
+
+  const getMatchDisplayLabel = (match: (typeof teamMatches)[number]) =>
+    `${getHomeTeamName(match)} - ${getAwayTeamName(match)}`;
 
   const renderMatchLogo = (
     logoUrl: string | null | undefined,
@@ -1760,8 +1781,35 @@ export default function TeamDetailPage() {
           <SectionCard
             title="Spielplan"
             description="Aktuelle Saison direkt im Blick, aeltere Saisons nur bei Bedarf aufklappen."
+            actions={
+              canManageMatchesHere ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRescheduleError("");
+                    setRescheduleMessage("");
+                    setShowRescheduleModal(true);
+                  }}
+                  className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
+                >
+                  Spielverlegung anmelden
+                </button>
+              ) : null
+            }
           >
             <div className="space-y-4">
+              {rescheduleError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {rescheduleError}
+                </div>
+              ) : null}
+
+              {rescheduleMessage ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {rescheduleMessage}
+                </div>
+              ) : null}
+
               {teamMatches.length ? (
                 <div className="space-y-3">
                   <div className="rounded-3xl border border-blue-100 bg-blue-50/60 px-5 py-4">
@@ -3519,6 +3567,202 @@ export default function TeamDetailPage() {
             </div>
           </form>
         </SectionCard>
+      ) : null}
+
+      {showRescheduleModal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4"
+          onClick={() => {
+            if (!rescheduleSubmitting) {
+              setShowRescheduleModal(false);
+            }
+          }}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-lg font-semibold text-slate-900">Spielverlegung anmelden</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Der Antrag landet direkt im Postfach von Vorstand und Admin.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRescheduleModal(false)}
+                className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50"
+                disabled={rescheduleSubmitting}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form
+              className="mt-6 space-y-4"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                setRescheduleError("");
+                setRescheduleMessage("");
+                setRescheduleSubmitting(true);
+
+                const selectedMatch =
+                  upcomingTeamMatches.find((match) => match.id === rescheduleForm.selectedMatchId) ??
+                  null;
+                const matchLabel = selectedMatch
+                  ? getMatchDisplayLabel(selectedMatch)
+                  : rescheduleForm.manualMatchLabel.trim();
+                const proposedKickoffAt = rescheduleForm.proposedKickoffAt
+                  ? new Date(rescheduleForm.proposedKickoffAt).toISOString()
+                  : "";
+
+                const result = await submitMatchRescheduleRequest({
+                  teamId: team.id,
+                  matchId: selectedMatch?.id ?? null,
+                  matchLabel,
+                  proposedKickoffAt,
+                  reason: rescheduleForm.reason,
+                  coordinationNotes: rescheduleForm.coordinationNotes,
+                });
+
+                if (!result.success) {
+                  setRescheduleError(
+                    result.error ?? "Spielverlegungsantrag konnte nicht gespeichert werden.",
+                  );
+                  setRescheduleSubmitting(false);
+                  return;
+                }
+
+                setRescheduleForm({
+                  selectedMatchId: "",
+                  manualMatchLabel: "",
+                  proposedKickoffAt: "",
+                  reason: "",
+                  coordinationNotes: "",
+                });
+                setShowRescheduleModal(false);
+                setRescheduleMessage("Spielverlegungsantrag wurde an das Postfach weitergegeben.");
+                setRescheduleSubmitting(false);
+              }}
+            >
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-700">
+                  Spiel aus den naechsten Spielen waehlen
+                </span>
+                <select
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  value={rescheduleForm.selectedMatchId}
+                  onChange={(event) =>
+                    setRescheduleForm((current) => ({
+                      ...current,
+                      selectedMatchId: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="">Manuell eintragen</option>
+                  {upcomingTeamMatches.map((match) => (
+                    <option key={match.id} value={match.id}>
+                      {getMatchDisplayLabel(match)} |{" "}
+                      {new Date(match.kickoffAt).toLocaleString("de-DE")}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {!rescheduleForm.selectedMatchId ? (
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">
+                    Spiel manuell eintragen
+                  </span>
+                  <input
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    value={rescheduleForm.manualMatchLabel}
+                    onChange={(event) =>
+                      setRescheduleForm((current) => ({
+                        ...current,
+                        manualMatchLabel: event.target.value,
+                      }))
+                    }
+                    placeholder="z. B. SG Wiking Offenbach - FFC Frankfurt"
+                    required={!rescheduleForm.selectedMatchId}
+                  />
+                </label>
+              ) : null}
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-700">
+                  Neues Wunschdatum
+                </span>
+                <input
+                  type="datetime-local"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  value={rescheduleForm.proposedKickoffAt}
+                  onChange={(event) =>
+                    setRescheduleForm((current) => ({
+                      ...current,
+                      proposedKickoffAt: event.target.value,
+                    }))
+                  }
+                  required
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-700">Begruendung</span>
+                <textarea
+                  rows={4}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  value={rescheduleForm.reason}
+                  onChange={(event) =>
+                    setRescheduleForm((current) => ({
+                      ...current,
+                      reason: event.target.value,
+                    }))
+                  }
+                  placeholder="Warum soll das Spiel verlegt werden?"
+                  required
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-700">
+                  Notiz zu Absprachen mit dem Gegner
+                </span>
+                <textarea
+                  rows={3}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  value={rescheduleForm.coordinationNotes}
+                  onChange={(event) =>
+                    setRescheduleForm((current) => ({
+                      ...current,
+                      coordinationNotes: event.target.value,
+                    }))
+                  }
+                  placeholder="z. B. Gegner bereits informiert, Rueckmeldung steht noch aus."
+                />
+              </label>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="submit"
+                  disabled={rescheduleSubmitting}
+                  className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {rescheduleSubmitting ? "Wird gesendet..." : "Antrag senden"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowRescheduleModal(false)}
+                  disabled={rescheduleSubmitting}
+                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       ) : null}
 
       {imageModal ? (

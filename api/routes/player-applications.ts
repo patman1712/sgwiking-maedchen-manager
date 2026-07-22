@@ -315,4 +315,20 @@ router.patch('/:id/reject', (req: Request, res: Response) => {
   })
 })
 
+router.delete('/trash', (req: Request, res: Response) => {
+  const actorId = req.body.actorId as string | undefined
+
+  if (!actorId || !isAdminOrBoard(actorId)) {
+    res.status(403).json({ success: false, error: 'Nur Vorstand oder Admin duerfen den Papierkorb leeren.' })
+    return
+  }
+
+  db.prepare("DELETE FROM pending_player_applications WHERE status IN ('approved', 'rejected')").run()
+
+  res.json({
+    success: true,
+    ...getBootstrapData(actorId),
+  })
+})
+
 export default router

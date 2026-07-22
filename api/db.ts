@@ -294,6 +294,44 @@ db.exec(`
     FOREIGN KEY(reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY(created_user_id) REFERENCES users(id) ON DELETE SET NULL
   );
+
+  CREATE TABLE IF NOT EXISTS match_reschedule_requests (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    match_id TEXT DEFAULT NULL,
+    match_label TEXT NOT NULL,
+    proposed_kickoff_at TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    coordination_notes TEXT DEFAULT '',
+    requested_by TEXT NOT NULL,
+    requested_at TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('pending', 'in_progress', 'done')) DEFAULT 'pending',
+    handled_by TEXT DEFAULT NULL,
+    handled_at TEXT DEFAULT NULL,
+    completed_by TEXT DEFAULT NULL,
+    completed_at TEXT DEFAULT NULL,
+    FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY(match_id) REFERENCES matches(id) ON DELETE SET NULL,
+    FOREIGN KEY(requested_by) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(handled_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY(completed_by) REFERENCES users(id) ON DELETE SET NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS flea_market_listings (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    listing_condition TEXT DEFAULT '',
+    price_cents INTEGER NOT NULL DEFAULT 0,
+    contact_name TEXT DEFAULT '',
+    contact_phone TEXT DEFAULT '',
+    contact_email TEXT DEFAULT '',
+    image_urls TEXT DEFAULT '[]',
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
+  );
 `)
 
 const teamColumns = (
@@ -890,6 +928,38 @@ type PendingPlayerApplicationRow = {
   created_user_id: string | null
 }
 
+type MatchRescheduleRequestRow = {
+  id: string
+  team_id: string
+  match_id: string | null
+  match_label: string
+  proposed_kickoff_at: string
+  reason: string
+  coordination_notes: string
+  requested_by: string
+  requested_at: string
+  status: 'pending' | 'in_progress' | 'done'
+  handled_by: string | null
+  handled_at: string | null
+  completed_by: string | null
+  completed_at: string | null
+}
+
+type FleaMarketListingRow = {
+  id: string
+  title: string
+  description: string
+  listing_condition: string
+  price_cents: number
+  contact_name: string
+  contact_phone: string
+  contact_email: string
+  image_urls: string
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
 export const mapTeam = (row: TeamRow) => ({
   id: row.id,
   name: row.name,
@@ -1187,7 +1257,7 @@ export const getPendingPlayerApplications = (userId?: string | null) => {
   }
 
   const rows = db.prepare(
-    "SELECT * FROM pending_player_applications WHERE status = 'pending' ORDER BY requested_at DESC",
+    'SELECT * FROM pending_player_applications ORDER BY requested_at DESC',
   ).all() as PendingPlayerApplicationRow[]
 
   if (actor.role === 'admin' || actor.role === 'board') {
@@ -1213,6 +1283,84 @@ export const getPendingPlayerApplications = (userId?: string | null) => {
   }
 
   return []
+}
+
+export const getMatchRescheduleRequests = (userId?: string | null) => {
+  if (!userId) {
+    return []
+  }
+
+  const actor = getUserRowById(userId)
+  if (!actor) {
+    return []
+  }
+
+  if (actor.role !== 'admin' && actor.role !== 'board') {
+    return []
+  }
+
+  const rows = db.prepare(
+    'SELECT * FROM match_reschedule_requests ORDER BY requested_at DESC',
+  ).all() as MatchRescheduleRequestRow[]
+
+  return rows.map((row) => ({
+    id: row.id,
+    teamId: row.team_id,
+    matchId: row.match_id || null,
+    matchLabel: row.match_label,
+    proposedKickoffAt: row.proposed_kickoff_at,
+    reason: row.reason,
+    coordinationNotes: row.coordination_notes || '',
+    requestedBy: row.requested_by,
+    requestedAt: row.requested_at,
+    status: row.status,
+    handledBy: row.handled_by || null,
+    handledAt: row.handled_at || null,
+    completedBy: row.completed_by || null,
+    completedAt: row.completed_at || null,
+  }))
+}
+
+export const getFleaMarketListings = (userId?: string | null) => {
+  if (!userId) {
+    return []
+  }
+
+  const actor = getUserRowById(userId)
+  if (!actor) {
+    return []
+  }
+
+  const rows = db.prepare(
+    'SELECT * FROM flea_market_listings ORDER BY updated_at DESC, created_at DESC',
+  ).all() as FleaMarketListingRow[]
+
+  return rows.map((row) => {
+    let imageUrls: string[] = []
+    try {
+      const parsed = JSON.parse(row.image_urls || '[]') as unknown
+      if (Array.isArray(parsed)) {
+        imageUrls = parsed.filter((value): value is string => typeof value === 'string')
+      }
+    } catch {
+      imageUrls = []
+    }
+
+    return {
+      id: row.id,
+      title: row.title,
+      description: row.description || '',
+      condition: row.listing_condition || '',
+      priceCents: Number(row.price_cents) || 0,
+      contactName: row.contact_name || '',
+      contactPhone: row.contact_phone || '',
+      contactEmail: row.contact_email || '',
+      imageUrls,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }
+  })
 }
 
 export const getSetting = (key: string) => {
@@ -1243,6 +1391,8 @@ export const getBootstrapData = (userId?: string | null) => ({
   inventoryItems: getInventoryItems(),
   cashbookEntries: getCashbookEntries(userId),
   pendingPlayerApplications: getPendingPlayerApplications(userId),
+  matchRescheduleRequests: getMatchRescheduleRequests(userId),
+  fleaMarketListings: getFleaMarketListings(userId),
   conversations: getConversations(userId),
   messages: getMessages(userId),
   settings: getSettings(),

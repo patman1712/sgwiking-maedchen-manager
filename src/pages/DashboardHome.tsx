@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Briefcase,
@@ -61,6 +61,24 @@ type DashboardUnifiedEvent = {
   category: string;
   sourceType: "manual" | "match";
 };
+
+const StableTeamLogo = memo(function StableTeamLogo({
+  logoUrl,
+  teamName,
+}: {
+  logoUrl: string;
+  teamName: string;
+}) {
+  return (
+    <img
+      src={logoUrl}
+      alt={teamName}
+      className="h-10 w-10 rounded-full border border-white/80 bg-white object-contain shadow-sm"
+      loading="lazy"
+      decoding="async"
+    />
+  );
+});
 
 export default function DashboardHome() {
   const teams = useAppStore((state) => state.teams);
@@ -298,11 +316,7 @@ export default function DashboardHome() {
 
   const renderTeamLogo = (logoUrl: string | null | undefined, teamName: string) =>
     logoUrl ? (
-      <img
-        src={logoUrl}
-        alt={teamName}
-        className="h-10 w-10 rounded-full border border-white/80 bg-white object-contain shadow-sm"
-      />
+      <StableTeamLogo logoUrl={logoUrl} teamName={teamName} />
     ) : (
       <div className="flex h-10 w-10 items-center justify-center rounded-full border border-blue-100 bg-white text-blue-700 shadow-sm">
         <Volleyball size={16} />
