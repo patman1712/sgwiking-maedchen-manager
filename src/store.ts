@@ -14,6 +14,7 @@ import type {
   SocialMediaCrest,
   SocialMediaLayer,
   SocialMediaDraft,
+  SocialMediaFont,
   SocialMediaTextSnippet,
   Team,
   UserProfile,
@@ -65,6 +66,7 @@ interface ApiStatePayload {
   fleaMarketListings: FleaMarketListing[];
   socialMediaDrafts: SocialMediaDraft[];
   socialMediaCrests: SocialMediaCrest[];
+  socialMediaFonts: SocialMediaFont[];
   socialMediaTextSnippets: SocialMediaTextSnippet[];
   conversations: Conversation[];
   messages: Message[];
@@ -115,6 +117,7 @@ interface AppState {
   fleaMarketListings: FleaMarketListing[];
   socialMediaDrafts: SocialMediaDraft[];
   socialMediaCrests: SocialMediaCrest[];
+  socialMediaFonts: SocialMediaFont[];
   socialMediaTextSnippets: SocialMediaTextSnippet[];
   conversations: Conversation[];
   messages: Message[];
@@ -235,6 +238,8 @@ interface AppState {
   deleteSocialMediaDraft: (draftId: string) => Promise<ActionResult>;
   addSocialMediaCrest: (input: { name: string; file: File }) => Promise<ActionResult>;
   deleteSocialMediaCrest: (crestId: string) => Promise<ActionResult>;
+  addSocialMediaFont: (input: { name: string; family: string; file: File }) => Promise<ActionResult>;
+  deleteSocialMediaFont: (fontId: string) => Promise<ActionResult>;
   addSocialMediaTextSnippet: (input: {
     label: string;
     content: string;
@@ -301,6 +306,7 @@ export const initialAppState = {
   fleaMarketListings: [] as FleaMarketListing[],
   socialMediaDrafts: [] as SocialMediaDraft[],
   socialMediaCrests: [] as SocialMediaCrest[],
+  socialMediaFonts: [] as SocialMediaFont[],
   socialMediaTextSnippets: [] as SocialMediaTextSnippet[],
   conversations: [] as Conversation[],
   messages: [] as Message[],
@@ -350,6 +356,7 @@ const applyPayload = (
     fleaMarketListings: payload.fleaMarketListings,
     socialMediaDrafts: payload.socialMediaDrafts,
     socialMediaCrests: payload.socialMediaCrests,
+    socialMediaFonts: payload.socialMediaFonts,
     socialMediaTextSnippets: payload.socialMediaTextSnippets,
     conversations: payload.conversations,
     messages: payload.messages,
@@ -1309,6 +1316,65 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Wappen konnte nicht geloescht werden.",
+          };
+        }
+      },
+      addSocialMediaFont: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("actorId", actorId);
+          payload.append("name", input.name);
+          payload.append("family", input.family);
+          payload.append("font", input.file);
+
+          const response = await fetch("/api/social-media/fonts", {
+            method: "POST",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Schriftart konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      deleteSocialMediaFont: async (fontId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/social-media/fonts/${fontId}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Schriftart konnte nicht geloescht werden.",
           };
         }
       },

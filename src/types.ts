@@ -193,6 +193,9 @@ export interface SocialMediaLayer {
   heightPercent?: number;
   lockPosition?: boolean;
   lockSize?: boolean;
+  fontFamily?: string;
+  fontSize?: number;
+  textColor?: string;
 }
 
 export interface SocialMediaDraft {
@@ -225,6 +228,16 @@ export interface SocialMediaTextSnippet {
   label: string;
   content: string;
   category: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SocialMediaFont {
+  id: string;
+  name: string;
+  family: string;
+  fileUrl: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

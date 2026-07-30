@@ -361,6 +361,17 @@ db.exec(`
     FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS social_media_fonts (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    family TEXT NOT NULL,
+    file_url TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS social_media_text_snippets (
     id TEXT PRIMARY KEY,
     label TEXT NOT NULL,
@@ -1106,6 +1117,16 @@ type SocialMediaCrestRow = {
   updated_at: string
 }
 
+type SocialMediaFontRow = {
+  id: string
+  name: string
+  family: string
+  file_url: string
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
 export const mapTeam = (row: TeamRow) => ({
   id: row.id,
   name: row.name,
@@ -1566,6 +1587,9 @@ export const getSocialMediaDrafts = (userId?: string | null) => {
       heightPercent?: number
       lockPosition?: boolean
       lockSize?: boolean
+      fontFamily?: string
+      fontSize?: number
+      textColor?: string
     }> = []
     try {
       const parsed = JSON.parse(row.layers_json || '[]') as unknown
@@ -1588,6 +1612,9 @@ export const getSocialMediaDrafts = (userId?: string | null) => {
             heightPercent?: number
             lockPosition?: boolean
             lockSize?: boolean
+            fontFamily?: string
+            fontSize?: number
+            textColor?: string
           } =>
             Boolean(
               entry &&
@@ -1609,7 +1636,13 @@ export const getSocialMediaDrafts = (userId?: string | null) => {
                 ((entry as { lockPosition?: unknown }).lockPosition === undefined ||
                   typeof (entry as { lockPosition?: unknown }).lockPosition === 'boolean') &&
                 ((entry as { lockSize?: unknown }).lockSize === undefined ||
-                  typeof (entry as { lockSize?: unknown }).lockSize === 'boolean'),
+                  typeof (entry as { lockSize?: unknown }).lockSize === 'boolean') &&
+                ((entry as { fontFamily?: unknown }).fontFamily === undefined ||
+                  typeof (entry as { fontFamily?: unknown }).fontFamily === 'string') &&
+                ((entry as { fontSize?: unknown }).fontSize === undefined ||
+                  typeof (entry as { fontSize?: unknown }).fontSize === 'number') &&
+                ((entry as { textColor?: unknown }).textColor === undefined ||
+                  typeof (entry as { textColor?: unknown }).textColor === 'string'),
             ),
         )
       }
@@ -1673,6 +1706,26 @@ export const getSocialMediaCrests = (userId?: string | null) => {
     id: row.id,
     name: row.name,
     imageUrl: row.image_url,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }))
+}
+
+export const getSocialMediaFonts = (userId?: string | null) => {
+  if (!userId || !canUseSocialMedia(userId)) {
+    return []
+  }
+
+  const rows = db.prepare(
+    'SELECT * FROM social_media_fonts ORDER BY updated_at DESC, created_at DESC',
+  ).all() as SocialMediaFontRow[]
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    family: row.family,
+    fileUrl: row.file_url,
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -1755,6 +1808,7 @@ export const getBootstrapData = (userId?: string | null) => ({
   fleaMarketListings: getFleaMarketListings(userId),
   socialMediaDrafts: getSocialMediaDrafts(userId),
   socialMediaCrests: getSocialMediaCrests(userId),
+  socialMediaFonts: getSocialMediaFonts(userId),
   socialMediaTextSnippets: getSocialMediaTextSnippets(userId),
   conversations: getConversations(userId),
   messages: getMessages(userId),

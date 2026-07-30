@@ -24,6 +24,7 @@ import type {
   SocialMediaCrest,
   SocialMediaDraft,
   SocialMediaDraftType,
+  SocialMediaFont,
   SocialMediaLayer,
   SocialMediaLayerKind,
   SocialMediaLayoutOption,
@@ -47,6 +48,22 @@ type EditorAsset =
       url: string;
       file: File;
     };
+
+type FontOption = {
+  value: string;
+  label: string;
+  source: "system" | "uploaded";
+  fileUrl?: string;
+};
+
+const defaultFontOptions: FontOption[] = [
+  { value: "Inter", label: "Inter", source: "system" },
+  { value: "Arial", label: "Arial", source: "system" },
+  { value: "Georgia", label: "Georgia", source: "system" },
+  { value: "Montserrat", label: "Montserrat", source: "system" },
+  { value: "Oswald", label: "Oswald", source: "system" },
+  { value: "Poppins", label: "Poppins", source: "system" },
+];
 
 function isSharedCrestRef(ref?: string) {
   return Boolean(ref?.startsWith(SHARED_CREST_PREFIX));
@@ -149,6 +166,9 @@ function createLayer(
       heightPercent: 100,
       lockPosition: false,
       lockSize: false,
+      fontFamily: undefined,
+      fontSize: undefined,
+      textColor: undefined,
     },
     badge: {
       kind: "badge",
@@ -159,6 +179,9 @@ function createLayer(
       enabled: true,
       lockPosition: false,
       lockSize: false,
+      fontFamily: "Montserrat",
+      fontSize: 12,
+      textColor: "#0f172a",
     },
     title: {
       kind: "title",
@@ -169,6 +192,9 @@ function createLayer(
       enabled: true,
       lockPosition: false,
       lockSize: false,
+      fontFamily: "Oswald",
+      fontSize: 42,
+      textColor: "#ffffff",
     },
     subtitle: {
       kind: "subtitle",
@@ -179,6 +205,9 @@ function createLayer(
       enabled: true,
       lockPosition: false,
       lockSize: false,
+      fontFamily: "Inter",
+      fontSize: 18,
+      textColor: "#f8fafc",
     },
     caption: {
       kind: "caption",
@@ -189,6 +218,9 @@ function createLayer(
       enabled: true,
       lockPosition: false,
       lockSize: false,
+      fontFamily: "Inter",
+      fontSize: 16,
+      textColor: "#f8fafc",
     },
     cta: {
       kind: "cta",
@@ -199,6 +231,9 @@ function createLayer(
       enabled: true,
       lockPosition: false,
       lockSize: false,
+      fontFamily: "Montserrat",
+      fontSize: 12,
+      textColor: "#0f172a",
     },
   };
 
@@ -361,10 +396,14 @@ function getImageStyleClasses(style: SocialMediaLayerStyle, full = false) {
 
 function normalizeImageLayer(layer: SocialMediaLayer): SocialMediaLayer {
   if (layer.kind !== "image") {
+    const defaults = getDefaultTextAppearance(layer);
     return {
       ...layer,
       lockPosition: layer.lockPosition ?? false,
       lockSize: layer.lockSize ?? false,
+      fontFamily: layer.fontFamily ?? defaults.fontFamily,
+      fontSize: layer.fontSize ?? defaults.fontSize,
+      textColor: layer.textColor ?? defaults.textColor,
     };
   }
 
@@ -373,6 +412,16 @@ function normalizeImageLayer(layer: SocialMediaLayer): SocialMediaLayer {
     ...getImageLayerGeometry(layer),
     lockPosition: layer.lockPosition ?? false,
     lockSize: layer.lockSize ?? false,
+  };
+}
+
+function getTextInlineStyle(layer: SocialMediaLayer) {
+  const defaults = getDefaultTextAppearance(layer);
+
+  return {
+    color: layer.textColor ?? defaults.textColor,
+    fontFamily: `"${layer.fontFamily ?? defaults.fontFamily}", Inter, system-ui, sans-serif`,
+    fontSize: `${Math.round(layer.fontSize ?? defaults.fontSize)}px`,
   };
 }
 
@@ -386,6 +435,35 @@ function canResizeLayer(layer: SocialMediaLayer, respectLayerLocks: boolean) {
   }
 
   return !respectLayerLocks || !layer.lockSize;
+}
+
+function getDefaultTextAppearance(layer: SocialMediaLayer) {
+  switch (layer.kind) {
+    case "title":
+      return { fontFamily: "Oswald", fontSize: 42, textColor: "#ffffff" };
+    case "subtitle":
+      return {
+        fontFamily: "Inter",
+        fontSize: layer.style === "solid" ? 16 : 18,
+        textColor: "#f8fafc",
+      };
+    case "caption":
+      return { fontFamily: "Inter", fontSize: 16, textColor: "#f8fafc" };
+    case "badge":
+      return {
+        fontFamily: "Montserrat",
+        fontSize: 12,
+        textColor: layer.style === "pill" ? "#0f172a" : "#ffffff",
+      };
+    case "cta":
+      return {
+        fontFamily: "Montserrat",
+        fontSize: 12,
+        textColor: layer.style === "solid" ? "#0f172a" : "#ffffff",
+      };
+    default:
+      return { fontFamily: "Inter", fontSize: 16, textColor: "#ffffff" };
+  }
 }
 
 function getTextWrapperClasses(
@@ -701,7 +779,9 @@ function SocialPreview({
               getTextWrapperClasses(layer, draftType, activeLayerId === layer.id),
             )}
           >
-            <div className={getTextClasses(layer)}>{text}</div>
+            <div className={getTextClasses(layer)} style={getTextInlineStyle(layer)}>
+              {text}
+            </div>
           </button>
         );
       })}
@@ -712,6 +792,7 @@ function SocialPreview({
 export default function SocialMediaPage() {
   const socialMediaDrafts = useAppStore((state) => state.socialMediaDrafts);
   const socialMediaCrests = useAppStore((state) => state.socialMediaCrests);
+  const socialMediaFonts = useAppStore((state) => state.socialMediaFonts);
   const socialMediaTextSnippets = useAppStore((state) => state.socialMediaTextSnippets);
   const users = useAppStore((state) => state.users);
   const currentUserId = useAppStore((state) => state.currentUserId);
@@ -722,6 +803,8 @@ export default function SocialMediaPage() {
   const deleteSocialMediaDraft = useAppStore((state) => state.deleteSocialMediaDraft);
   const addSocialMediaCrest = useAppStore((state) => state.addSocialMediaCrest);
   const deleteSocialMediaCrest = useAppStore((state) => state.deleteSocialMediaCrest);
+  const addSocialMediaFont = useAppStore((state) => state.addSocialMediaFont);
+  const deleteSocialMediaFont = useAppStore((state) => state.deleteSocialMediaFont);
   const addSocialMediaTextSnippet = useAppStore((state) => state.addSocialMediaTextSnippet);
   const updateSocialMediaTextSnippet = useAppStore((state) => state.updateSocialMediaTextSnippet);
   const deleteSocialMediaTextSnippet = useAppStore((state) => state.deleteSocialMediaTextSnippet);
@@ -734,6 +817,7 @@ export default function SocialMediaPage() {
   const canManageSocial = currentUser?.role === "admin";
   const canUseSocial =
     canManageSocial || (currentUser?.role === "trainer" && Boolean(currentUser.socialMediaEnabled));
+  const isTrainerSocialUser = currentUser?.role === "trainer";
 
   if (!canUseSocial) {
     return <Navigate to="/dashboard" replace />;
@@ -787,6 +871,23 @@ export default function SocialMediaPage() {
     () => users.filter((user) => user.role === "trainer"),
     [users],
   );
+  const fontOptions = useMemo(() => {
+    const uploaded = socialMediaFonts.map((font: SocialMediaFont) => ({
+      value: font.family,
+      label: font.name,
+      source: "uploaded" as const,
+      fileUrl: font.fileUrl,
+    }));
+
+    const merged = [...defaultFontOptions];
+    uploaded.forEach((option) => {
+      if (!merged.some((entry) => entry.value === option.value)) {
+        merged.push(option);
+      }
+    });
+
+    return merged;
+  }, [socialMediaFonts]);
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
@@ -814,6 +915,10 @@ export default function SocialMediaPage() {
   const [crestName, setCrestName] = useState("");
   const [crestFile, setCrestFile] = useState<File | null>(null);
   const [crestSubmitting, setCrestSubmitting] = useState(false);
+  const [fontName, setFontName] = useState("");
+  const [fontFamilyName, setFontFamilyName] = useState("");
+  const [fontFile, setFontFile] = useState<File | null>(null);
+  const [fontSubmitting, setFontSubmitting] = useState(false);
   const [accessSavingId, setAccessSavingId] = useState<string | null>(null);
   const [layoutForm, setLayoutForm] = useState<SocialMediaLayoutOption[]>(managedLayoutOptions);
   const [layoutSubmitting, setLayoutSubmitting] = useState(false);
@@ -847,10 +952,37 @@ export default function SocialMediaPage() {
     editorLayers.find((layer) => layer.kind === "title") ?? null;
   const selectedTemplate =
     templateDrafts.find((draft) => draft.id === selectedTemplateId) ?? templateDrafts[0] ?? null;
+  const trainerPostingLabel =
+    editorMode === "create" ? "Posting einreichen" : "Posting aktualisieren";
 
   useEffect(() => {
     setLayoutForm(managedLayoutOptions);
   }, [managedLayoutOptions]);
+
+  useEffect(() => {
+    if (!socialMediaFonts.length || typeof document === "undefined") {
+      return;
+    }
+
+    const styleTag = document.createElement("style");
+    styleTag.setAttribute("data-social-fonts", "true");
+    styleTag.textContent = socialMediaFonts
+      .map(
+        (font) => `
+@font-face {
+  font-family: "${font.family}";
+  src: url("${font.fileUrl}");
+  font-display: swap;
+}
+        `.trim(),
+      )
+      .join("\n");
+    document.head.appendChild(styleTag);
+
+    return () => {
+      styleTag.remove();
+    };
+  }, [socialMediaFonts]);
 
   const resetDraftEditor = () => {
     setEditorMode("create");
@@ -1158,26 +1290,7 @@ export default function SocialMediaPage() {
                   Neue Vorlage
                 </button>
               </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => openCreateDraft("feed")}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-sky-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
-                >
-                  <Plus size={18} />
-                  Feed erstellen
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openCreateDraft("story")}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                >
-                  <Plus size={18} />
-                  Story erstellen
-                </button>
-              </>
-            )}
+            ) : null}
           </div>
         }
       >
@@ -1424,16 +1537,82 @@ export default function SocialMediaPage() {
                   </div>
                 ) : null}
 
+                {!canManageSocial && releasedTemplateDrafts.length ? (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Vorlagen</p>
+                      <p className="text-sm text-slate-600">
+                        Waehle eine freigegebene Vorlage aus und bearbeite daraus direkt dein Posting.
+                      </p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {releasedTemplateDrafts.map((draft) => {
+                        const previewAssets = buildDraftAssets(draft, socialMediaCrests);
+                        const previewLayers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
+
+                        return (
+                          <div
+                            key={draft.id}
+                            className="overflow-hidden rounded-[2rem] border border-sky-200 bg-white shadow-sm"
+                          >
+                            <div className="border-b border-sky-100 bg-sky-50/70 p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-sky-900">
+                                  <Layers3 size={14} />
+                                  Vorlage
+                                </div>
+                                <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                                  {draft.draftType === "story" ? "Story" : "Feed"}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="p-4">
+                              <SocialPreview
+                                draftType={draft.draftType}
+                                layout={draft.layout}
+                                layers={previewLayers}
+                                assets={previewAssets}
+                                logoUrl={settings.logoUrl}
+                              />
+
+                              <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-base font-semibold text-slate-900">{draft.title}</p>
+                                  <p className="mt-1 text-sm text-slate-600">
+                                    {getLayoutLabel(draft.layout)}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    Zuletzt aktualisiert: {previewDate(draft.updatedAt)}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => useTemplateAsDraft(draft)}
+                                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
+                                >
+                                  <Plus size={15} />
+                                  Posting starten
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
                 {editableDrafts.length ? (
                   <div className="space-y-3">
                     <div>
                       <p className="text-sm font-semibold text-slate-900">
-                        {canManageSocial ? "Entwuerfe" : "Meine Entwuerfe"}
+                        {canManageSocial ? "Entwuerfe" : "Meine Postings"}
                       </p>
                       <p className="text-sm text-slate-600">
                         {canManageSocial
                           ? "Hier liegen bearbeitbare Entwuerfe und individuelle Varianten."
-                          : "Hier bearbeitest du deine eigenen Feed- und Story-Entwuerfe."}
+                          : "Hier bearbeitest du deine eingereichten Feed- und Story-Postings."}
                       </p>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
@@ -1620,6 +1799,121 @@ export default function SocialMediaPage() {
                         />
                       </label>
                     ))}
+                  </div>
+                </SectionCard>
+
+                <SectionCard
+                  title="Schriftarten"
+                  description="Admin kann eigene Fonts hochladen. Danach stehen sie in allen Textebenen zur Auswahl."
+                >
+                  <div className="space-y-4">
+                    <form
+                      className="space-y-3 rounded-3xl border border-slate-200 bg-slate-50 p-4"
+                      onSubmit={async (event) => {
+                        event.preventDefault();
+                        if (!fontName.trim() || !fontFamilyName.trim() || !fontFile) {
+                          setError("Bitte Anzeigenamen, Schriftfamilie und Font-Datei angeben.");
+                          return;
+                        }
+
+                        setError("");
+                        setSuccess("");
+                        setFontSubmitting(true);
+                        const result = await addSocialMediaFont({
+                          name: fontName.trim(),
+                          family: fontFamilyName.trim(),
+                          file: fontFile,
+                        });
+
+                        if (!result.success) {
+                          setError(result.error ?? "Schriftart konnte nicht gespeichert werden.");
+                        } else {
+                          setSuccess("Schriftart wurde gespeichert.");
+                          setFontName("");
+                          setFontFamilyName("");
+                          setFontFile(null);
+                        }
+
+                        setFontSubmitting(false);
+                      }}
+                    >
+                      <input
+                        value={fontName}
+                        onChange={(event) => setFontName(event.target.value)}
+                        placeholder="Anzeigename, z. B. Vereinsheadline"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                      />
+                      <input
+                        value={fontFamilyName}
+                        onChange={(event) => setFontFamilyName(event.target.value)}
+                        placeholder="Schriftfamilie, z. B. WikingHeadline"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                      />
+                      <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-600">
+                        <span>
+                          {fontFile ? fontFile.name : "TTF, OTF, WOFF oder WOFF2 hochladen"}
+                        </span>
+                        <input
+                          type="file"
+                          accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2"
+                          className="hidden"
+                          onChange={(event) => setFontFile(event.target.files?.[0] ?? null)}
+                        />
+                        <span className="rounded-xl bg-slate-100 px-3 py-1 font-semibold text-slate-700">
+                          Datei waehlen
+                        </span>
+                      </label>
+                      <button
+                        type="submit"
+                        disabled={fontSubmitting}
+                        className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {fontSubmitting ? "Speichert..." : "Schriftart speichern"}
+                      </button>
+                    </form>
+
+                    {socialMediaFonts.length ? (
+                      <div className="space-y-3">
+                        {socialMediaFonts.map((font) => (
+                          <div
+                            key={font.id}
+                            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4"
+                          >
+                            <div>
+                              <p className="text-sm font-semibold text-slate-900">{font.name}</p>
+                              <p className="text-xs text-slate-500">
+                                Familie: {font.family}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={savingId === font.id}
+                              onClick={async () => {
+                                const confirmed = window.confirm("Schriftart wirklich loeschen?");
+                                if (!confirmed) {
+                                  return;
+                                }
+                                setSavingId(font.id);
+                                const result = await deleteSocialMediaFont(font.id);
+                                if (!result.success) {
+                                  setError(result.error ?? "Schriftart konnte nicht geloescht werden.");
+                                } else {
+                                  setSuccess("Schriftart wurde geloescht.");
+                                }
+                                setSavingId(null);
+                              }}
+                              className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Loeschen
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+                        Noch keine eigenen Schriftarten hochgeladen.
+                      </div>
+                    )}
                   </div>
                 </SectionCard>
 
@@ -1960,13 +2254,19 @@ export default function SocialMediaPage() {
                       ? "Neue Social-Media-Vorlage"
                       : "Vorlage bearbeiten"
                     : editorMode === "create"
-                      ? "Neuer Social-Media-Entwurf"
-                      : "Entwurf bearbeiten"}
+                      ? isTrainerSocialUser
+                        ? "Neues Posting"
+                        : "Neuer Social-Media-Entwurf"
+                      : isTrainerSocialUser
+                        ? "Posting bearbeiten"
+                        : "Entwurf bearbeiten"}
                 </p>
                 <p className="mt-1 text-sm text-slate-600">
                   {editorIsTemplate
                     ? "Diese Grundvorlage bleibt gesperrt fuer Trainer und dient als Basis fuer neue Entwuerfe."
-                    : "Bilder, Textkarten und Buttons sind echte Ebenen und koennen frei aufgebaut werden."}
+                    : isTrainerSocialUser
+                      ? "Du arbeitest direkt auf einer freigegebenen Vorlage und reichst daraus dein Posting ein."
+                      : "Bilder, Textkarten und Buttons sind echte Ebenen und koennen frei aufgebaut werden."}
                 </p>
               </div>
               <button
@@ -1983,10 +2283,14 @@ export default function SocialMediaPage() {
               <div className="space-y-4">
                 <SectionCard
                   title="Grundaufbau"
-                  description="Format, Vorlagenauswahl und Bild-Assets fuer den Entwurf."
+                  description={
+                    isTrainerSocialUser
+                      ? "Titel und Bild-Assets fuer dein Posting auf Basis der gewaehlten Vorlage."
+                      : "Format, Vorlagenauswahl und Bild-Assets fuer den Entwurf."
+                  }
                 >
                   <div className="space-y-4">
-                    {!editorIsTemplate && releasedTemplateDrafts.length ? (
+                    {!editorIsTemplate && !isTrainerSocialUser && releasedTemplateDrafts.length ? (
                       <div className="rounded-3xl border border-sky-200 bg-sky-50/70 p-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
@@ -1995,17 +2299,6 @@ export default function SocialMediaPage() {
                               Feed oder Story starten und dann eine bestehende Vorlage als Basis laden.
                             </p>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              resetDraftEditor();
-                              setEditorDraftType(editorDraftType);
-                              setEditorOpen(true);
-                            }}
-                            className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                          >
-                            Leerer Start
-                          </button>
                         </div>
                         <div className="mt-3 grid gap-3 md:grid-cols-2">
                           {releasedTemplateDrafts.map((template) => (
@@ -2045,35 +2338,56 @@ export default function SocialMediaPage() {
                       </p>
                     </label>
 
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label className="block">
-                        <span className="mb-2 block text-sm font-medium text-slate-700">Format</span>
-                        <select
-                          value={editorDraftType}
-                          onChange={(event) =>
-                            setEditorDraftType(event.target.value as SocialMediaDraftType)
-                          }
-                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                        >
-                          <option value="feed">Feed</option>
-                          <option value="story">Story</option>
-                        </select>
-                      </label>
-                      <label className="block">
-                        <span className="mb-2 block text-sm font-medium text-slate-700">Vorlage</span>
-                        <select
-                          value={editorLayout}
-                          onChange={(event) => setEditorLayout(event.target.value)}
-                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                        >
-                          {editorLayoutOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
+                    {isTrainerSocialUser ? (
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                            Format
+                          </p>
+                          <p className="mt-2 text-sm font-semibold text-slate-900">
+                            {editorDraftType === "story" ? "Story" : "Feed"}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                            Vorlage
+                          </p>
+                          <p className="mt-2 text-sm font-semibold text-slate-900">
+                            {getLayoutLabel(editorLayout)}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <label className="block">
+                          <span className="mb-2 block text-sm font-medium text-slate-700">Format</span>
+                          <select
+                            value={editorDraftType}
+                            onChange={(event) =>
+                              setEditorDraftType(event.target.value as SocialMediaDraftType)
+                            }
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                          >
+                            <option value="feed">Feed</option>
+                            <option value="story">Story</option>
+                          </select>
+                        </label>
+                        <label className="block">
+                          <span className="mb-2 block text-sm font-medium text-slate-700">Vorlage</span>
+                          <select
+                            value={editorLayout}
+                            onChange={(event) => setEditorLayout(event.target.value)}
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                          >
+                            {editorLayoutOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    )}
 
                     <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
                       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2307,6 +2621,9 @@ export default function SocialMediaPage() {
                                 kind,
                                 style: createLayer(kind).style,
                                 position: createLayer(kind).position,
+                                fontFamily: createLayer(kind).fontFamily,
+                                fontSize: createLayer(kind).fontSize,
+                                textColor: createLayer(kind).textColor,
                                 imageRef:
                                   kind === "image"
                                     ? activeLayer.imageRef ?? editorAssets[0]?.ref
@@ -2551,17 +2868,112 @@ export default function SocialMediaPage() {
                           </div>
                         </div>
                       ) : (
-                        <label className="block">
-                          <span className="mb-2 block text-sm font-medium text-slate-700">Text</span>
-                          <textarea
-                            rows={activeLayer.kind === "caption" ? 6 : 3}
-                            value={activeLayer.text ?? ""}
-                            onChange={(event) =>
-                              updateLayer(activeLayer.id, { text: event.target.value })
-                            }
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                          />
-                        </label>
+                        <div className="space-y-4">
+                          <label className="block">
+                            <span className="mb-2 block text-sm font-medium text-slate-700">Text</span>
+                            <textarea
+                              rows={activeLayer.kind === "caption" ? 6 : 3}
+                              value={activeLayer.text ?? ""}
+                              onChange={(event) =>
+                                updateLayer(activeLayer.id, { text: event.target.value })
+                              }
+                              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                            />
+                          </label>
+
+                          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="mb-3">
+                              <p className="text-sm font-semibold text-slate-900">Schrift</p>
+                              <p className="text-xs text-slate-500">
+                                Schriftart, Groesse und Farbe fuer diese Textebene.
+                              </p>
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <label className="block">
+                                <span className="mb-2 block text-sm font-medium text-slate-700">
+                                  Schriftart
+                                </span>
+                                <select
+                                  value={
+                                    activeLayer.fontFamily ?? getDefaultTextAppearance(activeLayer).fontFamily
+                                  }
+                                  onChange={(event) =>
+                                    updateLayer(activeLayer.id, {
+                                      fontFamily: event.target.value,
+                                    })
+                                  }
+                                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                >
+                                  {fontOptions.map((option) => (
+                                    <option key={`${option.source}-${option.value}`} value={option.value}>
+                                      {option.label}
+                                      {option.source === "uploaded" ? " (hochgeladen)" : ""}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+
+                              <label className="block">
+                                <span className="mb-2 block text-sm font-medium text-slate-700">
+                                  Schriftfarbe
+                                </span>
+                                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                                  <input
+                                    type="color"
+                                    value={
+                                      activeLayer.textColor ?? getDefaultTextAppearance(activeLayer).textColor
+                                    }
+                                    onChange={(event) =>
+                                      updateLayer(activeLayer.id, {
+                                        textColor: event.target.value,
+                                      })
+                                    }
+                                    className="h-11 w-14 cursor-pointer rounded-xl border-0 bg-transparent p-0"
+                                  />
+                                  <input
+                                    value={
+                                      activeLayer.textColor ?? getDefaultTextAppearance(activeLayer).textColor
+                                    }
+                                    onChange={(event) =>
+                                      updateLayer(activeLayer.id, {
+                                        textColor: event.target.value,
+                                      })
+                                    }
+                                    className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                  />
+                                </div>
+                              </label>
+                            </div>
+
+                            <label className="mt-4 block">
+                              <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
+                                <span>Schriftgroesse</span>
+                                <span className="font-semibold text-slate-900">
+                                  {Math.round(
+                                    activeLayer.fontSize ?? getDefaultTextAppearance(activeLayer).fontSize,
+                                  )}
+                                  px
+                                </span>
+                              </div>
+                              <input
+                                type="range"
+                                min={10}
+                                max={72}
+                                step={1}
+                                value={
+                                  activeLayer.fontSize ?? getDefaultTextAppearance(activeLayer).fontSize
+                                }
+                                onChange={(event) =>
+                                  updateLayer(activeLayer.id, {
+                                    fontSize: Number(event.target.value),
+                                  })
+                                }
+                                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
+                              />
+                            </label>
+                          </div>
+                        </div>
                       )}
                     </div>
                   ) : (
@@ -2697,7 +3109,12 @@ export default function SocialMediaPage() {
                             });
 
                       if (!result.success) {
-                        setError(result.error ?? "Entwurf konnte nicht gespeichert werden.");
+                        setError(
+                          result.error ??
+                            (isTrainerSocialUser
+                              ? "Posting konnte nicht eingereicht werden."
+                              : "Entwurf konnte nicht gespeichert werden."),
+                        );
                         setDraftSubmitting(false);
                         return;
                       }
@@ -2708,8 +3125,12 @@ export default function SocialMediaPage() {
                             ? "Vorlage wurde gespeichert."
                             : "Vorlage wurde aktualisiert."
                           : editorMode === "create"
-                            ? "Entwurf wurde gespeichert."
-                            : "Entwurf wurde aktualisiert.",
+                            ? isTrainerSocialUser
+                              ? "Posting wurde eingereicht."
+                              : "Entwurf wurde gespeichert."
+                            : isTrainerSocialUser
+                              ? "Posting wurde aktualisiert."
+                              : "Entwurf wurde aktualisiert.",
                       );
                       setEditorOpen(false);
                       resetDraftEditor();
@@ -2723,9 +3144,11 @@ export default function SocialMediaPage() {
                         ? editorMode === "create"
                           ? "Vorlage speichern"
                           : "Vorlage aktualisieren"
-                        : editorMode === "create"
-                          ? "Entwurf speichern"
-                          : "Aenderungen speichern"}
+                        : isTrainerSocialUser
+                          ? trainerPostingLabel
+                          : editorMode === "create"
+                            ? "Entwurf speichern"
+                            : "Aenderungen speichern"}
                   </button>
                   <button
                     type="button"

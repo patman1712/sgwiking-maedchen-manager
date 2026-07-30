@@ -7,8 +7,10 @@ import db, { canUseSocialMedia, createId, DATA_DIR, getBootstrapData, getUserRow
 const router = Router()
 const uploadDir = path.join(DATA_DIR, 'uploads', 'social-media')
 const crestUploadDir = path.join(DATA_DIR, 'uploads', 'social-media-crests')
+const fontUploadDir = path.join(DATA_DIR, 'uploads', 'social-media-fonts')
 fs.mkdirSync(uploadDir, { recursive: true })
 fs.mkdirSync(crestUploadDir, { recursive: true })
+fs.mkdirSync(fontUploadDir, { recursive: true })
 
 const storage = multer.diskStorage({
   destination: (_req, _file, callback) => {
@@ -33,6 +35,18 @@ const crestStorage = multer.diskStorage({
 })
 
 const crestUpload = multer({ storage: crestStorage })
+
+const fontStorage = multer.diskStorage({
+  destination: (_req, _file, callback) => {
+    callback(null, fontUploadDir)
+  },
+  filename: (_req, file, callback) => {
+    const extension = path.extname(file.originalname) || '.woff2'
+    callback(null, `font-${Date.now()}-${Math.random().toString(16).slice(2)}${extension}`)
+  },
+})
+
+const fontUpload = multer({ storage: fontStorage })
 
 const canManageSocialMediaLibrary = (actorId: string) => getUserRowById(actorId)?.role === 'admin'
 const isSharedSocialAssetUrl = (value: string) => value.startsWith('/uploads/social-media-crests/')
@@ -83,6 +97,9 @@ const parseLayers = (value: string | null | undefined) => {
       heightPercent?: number
       lockPosition?: boolean
       lockSize?: boolean
+      fontFamily?: string
+      fontSize?: number
+      textColor?: string
     }>
   }
 
@@ -107,6 +124,9 @@ const parseLayers = (value: string | null | undefined) => {
           heightPercent?: number
           lockPosition?: boolean
           lockSize?: boolean
+          fontFamily?: string
+          fontSize?: number
+          textColor?: string
         } =>
           Boolean(
             entry &&
@@ -120,7 +140,13 @@ const parseLayers = (value: string | null | undefined) => {
               ((entry as { lockPosition?: unknown }).lockPosition === undefined ||
                 typeof (entry as { lockPosition?: unknown }).lockPosition === 'boolean') &&
               ((entry as { lockSize?: unknown }).lockSize === undefined ||
-                typeof (entry as { lockSize?: unknown }).lockSize === 'boolean'),
+                typeof (entry as { lockSize?: unknown }).lockSize === 'boolean') &&
+              ((entry as { fontFamily?: unknown }).fontFamily === undefined ||
+                typeof (entry as { fontFamily?: unknown }).fontFamily === 'string') &&
+              ((entry as { fontSize?: unknown }).fontSize === undefined ||
+                typeof (entry as { fontSize?: unknown }).fontSize === 'number') &&
+              ((entry as { textColor?: unknown }).textColor === undefined ||
+                typeof (entry as { textColor?: unknown }).textColor === 'string'),
           ),
       )
     }
@@ -147,6 +173,9 @@ const remapLayerImageRefs = (
     heightPercent?: number
     lockPosition?: boolean
     lockSize?: boolean
+    fontFamily?: string
+    fontSize?: number
+    textColor?: string
   }>,
   uploadedImageUrls: string[],
   retainedImageUrls: string[],
@@ -705,6 +734,93 @@ router.delete('/crests/:id', (req: Request, res: Response) => {
 
   db.prepare('DELETE FROM social_media_crests WHERE id = ?').run(id)
   const filePath = path.join(crestUploadDir, path.basename(crest.image_url))
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath)
+  }
+
+  res.json({
+    success: true,
+    ...getBootstrapData(actorId),
+  })
+})
+
+router.post('/fonts', fontUpload.single('font'), (req: Request, res: Response) => {
+  const actorId = req.body.actorId as string | undefined
+  const name = req.body.name as string | undefined
+  const family = req.body.family as string | undefined
+  const file = req.file
+
+  if (!actorId) {
+    cleanupFiles(file ? [file] : undefined)
+    res.status(400).json({ success: false, error: 'Fehlender Benutzerkontext.' })
+    return
+  }
+
+  if (!canManageSocialMediaLibrary(actorId)) {
+    cleanupFiles(file ? [file] : undefined)
+    res.status(403).json({ success: false, error: 'Schriftarten koennen nur vom Admin verwaltet werden.' })
+    return
+  }
+
+  if (!name?.trim() || !family?.trim() || !file) {
+    cleanupFiles(file ? [file] : undefined)
+    res.status(400).json({ success: false, error: 'Bitte Namen, Schriftfamilie und Font-Datei angeben.' })
+    return
+  }
+
+  const timestamp = now()
+  db.prepare(`
+    INSERT INTO social_media_fonts (
+      id,
+      name,
+      family,
+      file_url,
+      created_by,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    createId('font'),
+    name.trim(),
+    family.trim(),
+    `/uploads/social-media-fonts/${file.filename}`,
+    actorId,
+    timestamp,
+    timestamp,
+  )
+
+  res.json({
+    success: true,
+    ...getBootstrapData(actorId),
+  })
+})
+
+router.delete('/fonts/:id', (req: Request, res: Response) => {
+  const { id } = req.params
+  const actorId = (req.body?.actorId as string | undefined) ?? (req.query.actorId as string | undefined)
+
+  if (!actorId) {
+    res.status(400).json({ success: false, error: 'Fehlender Benutzerkontext.' })
+    return
+  }
+
+  if (!canManageSocialMediaLibrary(actorId)) {
+    res.status(403).json({ success: false, error: 'Schriftarten koennen nur vom Admin verwaltet werden.' })
+    return
+  }
+
+  const font = db
+    .prepare('SELECT id, file_url FROM social_media_fonts WHERE id = ?')
+    .get(id) as { id: string; file_url: string } | undefined
+
+  if (!font) {
+    res.status(404).json({ success: false, error: 'Schriftart nicht gefunden.' })
+    return
+  }
+
+  db.prepare('DELETE FROM social_media_fonts WHERE id = ?').run(id)
+  const filePath = path.join(fontUploadDir, path.basename(font.file_url))
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath)
   }
