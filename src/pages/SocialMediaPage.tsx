@@ -729,6 +729,7 @@ export default function SocialMediaPage() {
   const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const [editorIsTemplate, setEditorIsTemplate] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [draftSubmitting, setDraftSubmitting] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [imageModal, setImageModal] = useState<{ src: string; alt: string } | null>(null);
@@ -760,6 +761,10 @@ export default function SocialMediaPage() {
     editorLayers.find((layer) => layer.kind !== "image") ??
     editorLayers[0] ??
     null;
+  const primaryTitleLayer =
+    editorLayers.find((layer) => layer.kind === "title") ?? null;
+  const selectedTemplate =
+    templateDrafts.find((draft) => draft.id === selectedTemplateId) ?? templateDrafts[0] ?? null;
 
   const resetDraftEditor = () => {
     setEditorMode("create");
@@ -773,10 +778,11 @@ export default function SocialMediaPage() {
     setActiveLayerId(starter.find((layer) => layer.kind !== "image")?.id ?? starter[0]?.id ?? null);
   };
 
-  const openCreateDraft = () => {
+  const openCreateDraft = (draftType: SocialMediaDraftType = "feed") => {
     setError("");
     setSuccess("");
     resetDraftEditor();
+    setEditorDraftType(draftType);
     setEditorOpen(true);
   };
 
@@ -819,6 +825,44 @@ export default function SocialMediaPage() {
       "create",
       false,
     );
+  };
+
+  const duplicateTemplateAsTemplate = (draft: SocialMediaDraft) => {
+    openEditorWithDraft(
+      {
+        ...draft,
+        isTemplate: true,
+      },
+      "create",
+      true,
+    );
+  };
+
+  const applyTemplateToEditor = (draftId: string) => {
+    const draft = templateDrafts.find((entry) => entry.id === draftId);
+    if (!draft || editorIsTemplate) {
+      return;
+    }
+
+    setEditorDraftType(draft.draftType);
+    setEditorLayout(draft.layout);
+    setEditorAssets(buildDraftAssets(draft, socialMediaCrests));
+    const layers = (draft.layers.length ? draft.layers : buildFallbackLayers(draft)).map(
+      normalizeImageLayer,
+    );
+    setEditorLayers(layers);
+    setActiveLayerId(layers[0]?.id ?? null);
+  };
+
+  const updatePrimaryTitle = (value: string) => {
+    if (primaryTitleLayer) {
+      updateLayer(primaryTitleLayer.id, { text: value });
+      return;
+    }
+
+    const nextLayer = createLayer("title", { text: value });
+    setEditorLayers((current) => [normalizeImageLayer(nextLayer), ...current]);
+    setActiveLayerId(nextLayer.id);
   };
 
   const updateLayer = (layerId: string, patch: Partial<SocialMediaLayer>) => {
@@ -950,11 +994,19 @@ export default function SocialMediaPage() {
               <>
                 <button
                   type="button"
-                  onClick={openCreateDraft}
+                  onClick={() => openCreateDraft("feed")}
                   className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-sky-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
                 >
                   <Plus size={18} />
-                  Neuen Entwurf anlegen
+                  Feed erstellen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openCreateDraft("story")}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  <Plus size={18} />
+                  Story erstellen
                 </button>
                 <button
                   type="button"
@@ -965,7 +1017,26 @@ export default function SocialMediaPage() {
                   Neue Vorlage
                 </button>
               </>
-            ) : null}
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => openCreateDraft("feed")}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-sky-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
+                >
+                  <Plus size={18} />
+                  Feed erstellen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openCreateDraft("story")}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  <Plus size={18} />
+                  Story erstellen
+                </button>
+              </>
+            )}
           </div>
         }
       >
@@ -1022,18 +1093,125 @@ export default function SocialMediaPage() {
 
             {drafts.length ? (
               <div className="space-y-6">
-                {templateDrafts.length ? (
+                {canManageSocial && templateDrafts.length ? (
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">Vorlagen</p>
-                        <p className="text-sm text-slate-600">
-                          {canManageSocial
-                            ? "Admin gestaltet die Grundvorlagen, Trainer koennen sie als Entwurf uebernehmen."
-                            : "Diese Vorlagen kannst du nutzen, aber nicht direkt veraendern."}
-                        </p>
+                    <div className="rounded-[2rem] border border-sky-200 bg-[linear-gradient(135deg,rgba(224,242,254,0.75),rgba(255,255,255,0.98))] p-5 shadow-sm">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">Vorlagen verwalten</p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            Erst Vorlage auswaehlen, dann umbenennen, als neue Vorlage speichern oder direkt bearbeiten.
+                          </p>
+                        </div>
+                        {selectedTemplate ? (
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openEditDraft(selectedTemplate)}
+                              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                            >
+                              <Pencil size={15} />
+                              Bearbeiten
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => duplicateTemplateAsTemplate(selectedTemplate)}
+                              className="inline-flex items-center gap-2 rounded-2xl border border-sky-200 bg-white px-3 py-2 text-sm font-semibold text-sky-900 transition hover:bg-sky-50"
+                            >
+                              <CopyPlus size={15} />
+                              Als neue Vorlage speichern
+                            </button>
+                            <button
+                              type="button"
+                              disabled={savingId === selectedTemplate.id}
+                              onClick={async () => {
+                                const confirmed = window.confirm("Vorlage wirklich loeschen?");
+                                if (!confirmed) {
+                                  return;
+                                }
+                                setError("");
+                                setSuccess("");
+                                setSavingId(selectedTemplate.id);
+                                const result = await deleteSocialMediaDraft(selectedTemplate.id);
+                                if (!result.success) {
+                                  setError(result.error ?? "Vorlage konnte nicht geloescht werden.");
+                                } else {
+                                  setSuccess("Vorlage wurde geloescht.");
+                                  setSelectedTemplateId(null);
+                                }
+                                setSavingId(null);
+                              }}
+                              className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <Trash2 size={15} />
+                              Loeschen
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
+
+                      {selectedTemplate ? (
+                        <div className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+                          <div className="overflow-hidden rounded-[1.75rem] border border-sky-100 bg-white p-4 shadow-sm">
+                            <SocialPreview
+                              draftType={selectedTemplate.draftType}
+                              layout={selectedTemplate.layout}
+                              layers={
+                                selectedTemplate.layers.length
+                                  ? selectedTemplate.layers
+                                  : buildFallbackLayers(selectedTemplate)
+                              }
+                              assets={buildDraftAssets(selectedTemplate, socialMediaCrests)}
+                              logoUrl={settings.logoUrl}
+                            />
+                          </div>
+                          <div className="space-y-3 rounded-[1.75rem] border border-sky-100 bg-white p-4 shadow-sm">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+                                Ausgewaehlte Vorlage
+                              </p>
+                              <p className="mt-2 text-xl font-semibold text-slate-900">
+                                {selectedTemplate.title}
+                              </p>
+                              <p className="mt-1 text-sm text-slate-600">
+                                {selectedTemplate.draftType === "story" ? "Story" : "Feed"} ·{" "}
+                                {layoutOptions.find((option) => option.value === selectedTemplate.layout)?.label ??
+                                  "Vorlage"}
+                              </p>
+                            </div>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                              <p className="text-sm font-semibold text-slate-900">So arbeitest du damit</p>
+                              <p className="mt-2 text-sm text-slate-600">
+                                `Bearbeiten` aendert die bestehende Vorlage. `Als neue Vorlage speichern`
+                                erstellt eine Kopie, die du umbenennen und separat speichern kannst.
+                              </p>
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Zuletzt aktualisiert
+                                </p>
+                                <p className="mt-2 text-sm font-semibold text-slate-900">
+                                  {previewDate(selectedTemplate.updatedAt)}
+                                </p>
+                              </div>
+                              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Ebenen
+                                </p>
+                                <p className="mt-2 text-sm font-semibold text-slate-900">
+                                  {(selectedTemplate.layers.length
+                                    ? selectedTemplate.layers
+                                    : buildFallbackLayers(selectedTemplate)
+                                  ).length}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
+
                     <div className="grid gap-4 md:grid-cols-2">
                       {templateDrafts.map((draft) => {
                         const previewAssets = buildDraftAssets(draft, socialMediaCrests);
@@ -1042,7 +1220,12 @@ export default function SocialMediaPage() {
                         return (
                           <div
                             key={draft.id}
-                            className="overflow-hidden rounded-[2rem] border border-sky-200 bg-white shadow-sm"
+                            className={cn(
+                              "overflow-hidden rounded-[2rem] border bg-white shadow-sm transition",
+                              selectedTemplate?.id === draft.id
+                                ? "border-sky-400 ring-2 ring-sky-200"
+                                : "border-sky-200",
+                            )}
                           >
                             <div className="border-b border-sky-100 bg-sky-50/70 p-3">
                               <div className="flex items-center justify-between gap-3">
@@ -1066,7 +1249,11 @@ export default function SocialMediaPage() {
                               />
 
                               <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
-                                <div className="min-w-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedTemplateId(draft.id)}
+                                  className="min-w-0 text-left"
+                                >
                                   <p className="text-base font-semibold text-slate-900">{draft.title}</p>
                                   <p className="mt-1 text-sm text-slate-600">
                                     {layoutOptions.find((option) => option.value === draft.layout)?.label ??
@@ -1078,52 +1265,16 @@ export default function SocialMediaPage() {
                                   <p className="mt-1 text-xs text-slate-500">
                                     Von {sellerName(draft.createdBy)}
                                   </p>
-                                </div>
+                                </button>
                                 <div className="flex flex-wrap gap-2">
                                   <button
                                     type="button"
-                                    onClick={() => useTemplateAsDraft(draft)}
-                                    className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-sky-600 px-3 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5"
+                                    onClick={() => setSelectedTemplateId(draft.id)}
+                                    className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                                   >
-                                    <CopyPlus size={15} />
-                                    Als Entwurf nutzen
+                                    <Layers3 size={15} />
+                                    Auswaehlen
                                   </button>
-                                  {canManageSocial ? (
-                                    <>
-                                      <button
-                                        type="button"
-                                        onClick={() => openEditDraft(draft)}
-                                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                                      >
-                                        <Pencil size={15} />
-                                        Vorlage bearbeiten
-                                      </button>
-                                      <button
-                                        type="button"
-                                        disabled={savingId === draft.id}
-                                        onClick={async () => {
-                                          const confirmed = window.confirm("Vorlage wirklich loeschen?");
-                                          if (!confirmed) {
-                                            return;
-                                          }
-                                          setError("");
-                                          setSuccess("");
-                                          setSavingId(draft.id);
-                                          const result = await deleteSocialMediaDraft(draft.id);
-                                          if (!result.success) {
-                                            setError(result.error ?? "Vorlage konnte nicht geloescht werden.");
-                                          } else {
-                                            setSuccess("Vorlage wurde geloescht.");
-                                          }
-                                          setSavingId(null);
-                                        }}
-                                        className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                                      >
-                                        <Trash2 size={15} />
-                                        Loeschen
-                                      </button>
-                                    </>
-                                  ) : null}
                                 </div>
                               </div>
                             </div>
@@ -1137,11 +1288,13 @@ export default function SocialMediaPage() {
                 {editableDrafts.length ? (
                   <div className="space-y-3">
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">Entwuerfe</p>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {canManageSocial ? "Entwuerfe" : "Meine Entwuerfe"}
+                      </p>
                       <p className="text-sm text-slate-600">
                         {canManageSocial
                           ? "Hier liegen bearbeitbare Entwuerfe und individuelle Varianten."
-                          : "Das sind deine bearbeitbaren Entwuerfe aus den Vorlagen."}
+                          : "Hier bearbeitest du deine eigenen Feed- und Story-Entwuerfe."}
                       </p>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
@@ -1244,37 +1397,37 @@ export default function SocialMediaPage() {
 
           <div className="space-y-4">
             {canManageSocial ? (
-              <SectionCard
-                title="Trainer-Freigaben"
-                description="Nur freigeschaltete Trainer sehen Social Media und koennen Vorlagen als Entwurf verwenden."
-              >
-                <div className="space-y-3">
-                  {trainerUsers.map((trainer) => (
-                    <label
-                      key={trainer.id}
-                      className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
-                    >
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">{trainer.fullName}</p>
-                        <p className="text-xs text-slate-500">{trainer.email}</p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(trainer.socialMediaEnabled)}
-                        disabled={accessSavingId === trainer.id}
-                        onChange={(event) => void toggleTrainerAccess(trainer.id, event.target.checked)}
-                        className="h-5 w-5 rounded border-slate-300 text-blue-700 focus:ring-blue-500"
-                      />
-                    </label>
-                  ))}
-                </div>
-              </SectionCard>
-            ) : null}
+              <>
+                <SectionCard
+                  title="Trainer-Freigaben"
+                  description="Nur freigeschaltete Trainer sehen Social Media und koennen Vorlagen als Entwurf verwenden."
+                >
+                  <div className="space-y-3">
+                    {trainerUsers.map((trainer) => (
+                      <label
+                        key={trainer.id}
+                        className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                      >
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{trainer.fullName}</p>
+                          <p className="text-xs text-slate-500">{trainer.email}</p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(trainer.socialMediaEnabled)}
+                          disabled={accessSavingId === trainer.id}
+                          onChange={(event) => void toggleTrainerAccess(trainer.id, event.target.checked)}
+                          className="h-5 w-5 rounded border-slate-300 text-blue-700 focus:ring-blue-500"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </SectionCard>
 
-            <SectionCard
-              title="Wappen"
-              description="PNG mit transparentem Hintergrund eignet sich hier ideal fuer freigestellte Vereinswappen."
-            >
+                <SectionCard
+                  title="Wappen"
+                  description="PNG mit transparentem Hintergrund eignet sich hier ideal fuer freigestellte Vereinswappen."
+                >
               <div className="space-y-4">
                 {canManageSocial ? (
                   <form
@@ -1396,15 +1549,14 @@ export default function SocialMediaPage() {
                   </div>
                 )}
               </div>
-            </SectionCard>
+                </SectionCard>
 
-            <SectionCard
-              title="Textbausteine"
-              description="Bausteine koennen in die aktuell aktive Textebene uebernommen werden."
-            >
-              <div className="space-y-4">
-                {canManageSocial ? (
-                <form
+                <SectionCard
+                  title="Textbausteine"
+                  description="Bausteine koennen in die aktuell aktive Textebene uebernommen werden."
+                >
+                  <div className="space-y-4">
+                    <form
                   className="space-y-3 rounded-3xl border border-slate-200 bg-slate-50 p-4"
                   onSubmit={async (event) => {
                     event.preventDefault();
@@ -1498,10 +1650,9 @@ export default function SocialMediaPage() {
                       </button>
                     ) : null}
                   </div>
-                </form>
-                ) : null}
+                    </form>
 
-                {snippets.length ? (
+                    {snippets.length ? (
                   snippets.map((snippet) => (
                     <div
                       key={snippet.id}
@@ -1522,22 +1673,20 @@ export default function SocialMediaPage() {
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {canManageSocial ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingSnippetId(snippet.id);
-                                setSnippetForm({
-                                  label: snippet.label,
-                                  content: snippet.content,
-                                  category: snippet.category,
-                                });
-                              }}
-                              className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                            >
-                              Bearbeiten
-                            </button>
-                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingSnippetId(snippet.id);
+                              setSnippetForm({
+                                label: snippet.label,
+                                content: snippet.content,
+                                category: snippet.category,
+                              });
+                            }}
+                            className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                          >
+                            Bearbeiten
+                          </button>
                           <button
                             type="button"
                             onClick={() => insertSnippet(snippet.content)}
@@ -1547,33 +1696,31 @@ export default function SocialMediaPage() {
                             <CopyPlus size={14} />
                             Einfuegen
                           </button>
-                          {canManageSocial ? (
-                            <button
-                              type="button"
-                              disabled={savingId === snippet.id}
-                              onClick={async () => {
-                                const confirmed = window.confirm("Textbaustein wirklich loeschen?");
-                                if (!confirmed) {
-                                  return;
-                                }
-                                setError("");
-                                setSuccess("");
-                                setSavingId(snippet.id);
-                                const result = await deleteSocialMediaTextSnippet(snippet.id);
-                                if (!result.success) {
-                                  setError(
-                                    result.error ?? "Textbaustein konnte nicht geloescht werden.",
-                                  );
-                                } else {
-                                  setSuccess("Textbaustein wurde geloescht.");
-                                }
-                                setSavingId(null);
-                              }}
-                              className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              Loeschen
-                            </button>
-                          ) : null}
+                          <button
+                            type="button"
+                            disabled={savingId === snippet.id}
+                            onClick={async () => {
+                              const confirmed = window.confirm("Textbaustein wirklich loeschen?");
+                              if (!confirmed) {
+                                return;
+                              }
+                              setError("");
+                              setSuccess("");
+                              setSavingId(snippet.id);
+                              const result = await deleteSocialMediaTextSnippet(snippet.id);
+                              if (!result.success) {
+                                setError(
+                                  result.error ?? "Textbaustein konnte nicht geloescht werden.",
+                                );
+                              } else {
+                                setSuccess("Textbaustein wurde geloescht.");
+                              }
+                              setSavingId(null);
+                            }}
+                            className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Loeschen
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -1584,9 +1731,11 @@ export default function SocialMediaPage() {
                       Noch keine Textbausteine
                     </p>
                   </div>
-                )}
-              </div>
-            </SectionCard>
+                    )}
+                  </div>
+                </SectionCard>
+              </>
+            ) : null}
           </div>
         </div>
       </SectionCard>
@@ -1635,9 +1784,69 @@ export default function SocialMediaPage() {
               <div className="space-y-4">
                 <SectionCard
                   title="Grundaufbau"
-                  description="Format, Vorlage und Bild-Assets fuer den Entwurf."
+                  description="Format, Vorlagenauswahl und Bild-Assets fuer den Entwurf."
                 >
                   <div className="space-y-4">
+                    {!editorIsTemplate && templateDrafts.length ? (
+                      <div className="rounded-3xl border border-sky-200 bg-sky-50/70 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">Vorlage waehlen</p>
+                            <p className="text-sm text-slate-600">
+                              Feed oder Story starten und dann eine bestehende Vorlage als Basis laden.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              resetDraftEditor();
+                              setEditorDraftType(editorDraftType);
+                              setEditorOpen(true);
+                            }}
+                            className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                          >
+                            Leerer Start
+                          </button>
+                        </div>
+                        <div className="mt-3 grid gap-3 md:grid-cols-2">
+                          {templateDrafts.map((template) => (
+                            <button
+                              key={template.id}
+                              type="button"
+                              onClick={() => applyTemplateToEditor(template.id)}
+                              className="rounded-2xl border border-sky-100 bg-white px-4 py-3 text-left shadow-sm transition hover:border-sky-300 hover:bg-sky-50"
+                            >
+                              <p className="text-sm font-semibold text-slate-900">{template.title}</p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {template.draftType === "story" ? "Story" : "Feed"} ·{" "}
+                                {layoutOptions.find((option) => option.value === template.layout)?.label ??
+                                  "Vorlage"}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-slate-700">
+                        {editorIsTemplate ? "Vorlagenname" : "Titel"}
+                      </span>
+                      <input
+                        value={primaryTitleLayer?.text ?? ""}
+                        onChange={(event) => updatePrimaryTitle(event.target.value)}
+                        placeholder={
+                          editorIsTemplate ? "Name der Vorlage" : "Titel fuer Feed oder Story"
+                        }
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      />
+                      <p className="mt-2 text-xs text-slate-500">
+                        {editorIsTemplate
+                          ? "Hier kannst du die Vorlage direkt umbenennen."
+                          : "Der Titel wird aus der ersten Titel-Ebene gespeichert."}
+                      </p>
+                    </label>
+
                     <div className="grid gap-4 md:grid-cols-2">
                       <label className="block">
                         <span className="mb-2 block text-sm font-medium text-slate-700">Format</span>
