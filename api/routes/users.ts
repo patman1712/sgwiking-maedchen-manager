@@ -157,6 +157,7 @@ router.post('/', (req: Request, res: Response) => {
     hasMembershipApplication,
     hasMedicalCertificate,
     hasPhotoConsentSocial,
+    socialMediaEnabled,
   } = req.body as {
     actorId?: string
     fullName?: string
@@ -176,6 +177,7 @@ router.post('/', (req: Request, res: Response) => {
     hasMembershipApplication?: boolean
     hasMedicalCertificate?: boolean
     hasPhotoConsentSocial?: boolean
+    socialMediaEnabled?: boolean
   }
 
   if (!fullName || !email || !password || !role) {
@@ -317,6 +319,7 @@ router.put('/:id', (req: Request, res: Response) => {
     hasMembershipApplication,
     hasMedicalCertificate,
     hasPhotoConsentSocial,
+    socialMediaEnabled,
   } = req.body as {
     actorId?: string
     fullName?: string
@@ -336,6 +339,7 @@ router.put('/:id', (req: Request, res: Response) => {
     hasMembershipApplication?: boolean
     hasMedicalCertificate?: boolean
     hasPhotoConsentSocial?: boolean
+    socialMediaEnabled?: boolean
   }
 
   const user = getUserRowById(id)
@@ -353,6 +357,15 @@ router.put('/:id', (req: Request, res: Response) => {
   const targetRole = role ?? user.role
   const wantsMembershipUpdate = Array.isArray(teamIds)
   const canManagePlayerDocuments = isAdminOrBoard(actorId)
+  const wantsSocialMediaAccessUpdate = typeof socialMediaEnabled === 'boolean'
+
+  if (wantsSocialMediaAccessUpdate && getUserRowById(actorId)?.role !== 'admin') {
+    res.status(403).json({
+      success: false,
+      error: 'Social-Media-Freigaben koennen nur vom Admin geaendert werden.',
+    })
+    return
+  }
 
   if (targetRole === 'player') {
     if (wantsMembershipUpdate) {
@@ -433,6 +446,12 @@ router.put('/:id', (req: Request, res: Response) => {
         ? 1
         : 0
       : user.has_photo_consent_social
+  const nextSocialMediaEnabled =
+    typeof socialMediaEnabled === 'boolean'
+      ? socialMediaEnabled
+        ? 1
+        : 0
+      : user.social_media_enabled
 
   const transaction = db.transaction(() => {
     if (password?.trim()) {
@@ -455,6 +474,7 @@ router.put('/:id', (req: Request, res: Response) => {
           has_membership_application = ?,
           has_medical_certificate = ?,
           has_photo_consent_social = ?,
+          social_media_enabled = ?,
           must_change_password = ?,
           privacy_accepted_at = ?
         WHERE id = ?
@@ -475,6 +495,7 @@ router.put('/:id', (req: Request, res: Response) => {
         nextHasMembershipApplication,
         nextHasMedicalCertificate,
         nextHasPhotoConsentSocial,
+        nextSocialMediaEnabled,
         user.must_change_password,
         user.privacy_accepted_at,
         id,
@@ -498,6 +519,7 @@ router.put('/:id', (req: Request, res: Response) => {
           has_membership_application = ?,
           has_medical_certificate = ?,
           has_photo_consent_social = ?,
+          social_media_enabled = ?,
           must_change_password = ?,
           privacy_accepted_at = ?
         WHERE id = ?
@@ -517,6 +539,7 @@ router.put('/:id', (req: Request, res: Response) => {
         nextHasMembershipApplication,
         nextHasMedicalCertificate,
         nextHasPhotoConsentSocial,
+        nextSocialMediaEnabled,
         user.must_change_password,
         user.privacy_accepted_at,
         id,

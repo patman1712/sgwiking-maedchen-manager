@@ -140,6 +140,7 @@ db.exec(`
     photo_consent_social_file_url TEXT DEFAULT NULL,
     must_change_password INTEGER NOT NULL DEFAULT 0,
     privacy_accepted_at TEXT DEFAULT NULL,
+    social_media_enabled INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   );
 
@@ -343,6 +344,17 @@ db.exec(`
     call_to_action TEXT DEFAULT '',
     image_urls TEXT DEFAULT '[]',
     layers_json TEXT DEFAULT '[]',
+    is_template INTEGER NOT NULL DEFAULT 0,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS social_media_crests (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    image_url TEXT NOT NULL,
     created_by TEXT NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -453,6 +465,10 @@ if (!userColumns.includes('privacy_accepted_at')) {
   db.prepare('ALTER TABLE users ADD COLUMN privacy_accepted_at TEXT DEFAULT NULL').run()
 }
 
+if (!userColumns.includes('social_media_enabled')) {
+  db.prepare('ALTER TABLE users ADD COLUMN social_media_enabled INTEGER NOT NULL DEFAULT 0').run()
+}
+
 const matchColumns = (
   db.prepare('PRAGMA table_info(matches)').all() as { name: string }[]
 ).map((column) => column.name)
@@ -503,6 +519,10 @@ const socialMediaDraftColumns = (
 
 if (!socialMediaDraftColumns.includes('layers_json')) {
   db.prepare("ALTER TABLE social_media_drafts ADD COLUMN layers_json TEXT DEFAULT '[]'").run()
+}
+
+if (!socialMediaDraftColumns.includes('is_template')) {
+  db.prepare('ALTER TABLE social_media_drafts ADD COLUMN is_template INTEGER NOT NULL DEFAULT 0').run()
 }
 
 const now = () => new Date().toISOString()
@@ -929,6 +949,7 @@ type UserRow = {
   photo_consent_social_file_url: string | null
   must_change_password: number
   privacy_accepted_at: string | null
+  social_media_enabled: number
   created_at: string
 }
 
@@ -1060,6 +1081,7 @@ type SocialMediaDraftRow = {
   call_to_action: string
   image_urls: string
   layers_json: string
+  is_template: number
   created_by: string
   created_at: string
   updated_at: string
@@ -1070,6 +1092,15 @@ type SocialMediaTextSnippetRow = {
   label: string
   content: string
   category: string
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+type SocialMediaCrestRow = {
+  id: string
+  name: string
+  image_url: string
   created_by: string
   created_at: string
   updated_at: string
@@ -1124,6 +1155,7 @@ export const mapUser = (row: UserRow, includePassword = false) => {
     mustChangePassword,
     privacyAcceptedAt,
     requiresOnboarding: row.role === 'player' && (mustChangePassword || !privacyAcceptedAt),
+    socialMediaEnabled: Boolean(row.social_media_enabled),
     createdAt: row.created_at,
   }
 
@@ -1182,6 +1214,15 @@ export const userHasTeamRole = (
 export const isAdminOrBoard = (userId: string) => {
   const row = getUserRowById(userId)
   return row?.role === 'admin' || row?.role === 'board'
+}
+
+export const canUseSocialMedia = (userId: string) => {
+  const row = getUserRowById(userId)
+  if (!row) {
+    return false
+  }
+
+  return row.role === 'admin' || (row.role === 'trainer' && Boolean(row.social_media_enabled))
 }
 
 const getVisibleConversationRows = (userId?: string | null) => {
@@ -1484,13 +1525,20 @@ export const getSocialMediaDrafts = (userId?: string | null) => {
   }
 
   const actor = getUserRowById(userId)
-  if (!actor) {
+  if (!actor || !canUseSocialMedia(userId)) {
     return []
   }
 
-  const rows = db.prepare(
-    'SELECT * FROM social_media_drafts ORDER BY updated_at DESC, created_at DESC',
-  ).all() as SocialMediaDraftRow[]
+  const rows =
+    actor.role === 'admin'
+      ? (db
+          .prepare('SELECT * FROM social_media_drafts ORDER BY updated_at DESC, created_at DESC')
+          .all() as SocialMediaDraftRow[])
+      : (db
+          .prepare(
+            'SELECT * FROM social_media_drafts WHERE is_template = 1 OR created_by = ? ORDER BY updated_at DESC, created_at DESC',
+          )
+          .all(userId) as SocialMediaDraftRow[])
 
   return rows.map((row) => {
     let imageUrls: string[] = []
@@ -1571,6 +1619,7 @@ export const getSocialMediaDrafts = (userId?: string | null) => {
       callToAction: row.call_to_action || '',
       imageUrls,
       layers,
+      isTemplate: Boolean(row.is_template),
       createdBy: row.created_by,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -1584,7 +1633,7 @@ export const getSocialMediaTextSnippets = (userId?: string | null) => {
   }
 
   const actor = getUserRowById(userId)
-  if (!actor) {
+  if (!actor || !canUseSocialMedia(userId)) {
     return []
   }
 
@@ -1597,6 +1646,25 @@ export const getSocialMediaTextSnippets = (userId?: string | null) => {
     label: row.label,
     content: row.content,
     category: row.category || '',
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }))
+}
+
+export const getSocialMediaCrests = (userId?: string | null) => {
+  if (!userId || !canUseSocialMedia(userId)) {
+    return []
+  }
+
+  const rows = db.prepare(
+    'SELECT * FROM social_media_crests ORDER BY updated_at DESC, created_at DESC',
+  ).all() as SocialMediaCrestRow[]
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    imageUrl: row.image_url,
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -1634,6 +1702,7 @@ export const getBootstrapData = (userId?: string | null) => ({
   matchRescheduleRequests: getMatchRescheduleRequests(userId),
   fleaMarketListings: getFleaMarketListings(userId),
   socialMediaDrafts: getSocialMediaDrafts(userId),
+  socialMediaCrests: getSocialMediaCrests(userId),
   socialMediaTextSnippets: getSocialMediaTextSnippets(userId),
   conversations: getConversations(userId),
   messages: getMessages(userId),

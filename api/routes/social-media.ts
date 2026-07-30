@@ -2,11 +2,13 @@ import fs from 'fs'
 import path from 'path'
 import multer from 'multer'
 import { Router, type Request, type Response } from 'express'
-import db, { createId, DATA_DIR, getBootstrapData, getUserRowById, isAdminOrBoard, now } from '../db.js'
+import db, { canUseSocialMedia, createId, DATA_DIR, getBootstrapData, getUserRowById, now } from '../db.js'
 
 const router = Router()
 const uploadDir = path.join(DATA_DIR, 'uploads', 'social-media')
+const crestUploadDir = path.join(DATA_DIR, 'uploads', 'social-media-crests')
 fs.mkdirSync(uploadDir, { recursive: true })
+fs.mkdirSync(crestUploadDir, { recursive: true })
 
 const storage = multer.diskStorage({
   destination: (_req, _file, callback) => {
@@ -20,14 +22,20 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage })
 
-const canManageSocialMedia = (actorId: string) => {
-  if (isAdminOrBoard(actorId)) {
-    return true
-  }
+const crestStorage = multer.diskStorage({
+  destination: (_req, _file, callback) => {
+    callback(null, crestUploadDir)
+  },
+  filename: (_req, file, callback) => {
+    const extension = path.extname(file.originalname) || '.png'
+    callback(null, `crest-${Date.now()}-${Math.random().toString(16).slice(2)}${extension}`)
+  },
+})
 
-  const actor = getUserRowById(actorId)
-  return actor?.role === 'trainer'
-}
+const crestUpload = multer({ storage: crestStorage })
+
+const canManageSocialMediaLibrary = (actorId: string) => getUserRowById(actorId)?.role === 'admin'
+const isSharedSocialAssetUrl = (value: string) => value.startsWith('/uploads/social-media-crests/')
 
 const cleanupFiles = (files: Express.Multer.File[] | undefined) => {
   if (!files?.length) {
@@ -138,6 +146,10 @@ const remapLayerImageRefs = (
       return layer
     }
 
+    if (isSharedSocialAssetUrl(layer.imageRef)) {
+      return layer
+    }
+
     const match = /^__new_(\d+)__$/.exec(layer.imageRef)
     if (match) {
       return {
@@ -161,8 +173,56 @@ const deleteDraftImages = (imageUrls: string[]) => {
   })
 }
 
+const resolveCreateImageOrder = (imageOrder: string | undefined, uploadedImageUrls: string[]) => {
+  const orderEntries = parseImageUrls(imageOrder)
+  if (!orderEntries.length) {
+    return uploadedImageUrls
+  }
+
+  return orderEntries
+    .map((entry) => {
+      const match = /^__new_(\d+)__$/.exec(entry)
+      if (match) {
+        return uploadedImageUrls[Number(match[1])] ?? null
+      }
+
+      if (isSharedSocialAssetUrl(entry)) {
+        return entry
+      }
+
+      return null
+    })
+    .filter((entry): entry is string => Boolean(entry))
+}
+
+const resolveUpdateImageOrder = (
+  imageOrder: string | undefined,
+  retainedImageUrls: string[],
+  uploadedImageUrls: string[],
+) => {
+  const orderEntries = parseImageUrls(imageOrder)
+  if (!orderEntries.length) {
+    return [...retainedImageUrls, ...uploadedImageUrls]
+  }
+
+  return orderEntries
+    .map((entry) => {
+      const match = /^__new_(\d+)__$/.exec(entry)
+      if (match) {
+        return uploadedImageUrls[Number(match[1])] ?? null
+      }
+
+      if (retainedImageUrls.includes(entry) || isSharedSocialAssetUrl(entry)) {
+        return entry
+      }
+
+      return null
+    })
+    .filter((entry): entry is string => Boolean(entry))
+}
+
 router.post('/drafts', upload.array('images', 8), (req: Request, res: Response) => {
-  const { actorId, draftType, layout, title, subtitle, caption, callToAction, imageOrder, layers } = req.body as {
+  const { actorId, draftType, layout, title, subtitle, caption, callToAction, imageOrder, layers, isTemplate } = req.body as {
     actorId?: string
     draftType?: 'feed' | 'story'
     layout?: string
@@ -172,6 +232,7 @@ router.post('/drafts', upload.array('images', 8), (req: Request, res: Response) 
     callToAction?: string
     imageOrder?: string
     layers?: string
+    isTemplate?: string
   }
 
   const files = (req.files as Express.Multer.File[] | undefined) ?? []
@@ -182,9 +243,16 @@ router.post('/drafts', upload.array('images', 8), (req: Request, res: Response) 
     return
   }
 
-  if (!canManageSocialMedia(actorId)) {
+  if (!canUseSocialMedia(actorId)) {
     cleanupFiles(files)
-    res.status(403).json({ success: false, error: 'Nur Trainer, Vorstand oder Admin duerfen Entwuerfe bearbeiten.' })
+    res.status(403).json({ success: false, error: 'Nur freigeschaltete Trainer oder Admin duerfen Social Media nutzen.' })
+    return
+  }
+
+  const wantsTemplate = isTemplate === 'true'
+  if (wantsTemplate && !canManageSocialMediaLibrary(actorId)) {
+    cleanupFiles(files)
+    res.status(403).json({ success: false, error: 'Vorlagen koennen nur vom Admin erstellt werden.' })
     return
   }
 
@@ -202,18 +270,7 @@ router.post('/drafts', upload.array('images', 8), (req: Request, res: Response) 
 
   const timestamp = now()
   const uploadedImageUrls = files.map((file) => `/uploads/social-media/${file.filename}`)
-  const orderEntries = parseImageUrls(imageOrder)
-  const imageUrls = orderEntries.length
-    ? orderEntries
-        .map((entry) => {
-          const match = /^__new_(\d+)__$/.exec(entry)
-          if (!match) {
-            return null
-          }
-          return uploadedImageUrls[Number(match[1])] ?? null
-        })
-        .filter((entry): entry is string => Boolean(entry))
-    : uploadedImageUrls
+  const imageUrls = resolveCreateImageOrder(imageOrder, uploadedImageUrls)
   const mappedLayers = remapLayerImageRefs(parseLayers(layers), uploadedImageUrls, imageUrls)
 
   db.prepare(`
@@ -227,11 +284,12 @@ router.post('/drafts', upload.array('images', 8), (req: Request, res: Response) 
       call_to_action,
       image_urls,
       layers_json,
+      is_template,
       created_by,
       created_at,
       updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     createId('social'),
     draftType,
@@ -242,6 +300,7 @@ router.post('/drafts', upload.array('images', 8), (req: Request, res: Response) 
     (callToAction || '').trim(),
     JSON.stringify(imageUrls),
     JSON.stringify(mappedLayers),
+    wantsTemplate ? 1 : 0,
     actorId,
     timestamp,
     timestamp,
@@ -266,6 +325,7 @@ router.put('/drafts/:id', upload.array('images', 8), (req: Request, res: Respons
     existingImageUrls,
     imageOrder,
     layers,
+    isTemplate,
   } = req.body as {
     actorId?: string
     draftType?: 'feed' | 'story'
@@ -277,6 +337,7 @@ router.put('/drafts/:id', upload.array('images', 8), (req: Request, res: Respons
     existingImageUrls?: string
     imageOrder?: string
     layers?: string
+    isTemplate?: string
   }
 
   const files = (req.files as Express.Multer.File[] | undefined) ?? []
@@ -287,19 +348,41 @@ router.put('/drafts/:id', upload.array('images', 8), (req: Request, res: Respons
     return
   }
 
-  if (!canManageSocialMedia(actorId)) {
+  if (!canUseSocialMedia(actorId)) {
     cleanupFiles(files)
-    res.status(403).json({ success: false, error: 'Nur Trainer, Vorstand oder Admin duerfen Entwuerfe bearbeiten.' })
+    res.status(403).json({ success: false, error: 'Nur freigeschaltete Trainer oder Admin duerfen Social Media nutzen.' })
     return
   }
 
   const existingDraft = db
-    .prepare('SELECT id, image_urls, created_by FROM social_media_drafts WHERE id = ?')
-    .get(id) as { id: string; image_urls: string; created_by: string } | undefined
+    .prepare('SELECT id, image_urls, created_by, is_template FROM social_media_drafts WHERE id = ?')
+    .get(id) as { id: string; image_urls: string; created_by: string; is_template: number } | undefined
 
   if (!existingDraft) {
     cleanupFiles(files)
     res.status(404).json({ success: false, error: 'Entwurf nicht gefunden.' })
+    return
+  }
+
+  const actorIsAdmin = canManageSocialMediaLibrary(actorId)
+  const wantsTemplate = isTemplate === 'true'
+  const isTemplateDraft = Boolean(existingDraft.is_template)
+
+  if (isTemplateDraft && !actorIsAdmin) {
+    cleanupFiles(files)
+    res.status(403).json({ success: false, error: 'Vorlagen koennen nur vom Admin bearbeitet werden.' })
+    return
+  }
+
+  if (!isTemplateDraft && !actorIsAdmin && existingDraft.created_by !== actorId) {
+    cleanupFiles(files)
+    res.status(403).json({ success: false, error: 'Du kannst nur deine eigenen Entwuerfe bearbeiten.' })
+    return
+  }
+
+  if (wantsTemplate && !actorIsAdmin) {
+    cleanupFiles(files)
+    res.status(403).json({ success: false, error: 'Vorlagen koennen nur vom Admin gespeichert werden.' })
     return
   }
 
@@ -317,18 +400,7 @@ router.put('/drafts/:id', upload.array('images', 8), (req: Request, res: Respons
 
   const retainedImageUrls = parseImageUrls(existingImageUrls)
   const uploadedImageUrls = files.map((file) => `/uploads/social-media/${file.filename}`)
-  const orderEntries = parseImageUrls(imageOrder)
-  const finalImageUrls = orderEntries.length
-    ? orderEntries
-        .map((entry) => {
-          const match = /^__new_(\d+)__$/.exec(entry)
-          if (match) {
-            return uploadedImageUrls[Number(match[1])] ?? null
-          }
-          return retainedImageUrls.includes(entry) ? entry : null
-        })
-        .filter((entry): entry is string => Boolean(entry))
-    : [...retainedImageUrls, ...uploadedImageUrls]
+  const finalImageUrls = resolveUpdateImageOrder(imageOrder, retainedImageUrls, uploadedImageUrls)
   const mappedLayers = remapLayerImageRefs(parseLayers(layers), uploadedImageUrls, retainedImageUrls)
   const previousImageUrls = parseImageUrls(existingDraft.image_urls)
   const removedImageUrls = previousImageUrls.filter((imageUrl) => !retainedImageUrls.includes(imageUrl))
@@ -344,6 +416,7 @@ router.put('/drafts/:id', upload.array('images', 8), (req: Request, res: Respons
       call_to_action = ?,
       image_urls = ?,
       layers_json = ?,
+      is_template = ?,
       updated_at = ?
     WHERE id = ?
   `).run(
@@ -355,6 +428,7 @@ router.put('/drafts/:id', upload.array('images', 8), (req: Request, res: Respons
     (callToAction || '').trim(),
     JSON.stringify(finalImageUrls),
     JSON.stringify(mappedLayers),
+    wantsTemplate ? 1 : 0,
     now(),
     id,
   )
@@ -376,17 +450,28 @@ router.delete('/drafts/:id', (req: Request, res: Response) => {
     return
   }
 
-  if (!canManageSocialMedia(actorId)) {
-    res.status(403).json({ success: false, error: 'Nur Trainer, Vorstand oder Admin duerfen Entwuerfe loeschen.' })
+  if (!canUseSocialMedia(actorId)) {
+    res.status(403).json({ success: false, error: 'Nur freigeschaltete Trainer oder Admin duerfen Social Media nutzen.' })
     return
   }
 
   const draft = db
-    .prepare('SELECT id, image_urls FROM social_media_drafts WHERE id = ?')
-    .get(id) as { id: string; image_urls: string } | undefined
+    .prepare('SELECT id, image_urls, created_by, is_template FROM social_media_drafts WHERE id = ?')
+    .get(id) as { id: string; image_urls: string; created_by: string; is_template: number } | undefined
 
   if (!draft) {
     res.status(404).json({ success: false, error: 'Entwurf nicht gefunden.' })
+    return
+  }
+
+  const actorIsAdmin = canManageSocialMediaLibrary(actorId)
+  if (Boolean(draft.is_template) && !actorIsAdmin) {
+    res.status(403).json({ success: false, error: 'Vorlagen koennen nur vom Admin geloescht werden.' })
+    return
+  }
+
+  if (!Boolean(draft.is_template) && !actorIsAdmin && draft.created_by !== actorId) {
+    res.status(403).json({ success: false, error: 'Du kannst nur deine eigenen Entwuerfe loeschen.' })
     return
   }
 
@@ -412,8 +497,8 @@ router.post('/snippets', (req: Request, res: Response) => {
     return
   }
 
-  if (!canManageSocialMedia(actorId)) {
-    res.status(403).json({ success: false, error: 'Nur Trainer, Vorstand oder Admin duerfen Textbausteine verwalten.' })
+  if (!canManageSocialMediaLibrary(actorId)) {
+    res.status(403).json({ success: false, error: 'Textbausteine koennen nur vom Admin verwaltet werden.' })
     return
   }
 
@@ -464,8 +549,8 @@ router.put('/snippets/:id', (req: Request, res: Response) => {
     return
   }
 
-  if (!canManageSocialMedia(actorId)) {
-    res.status(403).json({ success: false, error: 'Nur Trainer, Vorstand oder Admin duerfen Textbausteine verwalten.' })
+  if (!canManageSocialMediaLibrary(actorId)) {
+    res.status(403).json({ success: false, error: 'Textbausteine koennen nur vom Admin verwaltet werden.' })
     return
   }
 
@@ -508,8 +593,8 @@ router.delete('/snippets/:id', (req: Request, res: Response) => {
     return
   }
 
-  if (!canManageSocialMedia(actorId)) {
-    res.status(403).json({ success: false, error: 'Nur Trainer, Vorstand oder Admin duerfen Textbausteine verwalten.' })
+  if (!canManageSocialMediaLibrary(actorId)) {
+    res.status(403).json({ success: false, error: 'Textbausteine koennen nur vom Admin verwaltet werden.' })
     return
   }
 
@@ -523,6 +608,96 @@ router.delete('/snippets/:id', (req: Request, res: Response) => {
   }
 
   db.prepare('DELETE FROM social_media_text_snippets WHERE id = ?').run(id)
+
+  res.json({
+    success: true,
+    ...getBootstrapData(actorId),
+  })
+})
+
+router.post('/crests', crestUpload.single('image'), (req: Request, res: Response) => {
+  const actorId = req.body.actorId as string | undefined
+  const name = req.body.name as string | undefined
+  const file = req.file
+
+  if (!actorId) {
+    if (file?.path && fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path)
+    }
+    res.status(400).json({ success: false, error: 'Fehlender Benutzerkontext.' })
+    return
+  }
+
+  if (!canManageSocialMediaLibrary(actorId)) {
+    if (file?.path && fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path)
+    }
+    res.status(403).json({ success: false, error: 'Wappen koennen nur vom Admin verwaltet werden.' })
+    return
+  }
+
+  if (!name?.trim() || !file) {
+    if (file?.path && fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path)
+    }
+    res.status(400).json({ success: false, error: 'Bitte Namen und Bild fuer das Wappen angeben.' })
+    return
+  }
+
+  const timestamp = now()
+  db.prepare(`
+    INSERT INTO social_media_crests (
+      id,
+      name,
+      image_url,
+      created_by,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    createId('crest'),
+    name.trim(),
+    `/uploads/social-media-crests/${file.filename}`,
+    actorId,
+    timestamp,
+    timestamp,
+  )
+
+  res.json({
+    success: true,
+    ...getBootstrapData(actorId),
+  })
+})
+
+router.delete('/crests/:id', (req: Request, res: Response) => {
+  const { id } = req.params
+  const actorId = (req.body?.actorId as string | undefined) ?? (req.query.actorId as string | undefined)
+
+  if (!actorId) {
+    res.status(400).json({ success: false, error: 'Fehlender Benutzerkontext.' })
+    return
+  }
+
+  if (!canManageSocialMediaLibrary(actorId)) {
+    res.status(403).json({ success: false, error: 'Wappen koennen nur vom Admin verwaltet werden.' })
+    return
+  }
+
+  const crest = db
+    .prepare('SELECT id, image_url FROM social_media_crests WHERE id = ?')
+    .get(id) as { id: string; image_url: string } | undefined
+
+  if (!crest) {
+    res.status(404).json({ success: false, error: 'Wappen nicht gefunden.' })
+    return
+  }
+
+  db.prepare('DELETE FROM social_media_crests WHERE id = ?').run(id)
+  const filePath = path.join(crestUploadDir, path.basename(crest.image_url))
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath)
+  }
 
   res.json({
     success: true,

@@ -21,6 +21,7 @@ import { optimizeImageForUpload } from "@/lib/image";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store";
 import type {
+  SocialMediaCrest,
   SocialMediaDraft,
   SocialMediaDraftType,
   SocialMediaLayer,
@@ -28,6 +29,8 @@ import type {
   SocialMediaLayerPosition,
   SocialMediaLayerStyle,
 } from "@/types";
+
+const SHARED_CREST_PREFIX = "/uploads/social-media-crests/";
 
 type EditorAsset =
   | {
@@ -43,6 +46,39 @@ type EditorAsset =
       url: string;
       file: File;
     };
+
+function isSharedCrestRef(ref?: string) {
+  return Boolean(ref?.startsWith(SHARED_CREST_PREFIX));
+}
+
+function buildDraftAssets(draft: SocialMediaDraft, crests: SocialMediaCrest[]): EditorAsset[] {
+  const assets = new Map<string, EditorAsset>();
+
+  draft.imageUrls.forEach((url, index) => {
+    assets.set(url, {
+      id: `existing-${index}-${url}`,
+      ref: url,
+      kind: "existing",
+      url,
+    });
+  });
+
+  draft.layers.forEach((layer, index) => {
+    if (!isSharedCrestRef(layer.imageRef) || !layer.imageRef) {
+      return;
+    }
+
+    const crest = crests.find((entry) => entry.imageUrl === layer.imageRef);
+    assets.set(layer.imageRef, {
+      id: `shared-${crest?.id ?? index}-${layer.imageRef}`,
+      ref: layer.imageRef,
+      kind: "existing",
+      url: layer.imageRef,
+    });
+  });
+
+  return [...assets.values()];
+}
 
 const layoutOptions = [
   { value: "matchday", label: "Spieltag" },
@@ -299,7 +335,7 @@ function getImageStyleClasses(style: SocialMediaLayerStyle, full = false) {
     case "soft":
       return "rounded-[1.75rem] border border-white/35 object-cover opacity-85 shadow-[0_24px_60px_rgba(15,23,42,0.28)]";
     case "cutout":
-      return "rounded-[1.5rem] border-4 border-white/90 object-cover shadow-[0_24px_60px_rgba(15,23,42,0.3)]";
+      return "rounded-[1.5rem] border-4 border-white/90 bg-transparent object-contain p-2 shadow-[0_24px_60px_rgba(15,23,42,0.3)]";
     case "glass":
       return "rounded-[1.75rem] border border-white/25 object-cover shadow-[0_24px_60px_rgba(15,23,42,0.3)]";
     case "pill":
@@ -631,6 +667,7 @@ function SocialPreview({
 
 export default function SocialMediaPage() {
   const socialMediaDrafts = useAppStore((state) => state.socialMediaDrafts);
+  const socialMediaCrests = useAppStore((state) => state.socialMediaCrests);
   const socialMediaTextSnippets = useAppStore((state) => state.socialMediaTextSnippets);
   const users = useAppStore((state) => state.users);
   const currentUserId = useAppStore((state) => state.currentUserId);
@@ -638,17 +675,22 @@ export default function SocialMediaPage() {
   const addSocialMediaDraft = useAppStore((state) => state.addSocialMediaDraft);
   const updateSocialMediaDraft = useAppStore((state) => state.updateSocialMediaDraft);
   const deleteSocialMediaDraft = useAppStore((state) => state.deleteSocialMediaDraft);
+  const addSocialMediaCrest = useAppStore((state) => state.addSocialMediaCrest);
+  const deleteSocialMediaCrest = useAppStore((state) => state.deleteSocialMediaCrest);
   const addSocialMediaTextSnippet = useAppStore((state) => state.addSocialMediaTextSnippet);
   const updateSocialMediaTextSnippet = useAppStore((state) => state.updateSocialMediaTextSnippet);
   const deleteSocialMediaTextSnippet = useAppStore((state) => state.deleteSocialMediaTextSnippet);
+  const updateUser = useAppStore((state) => state.updateUser);
 
   const currentUser = useMemo(
     () => users.find((user) => user.id === currentUserId) ?? null,
     [currentUserId, users],
   );
   const canManageSocial = currentUser?.role === "admin";
+  const canUseSocial =
+    canManageSocial || (currentUser?.role === "trainer" && Boolean(currentUser.socialMediaEnabled));
 
-  if (!canManageSocial) {
+  if (!canUseSocial) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -670,10 +712,23 @@ export default function SocialMediaPage() {
       }),
     [socialMediaTextSnippets],
   );
+  const templateDrafts = useMemo(
+    () => drafts.filter((draft) => draft.isTemplate),
+    [drafts],
+  );
+  const editableDrafts = useMemo(
+    () => drafts.filter((draft) => !draft.isTemplate),
+    [drafts],
+  );
+  const trainerUsers = useMemo(
+    () => users.filter((user) => user.role === "trainer"),
+    [users],
+  );
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+  const [editorIsTemplate, setEditorIsTemplate] = useState(false);
   const [draftSubmitting, setDraftSubmitting] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [imageModal, setImageModal] = useState<{ src: string; alt: string } | null>(null);
@@ -692,6 +747,10 @@ export default function SocialMediaPage() {
   });
   const [editingSnippetId, setEditingSnippetId] = useState<string | null>(null);
   const [snippetSubmitting, setSnippetSubmitting] = useState(false);
+  const [crestName, setCrestName] = useState("");
+  const [crestFile, setCrestFile] = useState<File | null>(null);
+  const [crestSubmitting, setCrestSubmitting] = useState(false);
+  const [accessSavingId, setAccessSavingId] = useState<string | null>(null);
 
   const sellerName = (userId: string) =>
     users.find((user) => user.id === userId)?.fullName ?? "Unbekannt";
@@ -705,6 +764,7 @@ export default function SocialMediaPage() {
   const resetDraftEditor = () => {
     setEditorMode("create");
     setEditingDraftId(null);
+    setEditorIsTemplate(false);
     setEditorDraftType("feed");
     setEditorLayout("matchday");
     setEditorAssets([]);
@@ -720,19 +780,23 @@ export default function SocialMediaPage() {
     setEditorOpen(true);
   };
 
-  const openEditDraft = (draft: SocialMediaDraft) => {
+  const openCreateTemplate = () => {
     setError("");
     setSuccess("");
-    setEditorMode("edit");
-    setEditingDraftId(draft.id);
+    resetDraftEditor();
+    setEditorIsTemplate(true);
+    setEditorOpen(true);
+  };
+
+  const openEditorWithDraft = (draft: SocialMediaDraft, mode: "create" | "edit", asTemplate: boolean) => {
+    setError("");
+    setSuccess("");
+    setEditorMode(mode);
+    setEditingDraftId(mode === "edit" ? draft.id : null);
+    setEditorIsTemplate(asTemplate);
     setEditorDraftType(draft.draftType);
     setEditorLayout(draft.layout);
-    const assets = draft.imageUrls.map((url, index) => ({
-      id: `existing-${index}-${url}`,
-      ref: url,
-      kind: "existing" as const,
-      url,
-    }));
+    const assets = buildDraftAssets(draft, socialMediaCrests);
     setEditorAssets(assets);
     const layers = (draft.layers.length ? draft.layers : buildFallbackLayers(draft)).map(
       normalizeImageLayer,
@@ -740,6 +804,21 @@ export default function SocialMediaPage() {
     setEditorLayers(layers);
     setActiveLayerId(layers[0]?.id ?? null);
     setEditorOpen(true);
+  };
+
+  const openEditDraft = (draft: SocialMediaDraft) => {
+    openEditorWithDraft(draft, "edit", draft.isTemplate);
+  };
+
+  const useTemplateAsDraft = (draft: SocialMediaDraft) => {
+    openEditorWithDraft(
+      {
+        ...draft,
+        isTemplate: false,
+      },
+      "create",
+      false,
+    );
   };
 
   const updateLayer = (layerId: string, patch: Partial<SocialMediaLayer>) => {
@@ -789,6 +868,24 @@ export default function SocialMediaPage() {
     );
   };
 
+  const addSharedAssetToEditor = (imageUrl: string, label?: string) => {
+    setEditorAssets((current) => {
+      if (current.some((asset) => asset.ref === imageUrl)) {
+        return current;
+      }
+
+      return [
+        ...current,
+        {
+          id: `shared-${label ?? "asset"}-${imageUrl}`,
+          ref: imageUrl,
+          kind: "existing",
+          url: imageUrl,
+        },
+      ];
+    });
+  };
+
   const insertSnippet = (snippetText: string) => {
     if (!activeLayer || activeLayer.kind === "image") {
       return;
@@ -801,20 +898,75 @@ export default function SocialMediaPage() {
     });
   };
 
+  const toggleTrainerAccess = async (trainerId: string, value: boolean) => {
+    const trainer = users.find((user) => user.id === trainerId);
+    if (!trainer) {
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+    setAccessSavingId(trainerId);
+    const result = await updateUser({
+      userId: trainer.id,
+      fullName: trainer.fullName,
+      email: trainer.email,
+      phone: trainer.phone,
+      notes: trainer.notes,
+      role: trainer.role,
+      teamIds: trainer.teamIds,
+      memberNumber: trainer.memberNumber,
+      birthday: trainer.birthday,
+      address: trainer.address,
+      parentName: trainer.parentName,
+      parentPhone: trainer.parentPhone,
+      parentEmail: trainer.parentEmail,
+      isMember: trainer.isMember,
+      hasMembershipApplication: trainer.hasMembershipApplication,
+      hasMedicalCertificate: trainer.hasMedicalCertificate,
+      hasPhotoConsentSocial: trainer.hasPhotoConsentSocial,
+      isMemberFileUrl: trainer.isMemberFileUrl,
+      membershipApplicationFileUrl: trainer.membershipApplicationFileUrl,
+      medicalCertificateFileUrl: trainer.medicalCertificateFileUrl,
+      photoConsentSocialFileUrl: trainer.photoConsentSocialFileUrl,
+      socialMediaEnabled: value,
+    });
+    if (!result.success) {
+      setError(result.error ?? "Freigabe konnte nicht gespeichert werden.");
+    } else {
+      setSuccess("Trainer-Freigabe wurde aktualisiert.");
+    }
+    setAccessSavingId(null);
+  };
+
   return (
     <div className="space-y-6">
       <SectionCard
         title="Social Media"
         description="Feed- und Story-Entwuerfe mit Ebenen, sauberem Vereinsstil und deutlich flexiblerer Vorschau."
         actions={
-          <button
-            type="button"
-            onClick={openCreateDraft}
-            className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-sky-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
-          >
-            <Plus size={18} />
-            Neuen Entwurf anlegen
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {canManageSocial ? (
+              <>
+                <button
+                  type="button"
+                  onClick={openCreateDraft}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-sky-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
+                >
+                  <Plus size={18} />
+                  Neuen Entwurf anlegen
+                </button>
+                <button
+                  type="button"
+                  onClick={openCreateTemplate}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-sky-200 bg-white px-5 py-3 text-sm font-semibold text-sky-900 transition hover:bg-sky-50"
+                >
+                  <Layers3 size={18} />
+                  Neue Vorlage
+                </button>
+              </>
+            ) : null}
+          </div>
         }
       >
         <div className="rounded-[2rem] border border-blue-100 bg-[linear-gradient(135deg,rgba(219,234,254,0.8),rgba(255,255,255,0.95))] p-5 shadow-sm">
@@ -869,95 +1021,216 @@ export default function SocialMediaPage() {
             ) : null}
 
             {drafts.length ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                {drafts.map((draft) => {
-                  const previewAssets = draft.imageUrls.map((url, index) => ({
-                    id: `preview-${index}`,
-                    ref: url,
-                    kind: "existing" as const,
-                    url,
-                  }));
-                  const previewLayers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
-
-                  return (
-                    <div
-                      key={draft.id}
-                      className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm"
-                    >
-                      <div className="border-b border-slate-100 bg-slate-50/70 p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-900">
-                            <Layers3 size={14} />
-                            {previewLayers.length} Ebenen
-                          </div>
-                          <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white">
-                            {draft.draftType === "story" ? "Story" : "Feed"}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="p-4">
-                        <SocialPreview
-                          draftType={draft.draftType}
-                          layout={draft.layout}
-                          layers={previewLayers}
-                          assets={previewAssets}
-                          logoUrl={settings.logoUrl}
-                        />
-
-                        <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-base font-semibold text-slate-900">{draft.title}</p>
-                            <p className="mt-1 text-sm text-slate-600">
-                              {layoutOptions.find((option) => option.value === draft.layout)?.label ??
-                                "Vorlage"}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              Zuletzt aktualisiert: {previewDate(draft.updatedAt)}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              Von {sellerName(draft.createdBy)}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => openEditDraft(draft)}
-                              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                            >
-                              <Pencil size={15} />
-                              Bearbeiten
-                            </button>
-                            <button
-                              type="button"
-                              disabled={savingId === draft.id}
-                              onClick={async () => {
-                                const confirmed = window.confirm("Entwurf wirklich loeschen?");
-                                if (!confirmed) {
-                                  return;
-                                }
-                                setError("");
-                                setSuccess("");
-                                setSavingId(draft.id);
-                                const result = await deleteSocialMediaDraft(draft.id);
-                                if (!result.success) {
-                                  setError(result.error ?? "Entwurf konnte nicht geloescht werden.");
-                                } else {
-                                  setSuccess("Entwurf wurde geloescht.");
-                                }
-                                setSavingId(null);
-                              }}
-                              className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              <Trash2 size={15} />
-                              Loeschen
-                            </button>
-                          </div>
-                        </div>
+              <div className="space-y-6">
+                {templateDrafts.length ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">Vorlagen</p>
+                        <p className="text-sm text-slate-600">
+                          {canManageSocial
+                            ? "Admin gestaltet die Grundvorlagen, Trainer koennen sie als Entwurf uebernehmen."
+                            : "Diese Vorlagen kannst du nutzen, aber nicht direkt veraendern."}
+                        </p>
                       </div>
                     </div>
-                  );
-                })}
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {templateDrafts.map((draft) => {
+                        const previewAssets = buildDraftAssets(draft, socialMediaCrests);
+                        const previewLayers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
+
+                        return (
+                          <div
+                            key={draft.id}
+                            className="overflow-hidden rounded-[2rem] border border-sky-200 bg-white shadow-sm"
+                          >
+                            <div className="border-b border-sky-100 bg-sky-50/70 p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-sky-900">
+                                  <Layers3 size={14} />
+                                  Vorlage
+                                </div>
+                                <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                                  {draft.draftType === "story" ? "Story" : "Feed"}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="p-4">
+                              <SocialPreview
+                                draftType={draft.draftType}
+                                layout={draft.layout}
+                                layers={previewLayers}
+                                assets={previewAssets}
+                                logoUrl={settings.logoUrl}
+                              />
+
+                              <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-base font-semibold text-slate-900">{draft.title}</p>
+                                  <p className="mt-1 text-sm text-slate-600">
+                                    {layoutOptions.find((option) => option.value === draft.layout)?.label ??
+                                      "Vorlage"}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    Zuletzt aktualisiert: {previewDate(draft.updatedAt)}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    Von {sellerName(draft.createdBy)}
+                                  </p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => useTemplateAsDraft(draft)}
+                                    className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-sky-600 px-3 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5"
+                                  >
+                                    <CopyPlus size={15} />
+                                    Als Entwurf nutzen
+                                  </button>
+                                  {canManageSocial ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => openEditDraft(draft)}
+                                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                      >
+                                        <Pencil size={15} />
+                                        Vorlage bearbeiten
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={savingId === draft.id}
+                                        onClick={async () => {
+                                          const confirmed = window.confirm("Vorlage wirklich loeschen?");
+                                          if (!confirmed) {
+                                            return;
+                                          }
+                                          setError("");
+                                          setSuccess("");
+                                          setSavingId(draft.id);
+                                          const result = await deleteSocialMediaDraft(draft.id);
+                                          if (!result.success) {
+                                            setError(result.error ?? "Vorlage konnte nicht geloescht werden.");
+                                          } else {
+                                            setSuccess("Vorlage wurde geloescht.");
+                                          }
+                                          setSavingId(null);
+                                        }}
+                                        className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                      >
+                                        <Trash2 size={15} />
+                                        Loeschen
+                                      </button>
+                                    </>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
+                {editableDrafts.length ? (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Entwuerfe</p>
+                      <p className="text-sm text-slate-600">
+                        {canManageSocial
+                          ? "Hier liegen bearbeitbare Entwuerfe und individuelle Varianten."
+                          : "Das sind deine bearbeitbaren Entwuerfe aus den Vorlagen."}
+                      </p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {editableDrafts.map((draft) => {
+                        const previewAssets = buildDraftAssets(draft, socialMediaCrests);
+                        const previewLayers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
+
+                        return (
+                          <div
+                            key={draft.id}
+                            className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm"
+                          >
+                            <div className="border-b border-slate-100 bg-slate-50/70 p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-900">
+                                  <Layers3 size={14} />
+                                  {previewLayers.length} Ebenen
+                                </div>
+                                <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                                  {draft.draftType === "story" ? "Story" : "Feed"}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="p-4">
+                              <SocialPreview
+                                draftType={draft.draftType}
+                                layout={draft.layout}
+                                layers={previewLayers}
+                                assets={previewAssets}
+                                logoUrl={settings.logoUrl}
+                              />
+
+                              <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-base font-semibold text-slate-900">{draft.title}</p>
+                                  <p className="mt-1 text-sm text-slate-600">
+                                    {layoutOptions.find((option) => option.value === draft.layout)?.label ??
+                                      "Vorlage"}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    Zuletzt aktualisiert: {previewDate(draft.updatedAt)}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    Von {sellerName(draft.createdBy)}
+                                  </p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditDraft(draft)}
+                                    className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                  >
+                                    <Pencil size={15} />
+                                    Bearbeiten
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={savingId === draft.id}
+                                    onClick={async () => {
+                                      const confirmed = window.confirm("Entwurf wirklich loeschen?");
+                                      if (!confirmed) {
+                                        return;
+                                      }
+                                      setError("");
+                                      setSuccess("");
+                                      setSavingId(draft.id);
+                                      const result = await deleteSocialMediaDraft(draft.id);
+                                      if (!result.success) {
+                                        setError(result.error ?? "Entwurf konnte nicht geloescht werden.");
+                                      } else {
+                                        setSuccess("Entwurf wurde geloescht.");
+                                      }
+                                      setSavingId(null);
+                                    }}
+                                    className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    <Trash2 size={15} />
+                                    Loeschen
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
@@ -970,11 +1243,167 @@ export default function SocialMediaPage() {
           </div>
 
           <div className="space-y-4">
+            {canManageSocial ? (
+              <SectionCard
+                title="Trainer-Freigaben"
+                description="Nur freigeschaltete Trainer sehen Social Media und koennen Vorlagen als Entwurf verwenden."
+              >
+                <div className="space-y-3">
+                  {trainerUsers.map((trainer) => (
+                    <label
+                      key={trainer.id}
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{trainer.fullName}</p>
+                        <p className="text-xs text-slate-500">{trainer.email}</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(trainer.socialMediaEnabled)}
+                        disabled={accessSavingId === trainer.id}
+                        onChange={(event) => void toggleTrainerAccess(trainer.id, event.target.checked)}
+                        className="h-5 w-5 rounded border-slate-300 text-blue-700 focus:ring-blue-500"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </SectionCard>
+            ) : null}
+
+            <SectionCard
+              title="Wappen"
+              description="PNG mit transparentem Hintergrund eignet sich hier ideal fuer freigestellte Vereinswappen."
+            >
+              <div className="space-y-4">
+                {canManageSocial ? (
+                  <form
+                    className="space-y-3 rounded-3xl border border-slate-200 bg-slate-50 p-4"
+                    onSubmit={async (event) => {
+                      event.preventDefault();
+                      if (!crestName.trim() || !crestFile) {
+                        setError("Bitte Namen und Wappenbild angeben.");
+                        return;
+                      }
+                      setError("");
+                      setSuccess("");
+                      setCrestSubmitting(true);
+                      const optimized = await optimizeImageForUpload(crestFile);
+                      const result = await addSocialMediaCrest({
+                        name: crestName.trim(),
+                        file: optimized,
+                      });
+                      if (!result.success) {
+                        setError(result.error ?? "Wappen konnte nicht gespeichert werden.");
+                      } else {
+                        setSuccess("Wappen wurde gespeichert.");
+                        setCrestName("");
+                        setCrestFile(null);
+                      }
+                      setCrestSubmitting(false);
+                    }}
+                  >
+                    <input
+                      value={crestName}
+                      onChange={(event) => setCrestName(event.target.value)}
+                      placeholder="Name des Wappens"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                    />
+                    <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-600">
+                      <span>{crestFile ? crestFile.name : "PNG oder JPG hochladen"}</span>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={(event) => setCrestFile(event.target.files?.[0] ?? null)}
+                      />
+                      <span className="rounded-xl bg-slate-100 px-3 py-1 font-semibold text-slate-700">
+                        Datei waehlen
+                      </span>
+                    </label>
+                    <button
+                      type="submit"
+                      disabled={crestSubmitting}
+                      className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {crestSubmitting ? "Speichert..." : "Wappen speichern"}
+                    </button>
+                  </form>
+                ) : null}
+
+                {socialMediaCrests.length ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {socialMediaCrests.map((crest) => (
+                      <div
+                        key={crest.id}
+                        className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                      >
+                        <button
+                          type="button"
+                          className="flex h-28 w-full items-center justify-center bg-[radial-gradient(circle,_rgba(226,232,240,0.9),_rgba(248,250,252,1))]"
+                          onClick={() => setImageModal({ src: crest.imageUrl, alt: crest.name })}
+                        >
+                          <img
+                            src={crest.imageUrl}
+                            alt={crest.name}
+                            className="h-full w-full object-contain p-3"
+                          />
+                        </button>
+                        <div className="space-y-2 p-3">
+                          <p className="truncate text-sm font-semibold text-slate-900">{crest.name}</p>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => addSharedAssetToEditor(crest.imageUrl, crest.id)}
+                              className="rounded-2xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-900 transition hover:bg-blue-100"
+                            >
+                              Als Asset nutzen
+                            </button>
+                            {canManageSocial ? (
+                              <button
+                                type="button"
+                                disabled={savingId === crest.id}
+                                onClick={async () => {
+                                  const confirmed = window.confirm("Wappen wirklich loeschen?");
+                                  if (!confirmed) {
+                                    return;
+                                  }
+                                  setSavingId(crest.id);
+                                  const result = await deleteSocialMediaCrest(crest.id);
+                                  if (!result.success) {
+                                    setError(result.error ?? "Wappen konnte nicht geloescht werden.");
+                                  } else {
+                                    setSuccess("Wappen wurde geloescht.");
+                                  }
+                                  setSavingId(null);
+                                }}
+                                className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                Loeschen
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-6 py-8 text-center">
+                    <p className="text-sm font-semibold text-slate-900">Noch keine Wappen</p>
+                    <p className="mt-2 text-sm text-slate-600">
+                      Geladene Wappen koennen direkt als Bild-Asset verwendet werden.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </SectionCard>
+
             <SectionCard
               title="Textbausteine"
               description="Bausteine koennen in die aktuell aktive Textebene uebernommen werden."
             >
               <div className="space-y-4">
+                {canManageSocial ? (
                 <form
                   className="space-y-3 rounded-3xl border border-slate-200 bg-slate-50 p-4"
                   onSubmit={async (event) => {
@@ -1070,6 +1499,7 @@ export default function SocialMediaPage() {
                     ) : null}
                   </div>
                 </form>
+                ) : null}
 
                 {snippets.length ? (
                   snippets.map((snippet) => (
@@ -1092,20 +1522,22 @@ export default function SocialMediaPage() {
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingSnippetId(snippet.id);
-                              setSnippetForm({
-                                label: snippet.label,
-                                content: snippet.content,
-                                category: snippet.category,
-                              });
-                            }}
-                            className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                          >
-                            Bearbeiten
-                          </button>
+                          {canManageSocial ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingSnippetId(snippet.id);
+                                setSnippetForm({
+                                  label: snippet.label,
+                                  content: snippet.content,
+                                  category: snippet.category,
+                                });
+                              }}
+                              className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                            >
+                              Bearbeiten
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => insertSnippet(snippet.content)}
@@ -1115,31 +1547,33 @@ export default function SocialMediaPage() {
                             <CopyPlus size={14} />
                             Einfuegen
                           </button>
-                          <button
-                            type="button"
-                            disabled={savingId === snippet.id}
-                            onClick={async () => {
-                              const confirmed = window.confirm("Textbaustein wirklich loeschen?");
-                              if (!confirmed) {
-                                return;
-                              }
-                              setError("");
-                              setSuccess("");
-                              setSavingId(snippet.id);
-                              const result = await deleteSocialMediaTextSnippet(snippet.id);
-                              if (!result.success) {
-                                setError(
-                                  result.error ?? "Textbaustein konnte nicht geloescht werden.",
-                                );
-                              } else {
-                                setSuccess("Textbaustein wurde geloescht.");
-                              }
-                              setSavingId(null);
-                            }}
-                            className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            Loeschen
-                          </button>
+                          {canManageSocial ? (
+                            <button
+                              type="button"
+                              disabled={savingId === snippet.id}
+                              onClick={async () => {
+                                const confirmed = window.confirm("Textbaustein wirklich loeschen?");
+                                if (!confirmed) {
+                                  return;
+                                }
+                                setError("");
+                                setSuccess("");
+                                setSavingId(snippet.id);
+                                const result = await deleteSocialMediaTextSnippet(snippet.id);
+                                if (!result.success) {
+                                  setError(
+                                    result.error ?? "Textbaustein konnte nicht geloescht werden.",
+                                  );
+                                } else {
+                                  setSuccess("Textbaustein wurde geloescht.");
+                                }
+                                setSavingId(null);
+                              }}
+                              className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Loeschen
+                            </button>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -1173,10 +1607,18 @@ export default function SocialMediaPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-lg font-semibold text-slate-900">
-                  {editorMode === "create" ? "Neuer Social-Media-Entwurf" : "Entwurf bearbeiten"}
+                  {editorIsTemplate
+                    ? editorMode === "create"
+                      ? "Neue Social-Media-Vorlage"
+                      : "Vorlage bearbeiten"
+                    : editorMode === "create"
+                      ? "Neuer Social-Media-Entwurf"
+                      : "Entwurf bearbeiten"}
                 </p>
                 <p className="mt-1 text-sm text-slate-600">
-                  Bilder, Textkarten und Buttons sind jetzt echte Ebenen und lassen sich gezielt vor oder hintereinander anordnen.
+                  {editorIsTemplate
+                    ? "Diese Grundvorlage bleibt gesperrt fuer Trainer und dient als Basis fuer neue Entwuerfe."
+                    : "Bilder, Textkarten und Buttons sind echte Ebenen und koennen frei aufgebaut werden."}
                 </p>
               </div>
               <button
@@ -1239,7 +1681,7 @@ export default function SocialMediaPage() {
                           Bilder hinzufuegen
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/png,image/jpeg,image/webp"
                             multiple
                             className="hidden"
                             onChange={(event) => {
@@ -1278,7 +1720,10 @@ export default function SocialMediaPage() {
                                 <img
                                   src={asset.url}
                                   alt="Asset"
-                                  className="h-full w-full object-cover"
+                                  className={cn(
+                                    "h-full w-full",
+                                    isSharedCrestRef(asset.ref) ? "object-contain p-3" : "object-cover",
+                                  )}
                                 />
                               </button>
                               <div className="flex items-center justify-between gap-2 p-3">
@@ -1753,6 +2198,7 @@ export default function SocialMediaPage() {
                               imageFiles: optimizedNewFiles,
                               imageOrder,
                               layers: layersPayload,
+                              isTemplate: editorIsTemplate,
                             })
                           : await updateSocialMediaDraft(editingDraftId ?? "", {
                               draftType: editorDraftType,
@@ -1770,6 +2216,7 @@ export default function SocialMediaPage() {
                               newImageFiles: optimizedNewFiles,
                               imageOrder,
                               layers: layersPayload,
+                              isTemplate: editorIsTemplate,
                             });
 
                       if (!result.success) {
@@ -1779,9 +2226,13 @@ export default function SocialMediaPage() {
                       }
 
                       setSuccess(
-                        editorMode === "create"
-                          ? "Entwurf wurde gespeichert."
-                          : "Entwurf wurde aktualisiert.",
+                        editorIsTemplate
+                          ? editorMode === "create"
+                            ? "Vorlage wurde gespeichert."
+                            : "Vorlage wurde aktualisiert."
+                          : editorMode === "create"
+                            ? "Entwurf wurde gespeichert."
+                            : "Entwurf wurde aktualisiert.",
                       );
                       setEditorOpen(false);
                       resetDraftEditor();
@@ -1791,9 +2242,13 @@ export default function SocialMediaPage() {
                   >
                     {draftSubmitting
                       ? "Speichert..."
-                      : editorMode === "create"
-                        ? "Entwurf speichern"
-                        : "Aenderungen speichern"}
+                      : editorIsTemplate
+                        ? editorMode === "create"
+                          ? "Vorlage speichern"
+                          : "Vorlage aktualisieren"
+                        : editorMode === "create"
+                          ? "Entwurf speichern"
+                          : "Aenderungen speichern"}
                   </button>
                   <button
                     type="button"

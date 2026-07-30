@@ -11,6 +11,7 @@ import type {
   Message,
   PendingPlayerApplication,
   PlayerDocumentType,
+  SocialMediaCrest,
   SocialMediaLayer,
   SocialMediaDraft,
   SocialMediaTextSnippet,
@@ -63,6 +64,7 @@ interface ApiStatePayload {
   matchRescheduleRequests: MatchRescheduleRequest[];
   fleaMarketListings: FleaMarketListing[];
   socialMediaDrafts: SocialMediaDraft[];
+  socialMediaCrests: SocialMediaCrest[];
   socialMediaTextSnippets: SocialMediaTextSnippet[];
   conversations: Conversation[];
   messages: Message[];
@@ -99,6 +101,7 @@ interface UserUpdateInput {
   membershipApplicationFileUrl?: string | null;
   medicalCertificateFileUrl?: string | null;
   photoConsentSocialFileUrl?: string | null;
+  socialMediaEnabled?: boolean;
 }
 
 interface AppState {
@@ -111,6 +114,7 @@ interface AppState {
   matchRescheduleRequests: MatchRescheduleRequest[];
   fleaMarketListings: FleaMarketListing[];
   socialMediaDrafts: SocialMediaDraft[];
+  socialMediaCrests: SocialMediaCrest[];
   socialMediaTextSnippets: SocialMediaTextSnippet[];
   conversations: Conversation[];
   messages: Message[];
@@ -210,6 +214,7 @@ interface AppState {
     imageFiles: File[];
     imageOrder: string[];
     layers: SocialMediaLayer[];
+    isTemplate?: boolean;
   }) => Promise<ActionResult>;
   updateSocialMediaDraft: (
     draftId: string,
@@ -224,9 +229,12 @@ interface AppState {
       newImageFiles: File[];
       imageOrder: string[];
       layers: SocialMediaLayer[];
+      isTemplate?: boolean;
     },
   ) => Promise<ActionResult>;
   deleteSocialMediaDraft: (draftId: string) => Promise<ActionResult>;
+  addSocialMediaCrest: (input: { name: string; file: File }) => Promise<ActionResult>;
+  deleteSocialMediaCrest: (crestId: string) => Promise<ActionResult>;
   addSocialMediaTextSnippet: (input: {
     label: string;
     content: string;
@@ -292,6 +300,7 @@ export const initialAppState = {
   matchRescheduleRequests: [] as MatchRescheduleRequest[],
   fleaMarketListings: [] as FleaMarketListing[],
   socialMediaDrafts: [] as SocialMediaDraft[],
+  socialMediaCrests: [] as SocialMediaCrest[],
   socialMediaTextSnippets: [] as SocialMediaTextSnippet[],
   conversations: [] as Conversation[],
   messages: [] as Message[],
@@ -334,6 +343,7 @@ const applyPayload = (
     matchRescheduleRequests: payload.matchRescheduleRequests,
     fleaMarketListings: payload.fleaMarketListings,
     socialMediaDrafts: payload.socialMediaDrafts,
+    socialMediaCrests: payload.socialMediaCrests,
     socialMediaTextSnippets: payload.socialMediaTextSnippets,
     conversations: payload.conversations,
     messages: payload.messages,
@@ -1144,6 +1154,7 @@ export const useAppStore = create<AppState>()(
           payload.append("callToAction", input.callToAction);
           payload.append("imageOrder", JSON.stringify(input.imageOrder));
           payload.append("layers", JSON.stringify(input.layers));
+          payload.append("isTemplate", input.isTemplate ? "true" : "false");
 
           input.imageFiles.forEach((file) => {
             payload.append("images", file);
@@ -1186,6 +1197,7 @@ export const useAppStore = create<AppState>()(
           payload.append("existingImageUrls", JSON.stringify(input.existingImageUrls));
           payload.append("imageOrder", JSON.stringify(input.imageOrder));
           payload.append("layers", JSON.stringify(input.layers));
+          payload.append("isTemplate", input.isTemplate ? "true" : "false");
 
           input.newImageFiles.forEach((file) => {
             payload.append("images", file);
@@ -1233,6 +1245,64 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Entwurf konnte nicht geloescht werden.",
+          };
+        }
+      },
+      addSocialMediaCrest: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("actorId", actorId);
+          payload.append("name", input.name);
+          payload.append("image", input.file);
+
+          const response = await fetch("/api/social-media/crests", {
+            method: "POST",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Wappen konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      deleteSocialMediaCrest: async (crestId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/social-media/crests/${crestId}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Wappen konnte nicht geloescht werden.",
           };
         }
       },

@@ -93,6 +93,7 @@ export interface UserProfile {
   mustChangePassword?: boolean;
   privacyAcceptedAt?: string | null;
   requiresOnboarding?: boolean;
+  socialMediaEnabled?: boolean;
   createdAt: string;
 }
 
@@ -202,6 +203,16 @@ export interface SocialMediaDraft {
   callToAction: string;
   imageUrls: string[];
   layers: SocialMediaLayer[];
+  isTemplate: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SocialMediaCrest {
+  id: string;
+  name: string;
+  imageUrl: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

@@ -64,12 +64,15 @@ export default function DashboardLayout() {
 
   const canViewMemberLists =
     currentUser?.role === "admin" || currentUser?.role === "board";
+  const canUseSocialMedia =
+    currentUser?.role === "admin" ||
+    (currentUser?.role === "trainer" && Boolean(currentUser.socialMediaEnabled));
   const visibleMenuItems = useMemo(
     () =>
       menuItems.filter((item) =>
-        item.to === "/dashboard/social-media" ? currentUser?.role === "admin" : true,
+        item.to === "/dashboard/social-media" ? canUseSocialMedia : true,
       ),
-    [currentUser?.role],
+    [canUseSocialMedia],
   );
   const keepsCollapsedTeamMenus =
     currentUser?.role === "admin" || currentUser?.role === "board";
