@@ -30,6 +30,8 @@ import type {
   SocialMediaLayoutOption,
   SocialMediaLayerPosition,
   SocialMediaLayerStyle,
+  SocialMediaTextAlign,
+  SocialMediaTextEffect,
 } from "@/types";
 
 const SHARED_CREST_PREFIX = "/uploads/social-media-crests/";
@@ -169,6 +171,8 @@ function createLayer(
       fontFamily: undefined,
       fontSize: undefined,
       textColor: undefined,
+      textAlign: undefined,
+      textEffect: undefined,
     },
     badge: {
       kind: "badge",
@@ -182,6 +186,8 @@ function createLayer(
       fontFamily: "Montserrat",
       fontSize: 12,
       textColor: "#0f172a",
+      textAlign: "left",
+      textEffect: "none",
     },
     title: {
       kind: "title",
@@ -195,6 +201,8 @@ function createLayer(
       fontFamily: "Oswald",
       fontSize: 42,
       textColor: "#ffffff",
+      textAlign: "left",
+      textEffect: "shadow",
     },
     subtitle: {
       kind: "subtitle",
@@ -208,6 +216,8 @@ function createLayer(
       fontFamily: "Inter",
       fontSize: 18,
       textColor: "#f8fafc",
+      textAlign: "left",
+      textEffect: "none",
     },
     caption: {
       kind: "caption",
@@ -221,6 +231,8 @@ function createLayer(
       fontFamily: "Inter",
       fontSize: 16,
       textColor: "#f8fafc",
+      textAlign: "left",
+      textEffect: "none",
     },
     cta: {
       kind: "cta",
@@ -234,6 +246,8 @@ function createLayer(
       fontFamily: "Montserrat",
       fontSize: 12,
       textColor: "#0f172a",
+      textAlign: "center",
+      textEffect: "none",
     },
   };
 
@@ -404,6 +418,8 @@ function normalizeImageLayer(layer: SocialMediaLayer): SocialMediaLayer {
       fontFamily: layer.fontFamily ?? defaults.fontFamily,
       fontSize: layer.fontSize ?? defaults.fontSize,
       textColor: layer.textColor ?? defaults.textColor,
+      textAlign: layer.textAlign ?? defaults.textAlign,
+      textEffect: layer.textEffect ?? defaults.textEffect,
     };
   }
 
@@ -417,11 +433,17 @@ function normalizeImageLayer(layer: SocialMediaLayer): SocialMediaLayer {
 
 function getTextInlineStyle(layer: SocialMediaLayer) {
   const defaults = getDefaultTextAppearance(layer);
+  const textEffect = layer.textEffect ?? defaults.textEffect;
 
   return {
     color: layer.textColor ?? defaults.textColor,
     fontFamily: `"${layer.fontFamily ?? defaults.fontFamily}", Inter, system-ui, sans-serif`,
     fontSize: `${Math.round(layer.fontSize ?? defaults.fontSize)}px`,
+    textAlign: (layer.textAlign ?? defaults.textAlign) as SocialMediaTextAlign,
+    textShadow:
+      textEffect === "shadow" ? "0 10px 30px rgba(15,23,42,0.55)" : "none",
+    WebkitTextStroke:
+      textEffect === "outline" ? "1.4px rgba(15,23,42,0.82)" : undefined,
   };
 }
 
@@ -440,29 +462,53 @@ function canResizeLayer(layer: SocialMediaLayer, respectLayerLocks: boolean) {
 function getDefaultTextAppearance(layer: SocialMediaLayer) {
   switch (layer.kind) {
     case "title":
-      return { fontFamily: "Oswald", fontSize: 42, textColor: "#ffffff" };
+      return {
+        fontFamily: "Oswald",
+        fontSize: 42,
+        textColor: "#ffffff",
+        textAlign: "left" as SocialMediaTextAlign,
+        textEffect: "shadow" as SocialMediaTextEffect,
+      };
     case "subtitle":
       return {
         fontFamily: "Inter",
         fontSize: layer.style === "solid" ? 16 : 18,
         textColor: "#f8fafc",
+        textAlign: "left" as SocialMediaTextAlign,
+        textEffect: "none" as SocialMediaTextEffect,
       };
     case "caption":
-      return { fontFamily: "Inter", fontSize: 16, textColor: "#f8fafc" };
+      return {
+        fontFamily: "Inter",
+        fontSize: 16,
+        textColor: "#f8fafc",
+        textAlign: "left" as SocialMediaTextAlign,
+        textEffect: "none" as SocialMediaTextEffect,
+      };
     case "badge":
       return {
         fontFamily: "Montserrat",
         fontSize: 12,
         textColor: layer.style === "pill" ? "#0f172a" : "#ffffff",
+        textAlign: "left" as SocialMediaTextAlign,
+        textEffect: "none" as SocialMediaTextEffect,
       };
     case "cta":
       return {
         fontFamily: "Montserrat",
         fontSize: 12,
         textColor: layer.style === "solid" ? "#0f172a" : "#ffffff",
+        textAlign: "center" as SocialMediaTextAlign,
+        textEffect: "none" as SocialMediaTextEffect,
       };
     default:
-      return { fontFamily: "Inter", fontSize: 16, textColor: "#ffffff" };
+      return {
+        fontFamily: "Inter",
+        fontSize: 16,
+        textColor: "#ffffff",
+        textAlign: "left" as SocialMediaTextAlign,
+        textEffect: "none" as SocialMediaTextEffect,
+      };
   }
 }
 
@@ -490,7 +536,7 @@ function getTextClasses(layer: SocialMediaLayer) {
   switch (layer.kind) {
     case "title":
       return cn(
-        "whitespace-pre-wrap text-3xl font-black uppercase tracking-[0.08em] text-white drop-shadow-[0_10px_30px_rgba(15,23,42,0.55)] md:text-4xl",
+        "whitespace-pre-wrap text-3xl font-black uppercase tracking-[0.08em] text-white md:text-4xl",
         layer.style === "glass" && "rounded-[1.5rem] border border-white/10 bg-white/8 px-4 py-3 backdrop-blur",
       );
     case "subtitle":
@@ -2624,6 +2670,8 @@ export default function SocialMediaPage() {
                                 fontFamily: createLayer(kind).fontFamily,
                                 fontSize: createLayer(kind).fontSize,
                                 textColor: createLayer(kind).textColor,
+                                textAlign: createLayer(kind).textAlign,
+                                textEffect: createLayer(kind).textEffect,
                                 imageRef:
                                   kind === "image"
                                     ? activeLayer.imageRef ?? editorAssets[0]?.ref
@@ -2890,6 +2938,54 @@ export default function SocialMediaPage() {
                             </div>
 
                             <div className="grid gap-4 md:grid-cols-2">
+                              <label className="block">
+                                <span className="mb-2 block text-sm font-medium text-slate-700">
+                                  Ausrichtung
+                                </span>
+                                <select
+                                  value={
+                                    activeLayer.textAlign ?? getDefaultTextAppearance(activeLayer).textAlign
+                                  }
+                                  onChange={(event) =>
+                                    updateLayer(activeLayer.id, {
+                                      textAlign: event.target.value as SocialMediaTextAlign,
+                                    })
+                                  }
+                                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                >
+                                  <option value="left">Links</option>
+                                  <option value="center">Mittig</option>
+                                  <option value="right">Rechts</option>
+                                </select>
+                              </label>
+
+                              <label className="block">
+                                <span className="mb-2 block text-sm font-medium text-slate-700">
+                                  Effekt
+                                </span>
+                                <select
+                                  value={
+                                    activeLayer.textEffect ?? getDefaultTextAppearance(activeLayer).textEffect
+                                  }
+                                  onChange={(event) =>
+                                    updateLayer(activeLayer.id, {
+                                      textEffect: event.target.value as SocialMediaTextEffect,
+                                    })
+                                  }
+                                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                >
+                                  <option value="none">Kein Effekt</option>
+                                  <option value="shadow">Schatten</option>
+                                  <option value="outline">Kontur</option>
+                                </select>
+                              </label>
+                            </div>
+
+                            <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">
+                              Schatten verbessert die Lesbarkeit auf Fotos. Kontur eignet sich gut fuer helle oder unruhige Bildbereiche.
+                            </div>
+
+                            <div className="mt-4 grid gap-4 md:grid-cols-2">
                               <label className="block">
                                 <span className="mb-2 block text-sm font-medium text-slate-700">
                                   Schriftart

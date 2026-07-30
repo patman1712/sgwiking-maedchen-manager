@@ -100,6 +100,8 @@ const parseLayers = (value: string | null | undefined) => {
       fontFamily?: string
       fontSize?: number
       textColor?: string
+      textAlign?: string
+      textEffect?: string
     }>
   }
 
@@ -127,6 +129,8 @@ const parseLayers = (value: string | null | undefined) => {
           fontFamily?: string
           fontSize?: number
           textColor?: string
+          textAlign?: string
+          textEffect?: string
         } =>
           Boolean(
             entry &&
@@ -146,7 +150,11 @@ const parseLayers = (value: string | null | undefined) => {
               ((entry as { fontSize?: unknown }).fontSize === undefined ||
                 typeof (entry as { fontSize?: unknown }).fontSize === 'number') &&
               ((entry as { textColor?: unknown }).textColor === undefined ||
-                typeof (entry as { textColor?: unknown }).textColor === 'string'),
+                typeof (entry as { textColor?: unknown }).textColor === 'string') &&
+              ((entry as { textAlign?: unknown }).textAlign === undefined ||
+                typeof (entry as { textAlign?: unknown }).textAlign === 'string') &&
+              ((entry as { textEffect?: unknown }).textEffect === undefined ||
+                typeof (entry as { textEffect?: unknown }).textEffect === 'string'),
           ),
       )
     }
@@ -176,6 +184,8 @@ const remapLayerImageRefs = (
     fontFamily?: string
     fontSize?: number
     textColor?: string
+    textAlign?: string
+    textEffect?: string
   }>,
   uploadedImageUrls: string[],
   retainedImageUrls: string[],

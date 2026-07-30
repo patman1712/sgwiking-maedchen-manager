@@ -178,6 +178,10 @@ export type SocialMediaLayerStyle =
   | "solid"
   | "pill";
 
+export type SocialMediaTextAlign = "left" | "center" | "right";
+
+export type SocialMediaTextEffect = "none" | "shadow" | "outline";
+
 export interface SocialMediaLayer {
   id: string;
   kind: SocialMediaLayerKind;
@@ -196,6 +200,8 @@ export interface SocialMediaLayer {
   fontFamily?: string;
   fontSize?: number;
   textColor?: string;
+  textAlign?: SocialMediaTextAlign;
+  textEffect?: SocialMediaTextEffect;
 }
 
 export interface SocialMediaDraft {

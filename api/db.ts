@@ -1590,6 +1590,8 @@ export const getSocialMediaDrafts = (userId?: string | null) => {
       fontFamily?: string
       fontSize?: number
       textColor?: string
+      textAlign?: string
+      textEffect?: string
     }> = []
     try {
       const parsed = JSON.parse(row.layers_json || '[]') as unknown
@@ -1615,6 +1617,8 @@ export const getSocialMediaDrafts = (userId?: string | null) => {
             fontFamily?: string
             fontSize?: number
             textColor?: string
+            textAlign?: string
+            textEffect?: string
           } =>
             Boolean(
               entry &&
@@ -1642,7 +1646,11 @@ export const getSocialMediaDrafts = (userId?: string | null) => {
                 ((entry as { fontSize?: unknown }).fontSize === undefined ||
                   typeof (entry as { fontSize?: unknown }).fontSize === 'number') &&
                 ((entry as { textColor?: unknown }).textColor === undefined ||
-                  typeof (entry as { textColor?: unknown }).textColor === 'string'),
+                  typeof (entry as { textColor?: unknown }).textColor === 'string') &&
+                ((entry as { textAlign?: unknown }).textAlign === undefined ||
+                  typeof (entry as { textAlign?: unknown }).textAlign === 'string') &&
+                ((entry as { textEffect?: unknown }).textEffect === undefined ||
+                  typeof (entry as { textEffect?: unknown }).textEffect === 'string'),
             ),
         )
       }
