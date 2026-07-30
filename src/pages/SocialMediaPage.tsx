@@ -841,6 +841,8 @@ export default function SocialMediaPage() {
     Boolean(activeLayer?.lockPosition) && respectEditorLayerLocks;
   const activeLayerSizeLocked =
     Boolean(activeLayer?.lockSize) && respectEditorLayerLocks;
+  const isLayerProtected = (layer: SocialMediaLayer) =>
+    respectEditorLayerLocks && Boolean(layer.lockPosition || layer.lockSize);
   const primaryTitleLayer =
     editorLayers.find((layer) => layer.kind === "title") ?? null;
   const selectedTemplate =
@@ -987,11 +989,26 @@ export default function SocialMediaPage() {
   };
 
   const removeLayer = (layerId: string) => {
-    setEditorLayers((current) => current.filter((layer) => layer.id !== layerId));
+    setEditorLayers((current) => {
+      const targetLayer = current.find((layer) => layer.id === layerId);
+      if (targetLayer && isLayerProtected(targetLayer)) {
+        return current;
+      }
+
+      return current.filter((layer) => layer.id !== layerId);
+    });
     setActiveLayerId((current) => (current === layerId ? null : current));
   };
 
   const removeAsset = (assetRef: string) => {
+    const hasProtectedLayer = editorLayers.some(
+      (layer) => layer.kind === "image" && layer.imageRef === assetRef && isLayerProtected(layer),
+    );
+    if (hasProtectedLayer) {
+      setError("Ein fixiertes Bildelement kann nicht entfernt werden.");
+      return;
+    }
+
     setEditorAssets((current) => current.filter((asset) => asset.ref !== assetRef));
     setEditorLayers((current) =>
       current.filter((layer) => !(layer.kind === "image" && layer.imageRef === assetRef)),
@@ -2126,7 +2143,13 @@ export default function SocialMediaPage() {
                                 <button
                                   type="button"
                                   onClick={() => removeAsset(asset.ref)}
-                                  className="rounded-2xl border border-rose-200 bg-rose-50 p-2 text-rose-700 transition hover:bg-rose-100"
+                                  disabled={editorLayers.some(
+                                    (layer) =>
+                                      layer.kind === "image" &&
+                                      layer.imageRef === asset.ref &&
+                                      isLayerProtected(layer),
+                                  )}
+                                  className="rounded-2xl border border-rose-200 bg-rose-50 p-2 text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
                                 >
                                   <Trash2 size={15} />
                                 </button>
@@ -2240,7 +2263,8 @@ export default function SocialMediaPage() {
                             <button
                               type="button"
                               onClick={() => removeLayer(layer.id)}
-                              className="rounded-2xl border border-rose-200 bg-rose-50 p-2 text-rose-700 transition hover:bg-rose-100"
+                              disabled={isLayerProtected(layer)}
+                              className="rounded-2xl border border-rose-200 bg-rose-50 p-2 text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               <Trash2 size={15} />
                             </button>
