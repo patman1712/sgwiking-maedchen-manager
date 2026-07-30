@@ -24,6 +24,7 @@ import matchesRoutes from './routes/matches.js'
 import messagesRoutes from './routes/messages.js'
 import matchRescheduleRequestsRoutes from './routes/match-reschedule-requests.js'
 import playerApplicationsRoutes from './routes/player-applications.js'
+import socialMediaRoutes from './routes/social-media.js'
 import settingsRoutes from './routes/settings.js'
 import teamsRoutes, { startAutomaticFussballDeImports } from './routes/teams.js'
 import usersRoutes from './routes/users.js'
@@ -61,6 +62,7 @@ app.use('/api/conversations', conversationsRoutes)
 app.use('/api/messages', messagesRoutes)
 app.use('/api/match-reschedule-requests', matchRescheduleRequestsRoutes)
 app.use('/api/player-applications', playerApplicationsRoutes)
+app.use('/api/social-media', socialMediaRoutes)
 app.use('/api/settings', settingsRoutes)
 app.use('/uploads', express.static(uploadPath))
 

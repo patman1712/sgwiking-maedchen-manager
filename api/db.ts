@@ -332,6 +332,32 @@ db.exec(`
     updated_at TEXT NOT NULL,
     FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS social_media_drafts (
+    id TEXT PRIMARY KEY,
+    draft_type TEXT NOT NULL CHECK(draft_type IN ('feed', 'story')),
+    layout TEXT NOT NULL DEFAULT 'matchday',
+    title TEXT NOT NULL,
+    subtitle TEXT DEFAULT '',
+    caption TEXT DEFAULT '',
+    call_to_action TEXT DEFAULT '',
+    image_urls TEXT DEFAULT '[]',
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS social_media_text_snippets (
+    id TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    content TEXT NOT NULL,
+    category TEXT DEFAULT '',
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
+  );
 `)
 
 const teamColumns = (
@@ -801,6 +827,61 @@ if (boardUserCount.count === 0) {
   )
 }
 
+const socialSnippetCount = db
+  .prepare('SELECT COUNT(*) AS count FROM social_media_text_snippets')
+  .get() as { count: number }
+
+if (socialSnippetCount.count === 0) {
+  const insertSnippet = db.prepare(`
+    INSERT INTO social_media_text_snippets (
+      id,
+      label,
+      content,
+      category,
+      created_by,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `)
+
+  const createdAt = now()
+  ;[
+    {
+      label: 'Spieltag',
+      content: 'Heute ist Spieltag. Wir freuen uns ueber jede Unterstuetzung am Spielfeldrand.',
+      category: 'Spieltag',
+    },
+    {
+      label: 'Ergebnis',
+      content:
+        'Starke Teamleistung heute. Danke an alle Spielerinnen, Eltern und Fans fuer die Unterstuetzung.',
+      category: 'Ergebnis',
+    },
+    {
+      label: 'Training',
+      content:
+        'Volle Energie im Training. Schritt fuer Schritt arbeiten wir weiter an unserem Spiel.',
+      category: 'Training',
+    },
+    {
+      label: 'Hinweis',
+      content: 'Weitere Infos folgen ueber unsere Vereinskanaele und direkt im Team.',
+      category: 'Allgemein',
+    },
+  ].forEach((snippet) => {
+    insertSnippet.run(
+      createId('snippet'),
+      snippet.label,
+      snippet.content,
+      snippet.category,
+      'user_admin',
+      createdAt,
+      createdAt,
+    )
+  })
+}
+
 type TeamRow = {
   id: string
   name: string
@@ -955,6 +1036,30 @@ type FleaMarketListingRow = {
   contact_phone: string
   contact_email: string
   image_urls: string
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+type SocialMediaDraftRow = {
+  id: string
+  draft_type: 'feed' | 'story'
+  layout: string
+  title: string
+  subtitle: string
+  caption: string
+  call_to_action: string
+  image_urls: string
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+type SocialMediaTextSnippetRow = {
+  id: string
+  label: string
+  content: string
+  category: string
   created_by: string
   created_at: string
   updated_at: string
@@ -1363,6 +1468,72 @@ export const getFleaMarketListings = (userId?: string | null) => {
   })
 }
 
+export const getSocialMediaDrafts = (userId?: string | null) => {
+  if (!userId) {
+    return []
+  }
+
+  const actor = getUserRowById(userId)
+  if (!actor) {
+    return []
+  }
+
+  const rows = db.prepare(
+    'SELECT * FROM social_media_drafts ORDER BY updated_at DESC, created_at DESC',
+  ).all() as SocialMediaDraftRow[]
+
+  return rows.map((row) => {
+    let imageUrls: string[] = []
+    try {
+      const parsed = JSON.parse(row.image_urls || '[]') as unknown
+      if (Array.isArray(parsed)) {
+        imageUrls = parsed.filter((value): value is string => typeof value === 'string')
+      }
+    } catch {
+      imageUrls = []
+    }
+
+    return {
+      id: row.id,
+      draftType: row.draft_type,
+      layout: row.layout,
+      title: row.title,
+      subtitle: row.subtitle || '',
+      caption: row.caption || '',
+      callToAction: row.call_to_action || '',
+      imageUrls,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }
+  })
+}
+
+export const getSocialMediaTextSnippets = (userId?: string | null) => {
+  if (!userId) {
+    return []
+  }
+
+  const actor = getUserRowById(userId)
+  if (!actor) {
+    return []
+  }
+
+  const rows = db.prepare(
+    'SELECT * FROM social_media_text_snippets ORDER BY category COLLATE NOCASE ASC, label COLLATE NOCASE ASC',
+  ).all() as SocialMediaTextSnippetRow[]
+
+  return rows.map((row) => ({
+    id: row.id,
+    label: row.label,
+    content: row.content,
+    category: row.category || '',
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }))
+}
+
 export const getSetting = (key: string) => {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
     | { value: string }
@@ -1393,6 +1564,8 @@ export const getBootstrapData = (userId?: string | null) => ({
   pendingPlayerApplications: getPendingPlayerApplications(userId),
   matchRescheduleRequests: getMatchRescheduleRequests(userId),
   fleaMarketListings: getFleaMarketListings(userId),
+  socialMediaDrafts: getSocialMediaDrafts(userId),
+  socialMediaTextSnippets: getSocialMediaTextSnippets(userId),
   conversations: getConversations(userId),
   messages: getMessages(userId),
   settings: getSettings(),

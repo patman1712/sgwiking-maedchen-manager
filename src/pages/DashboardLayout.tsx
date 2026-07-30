@@ -8,6 +8,7 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  Megaphone,
   ShoppingBag,
   Shield,
   ShieldCheck,
@@ -23,6 +24,7 @@ const menuItems = [
   { to: "/dashboard/teams", label: "Mannschaften", icon: Volleyball },
   { to: "__members__", label: "Mitglieder", icon: Users },
   { to: "/dashboard/messages", label: "Nachrichten", icon: MessageSquare },
+  { to: "/dashboard/social-media", label: "Social Media", icon: Megaphone },
   { to: "/dashboard/flohmarkt", label: "Flohmarkt", icon: ShoppingBag },
   { to: "__board__", label: "Vorstand", icon: Briefcase },
 ] as const;
@@ -62,6 +64,13 @@ export default function DashboardLayout() {
 
   const canViewMemberLists =
     currentUser?.role === "admin" || currentUser?.role === "board";
+  const visibleMenuItems = useMemo(
+    () =>
+      menuItems.filter((item) =>
+        item.to === "/dashboard/social-media" ? currentUser?.role === "admin" : true,
+      ),
+    [currentUser?.role],
+  );
   const keepsCollapsedTeamMenus =
     currentUser?.role === "admin" || currentUser?.role === "board";
 
@@ -256,7 +265,7 @@ export default function DashboardLayout() {
         </div>
 
         <nav className="flex-1 space-y-2 px-4 py-6">
-          {menuItems.map((item) => {
+          {visibleMenuItems.map((item) => {
             const Icon = item.icon;
 
             if (item.to === "/dashboard/teams") {

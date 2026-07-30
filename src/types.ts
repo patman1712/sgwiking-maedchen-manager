@@ -150,6 +150,32 @@ export interface FleaMarketListing {
   updatedAt: string;
 }
 
+export type SocialMediaDraftType = "feed" | "story";
+
+export interface SocialMediaDraft {
+  id: string;
+  draftType: SocialMediaDraftType;
+  layout: string;
+  title: string;
+  subtitle: string;
+  caption: string;
+  callToAction: string;
+  imageUrls: string[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SocialMediaTextSnippet {
+  id: string;
+  label: string;
+  content: string;
+  category: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type ConversationType = "team" | "direct";
 
 export interface Conversation {

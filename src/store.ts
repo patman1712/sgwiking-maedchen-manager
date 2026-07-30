@@ -11,6 +11,8 @@ import type {
   Message,
   PendingPlayerApplication,
   PlayerDocumentType,
+  SocialMediaDraft,
+  SocialMediaTextSnippet,
   Team,
   UserProfile,
   UserRole,
@@ -59,6 +61,8 @@ interface ApiStatePayload {
   pendingPlayerApplications: PendingPlayerApplication[];
   matchRescheduleRequests: MatchRescheduleRequest[];
   fleaMarketListings: FleaMarketListing[];
+  socialMediaDrafts: SocialMediaDraft[];
+  socialMediaTextSnippets: SocialMediaTextSnippet[];
   conversations: Conversation[];
   messages: Message[];
   settings: AppSettings;
@@ -105,6 +109,8 @@ interface AppState {
   pendingPlayerApplications: PendingPlayerApplication[];
   matchRescheduleRequests: MatchRescheduleRequest[];
   fleaMarketListings: FleaMarketListing[];
+  socialMediaDrafts: SocialMediaDraft[];
+  socialMediaTextSnippets: SocialMediaTextSnippet[];
   conversations: Conversation[];
   messages: Message[];
   settings: AppSettings;
@@ -193,6 +199,45 @@ interface AppState {
     imageFiles: File[];
   }) => Promise<ActionResult>;
   deleteFleaMarketListing: (listingId: string) => Promise<ActionResult>;
+  addSocialMediaDraft: (input: {
+    draftType: "feed" | "story";
+    layout: string;
+    title: string;
+    subtitle: string;
+    caption: string;
+    callToAction: string;
+    imageFiles: File[];
+    imageOrder: string[];
+  }) => Promise<ActionResult>;
+  updateSocialMediaDraft: (
+    draftId: string,
+    input: {
+      draftType: "feed" | "story";
+      layout: string;
+      title: string;
+      subtitle: string;
+      caption: string;
+      callToAction: string;
+      existingImageUrls: string[];
+      newImageFiles: File[];
+      imageOrder: string[];
+    },
+  ) => Promise<ActionResult>;
+  deleteSocialMediaDraft: (draftId: string) => Promise<ActionResult>;
+  addSocialMediaTextSnippet: (input: {
+    label: string;
+    content: string;
+    category: string;
+  }) => Promise<ActionResult>;
+  updateSocialMediaTextSnippet: (
+    snippetId: string,
+    input: {
+      label: string;
+      content: string;
+      category: string;
+    },
+  ) => Promise<ActionResult>;
+  deleteSocialMediaTextSnippet: (snippetId: string) => Promise<ActionResult>;
   addMatch: (input: {
     teamId: string;
     opponent: string;
@@ -243,6 +288,8 @@ export const initialAppState = {
   pendingPlayerApplications: [] as PendingPlayerApplication[],
   matchRescheduleRequests: [] as MatchRescheduleRequest[],
   fleaMarketListings: [] as FleaMarketListing[],
+  socialMediaDrafts: [] as SocialMediaDraft[],
+  socialMediaTextSnippets: [] as SocialMediaTextSnippet[],
   conversations: [] as Conversation[],
   messages: [] as Message[],
   settings: {
@@ -283,6 +330,8 @@ const applyPayload = (
     pendingPlayerApplications: payload.pendingPlayerApplications,
     matchRescheduleRequests: payload.matchRescheduleRequests,
     fleaMarketListings: payload.fleaMarketListings,
+    socialMediaDrafts: payload.socialMediaDrafts,
+    socialMediaTextSnippets: payload.socialMediaTextSnippets,
     conversations: payload.conversations,
     messages: payload.messages,
     settings: payload.settings,
@@ -1071,6 +1120,195 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Angebot konnte nicht geloescht werden.",
+          };
+        }
+      },
+      addSocialMediaDraft: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("actorId", actorId);
+          payload.append("draftType", input.draftType);
+          payload.append("layout", input.layout);
+          payload.append("title", input.title);
+          payload.append("subtitle", input.subtitle);
+          payload.append("caption", input.caption);
+          payload.append("callToAction", input.callToAction);
+          payload.append("imageOrder", JSON.stringify(input.imageOrder));
+
+          input.imageFiles.forEach((file) => {
+            payload.append("images", file);
+          });
+
+          const response = await fetch("/api/social-media/drafts", {
+            method: "POST",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Entwurf konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      updateSocialMediaDraft: async (draftId, input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("actorId", actorId);
+          payload.append("draftType", input.draftType);
+          payload.append("layout", input.layout);
+          payload.append("title", input.title);
+          payload.append("subtitle", input.subtitle);
+          payload.append("caption", input.caption);
+          payload.append("callToAction", input.callToAction);
+          payload.append("existingImageUrls", JSON.stringify(input.existingImageUrls));
+          payload.append("imageOrder", JSON.stringify(input.imageOrder));
+
+          input.newImageFiles.forEach((file) => {
+            payload.append("images", file);
+          });
+
+          const response = await fetch(`/api/social-media/drafts/${draftId}`, {
+            method: "PUT",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Entwurf konnte nicht aktualisiert werden.",
+          };
+        }
+      },
+      deleteSocialMediaDraft: async (draftId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/social-media/drafts/${draftId}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Entwurf konnte nicht geloescht werden.",
+          };
+        }
+      },
+      addSocialMediaTextSnippet: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch("/api/social-media/snippets", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...input, actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Textbaustein konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      updateSocialMediaTextSnippet: async (snippetId, input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/social-media/snippets/${snippetId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...input, actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Textbaustein konnte nicht aktualisiert werden.",
+          };
+        }
+      },
+      deleteSocialMediaTextSnippet: async (snippetId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/social-media/snippets/${snippetId}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Textbaustein konnte nicht geloescht werden.",
           };
         }
       },
