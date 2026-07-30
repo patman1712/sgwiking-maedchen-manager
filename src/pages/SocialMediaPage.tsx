@@ -147,6 +147,8 @@ function createLayer(
       centerY: 50,
       widthPercent: 100,
       heightPercent: 100,
+      lockPosition: false,
+      lockSize: false,
     },
     badge: {
       kind: "badge",
@@ -155,6 +157,8 @@ function createLayer(
       style: "pill",
       text: "SG Wiking Offenbach",
       enabled: true,
+      lockPosition: false,
+      lockSize: false,
     },
     title: {
       kind: "title",
@@ -163,6 +167,8 @@ function createLayer(
       style: "solid",
       text: "Spieltag",
       enabled: true,
+      lockPosition: false,
+      lockSize: false,
     },
     subtitle: {
       kind: "subtitle",
@@ -171,6 +177,8 @@ function createLayer(
       style: "glass",
       text: "Kurzer Untertitel",
       enabled: true,
+      lockPosition: false,
+      lockSize: false,
     },
     caption: {
       kind: "caption",
@@ -179,6 +187,8 @@ function createLayer(
       style: "glass",
       text: "Hier kommt euer Textbaustein hinein.",
       enabled: true,
+      lockPosition: false,
+      lockSize: false,
     },
     cta: {
       kind: "cta",
@@ -187,6 +197,8 @@ function createLayer(
       style: "pill",
       text: "Mehr Infos",
       enabled: true,
+      lockPosition: false,
+      lockSize: false,
     },
   };
 
@@ -349,13 +361,31 @@ function getImageStyleClasses(style: SocialMediaLayerStyle, full = false) {
 
 function normalizeImageLayer(layer: SocialMediaLayer): SocialMediaLayer {
   if (layer.kind !== "image") {
-    return layer;
+    return {
+      ...layer,
+      lockPosition: layer.lockPosition ?? false,
+      lockSize: layer.lockSize ?? false,
+    };
   }
 
   return {
     ...layer,
     ...getImageLayerGeometry(layer),
+    lockPosition: layer.lockPosition ?? false,
+    lockSize: layer.lockSize ?? false,
   };
+}
+
+function canMoveLayer(layer: SocialMediaLayer, respectLayerLocks: boolean) {
+  return !respectLayerLocks || !layer.lockPosition;
+}
+
+function canResizeLayer(layer: SocialMediaLayer, respectLayerLocks: boolean) {
+  if (layer.kind !== "image") {
+    return false;
+  }
+
+  return !respectLayerLocks || !layer.lockSize;
 }
 
 function getTextWrapperClasses(
@@ -426,6 +456,7 @@ function SocialPreview({
   activeLayerId,
   onSelectLayer,
   onUpdateLayer,
+  respectLayerLocks = false,
 }: {
   draftType: SocialMediaDraftType;
   layout: string;
@@ -435,6 +466,7 @@ function SocialPreview({
   activeLayerId?: string | null;
   onSelectLayer?: (layerId: string) => void;
   onUpdateLayer?: (layerId: string, patch: Partial<SocialMediaLayer>) => void;
+  respectLayerLocks?: boolean;
 }) {
   const layoutLabel =
     fallbackLayoutOptions.find((option) => option.value === layout)?.label ?? "Vorlage";
@@ -554,6 +586,8 @@ function SocialPreview({
           const assetUrl = resolveAssetUrl(layer.imageRef);
           const geometry = getImageLayerGeometry(layer);
           const isSelected = activeLayerId === layer.id;
+          const movable = canMoveLayer(layer, respectLayerLocks);
+          const resizable = canResizeLayer(layer, respectLayerLocks);
           return (
             <div
               key={layer.id}
@@ -567,7 +601,7 @@ function SocialPreview({
                 }
               }}
               onPointerDown={(event) => {
-                if (!onUpdateLayer) {
+                if (!onUpdateLayer || !movable) {
                   return;
                 }
                 event.preventDefault();
@@ -585,7 +619,8 @@ function SocialPreview({
                 };
               }}
               className={cn(
-                "absolute overflow-hidden touch-none cursor-grab active:cursor-grabbing",
+                "absolute overflow-hidden touch-none",
+                movable ? "cursor-grab active:cursor-grabbing" : "cursor-default",
                 isSelected &&
                   "ring-2 ring-sky-300 ring-offset-2 ring-offset-transparent",
               )}
@@ -623,8 +658,17 @@ function SocialPreview({
                 <button
                   type="button"
                   aria-label="Bildgroesse anpassen"
-                  className="absolute bottom-2 right-2 h-6 w-6 rounded-full border border-white/80 bg-sky-400 shadow-lg shadow-sky-900/30"
+                  disabled={!resizable}
+                  className={cn(
+                    "absolute bottom-2 right-2 h-6 w-6 rounded-full border border-white/80 shadow-lg shadow-sky-900/30",
+                    resizable
+                      ? "bg-sky-400"
+                      : "cursor-not-allowed bg-slate-300 opacity-75",
+                  )}
                   onPointerDown={(event) => {
+                    if (!resizable) {
+                      return;
+                    }
                     event.preventDefault();
                     event.stopPropagation();
                     onSelectLayer?.(layer.id);
@@ -792,6 +836,11 @@ export default function SocialMediaPage() {
     editorLayers.find((layer) => layer.kind !== "image") ??
     editorLayers[0] ??
     null;
+  const respectEditorLayerLocks = !editorIsTemplate;
+  const activeLayerPositionLocked =
+    Boolean(activeLayer?.lockPosition) && respectEditorLayerLocks;
+  const activeLayerSizeLocked =
+    Boolean(activeLayer?.lockSize) && respectEditorLayerLocks;
   const primaryTitleLayer =
     editorLayers.find((layer) => layer.kind === "title") ?? null;
   const selectedTemplate =
@@ -2262,6 +2311,7 @@ export default function SocialMediaPage() {
                           </span>
                           <select
                             value={activeLayer.position}
+                            disabled={activeLayerPositionLocked}
                             onChange={(event) => {
                               const position = event.target.value as SocialMediaLayerPosition;
                               if (activeLayer.kind === "image") {
@@ -2277,7 +2327,7 @@ export default function SocialMediaPage() {
 
                               updateLayer(activeLayer.id, { position });
                             }}
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {positionOptions.map((option) => (
                               <option key={option.value} value={option.value}>
@@ -2287,6 +2337,60 @@ export default function SocialMediaPage() {
                           </select>
                         </label>
                       </div>
+
+                      {editorIsTemplate ? (
+                        <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-4">
+                          <p className="text-sm font-semibold text-slate-900">Fixierung fuer Nutzer</p>
+                          <p className="mt-1 text-xs text-slate-600">
+                            Gesperrte Elemente bleiben spaeter bei Feed oder Story erstellen fest.
+                          </p>
+                          <div className="mt-3 grid gap-3 md:grid-cols-2">
+                            <label className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-white px-4 py-3">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(activeLayer.lockPosition)}
+                                onChange={(event) =>
+                                  updateLayer(activeLayer.id, {
+                                    lockPosition: event.target.checked,
+                                  })
+                                }
+                                className="h-5 w-5 rounded border-slate-300 text-blue-700 focus:ring-blue-500"
+                              />
+                              <span className="text-sm font-semibold text-slate-700">
+                                Position fixieren
+                              </span>
+                            </label>
+
+                            {activeLayer.kind === "image" ? (
+                              <label className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-white px-4 py-3">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(activeLayer.lockSize)}
+                                  onChange={(event) =>
+                                    updateLayer(activeLayer.id, {
+                                      lockSize: event.target.checked,
+                                    })
+                                  }
+                                  className="h-5 w-5 rounded border-slate-300 text-blue-700 focus:ring-blue-500"
+                                />
+                                <span className="text-sm font-semibold text-slate-700">
+                                  Groesse fixieren
+                                </span>
+                              </label>
+                            ) : (
+                              <div className="rounded-2xl border border-dashed border-amber-200 bg-white px-4 py-3 text-sm text-slate-500">
+                                Text-Ebenen haben aktuell nur eine Positionssperre.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : activeLayerPositionLocked || activeLayerSizeLocked ? (
+                        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                          Diese Vorlage enthaelt feste Elemente.
+                          {activeLayerPositionLocked ? " Position ist gesperrt." : ""}
+                          {activeLayerSizeLocked ? " Groesse ist gesperrt." : ""}
+                        </div>
+                      ) : null}
 
                       <label className="block">
                         <span className="mb-2 block text-sm font-medium text-slate-700">Stil</span>
@@ -2339,6 +2443,7 @@ export default function SocialMediaPage() {
                               </div>
                               <button
                                 type="button"
+                                disabled={activeLayerPositionLocked || activeLayerSizeLocked}
                                 onClick={() =>
                                   updateLayer(activeLayer.id, {
                                     ...getDefaultImageGeometry({
@@ -2347,7 +2452,7 @@ export default function SocialMediaPage() {
                                     }),
                                   })
                                 }
-                                className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                                className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 Zuruecksetzen
                               </button>
@@ -2402,12 +2507,17 @@ export default function SocialMediaPage() {
                                         max={control.max}
                                         step={1}
                                         value={control.value}
+                                        disabled={
+                                          (control.key === "centerX" || control.key === "centerY")
+                                            ? activeLayerPositionLocked
+                                            : activeLayerSizeLocked
+                                        }
                                         onChange={(event) =>
                                           updateLayer(activeLayer.id, {
                                             [control.key]: Number(event.target.value),
                                           } as Partial<SocialMediaLayer>)
                                         }
-                                        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
+                                        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                                       />
                                     </label>
                                   ))}
@@ -2477,10 +2587,12 @@ export default function SocialMediaPage() {
                     activeLayerId={activeLayer?.id}
                     onSelectLayer={setActiveLayerId}
                     onUpdateLayer={updateLayer}
+                    respectLayerLocks={respectEditorLayerLocks}
                   />
                   <p className="mt-3 text-xs text-slate-500">
-                    Bild-Layer lassen sich direkt in der Vorschau ziehen. Unten rechts am markierten
-                    Bild kannst du die Groesse anpassen.
+                    {editorIsTemplate
+                      ? "Im Vorlagenmodus legst du fest, welche Elemente spaeter fuer Nutzer fest bleiben."
+                      : "Freie Bild-Layer lassen sich direkt in der Vorschau ziehen. Fixierte Elemente bleiben an ihrer Position und Groesse gesperrt."}
                   </p>
                 </SectionCard>
 

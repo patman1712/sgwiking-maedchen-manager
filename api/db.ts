@@ -1564,6 +1564,8 @@ export const getSocialMediaDrafts = (userId?: string | null) => {
       centerY?: number
       widthPercent?: number
       heightPercent?: number
+      lockPosition?: boolean
+      lockSize?: boolean
     }> = []
     try {
       const parsed = JSON.parse(row.layers_json || '[]') as unknown
@@ -1584,6 +1586,8 @@ export const getSocialMediaDrafts = (userId?: string | null) => {
             centerY?: number
             widthPercent?: number
             heightPercent?: number
+            lockPosition?: boolean
+            lockSize?: boolean
           } =>
             Boolean(
               entry &&
@@ -1601,7 +1605,11 @@ export const getSocialMediaDrafts = (userId?: string | null) => {
                 ((entry as { widthPercent?: unknown }).widthPercent === undefined ||
                   typeof (entry as { widthPercent?: unknown }).widthPercent === 'number') &&
                 ((entry as { heightPercent?: unknown }).heightPercent === undefined ||
-                  typeof (entry as { heightPercent?: unknown }).heightPercent === 'number'),
+                  typeof (entry as { heightPercent?: unknown }).heightPercent === 'number') &&
+                ((entry as { lockPosition?: unknown }).lockPosition === undefined ||
+                  typeof (entry as { lockPosition?: unknown }).lockPosition === 'boolean') &&
+                ((entry as { lockSize?: unknown }).lockSize === undefined ||
+                  typeof (entry as { lockSize?: unknown }).lockSize === 'boolean'),
             ),
         )
       }

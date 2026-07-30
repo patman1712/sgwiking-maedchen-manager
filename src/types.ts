@@ -191,6 +191,8 @@ export interface SocialMediaLayer {
   centerY?: number;
   widthPercent?: number;
   heightPercent?: number;
+  lockPosition?: boolean;
+  lockSize?: boolean;
 }
 
 export interface SocialMediaDraft {

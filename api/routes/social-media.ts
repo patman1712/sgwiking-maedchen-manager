@@ -81,6 +81,8 @@ const parseLayers = (value: string | null | undefined) => {
       centerY?: number
       widthPercent?: number
       heightPercent?: number
+      lockPosition?: boolean
+      lockSize?: boolean
     }>
   }
 
@@ -103,6 +105,8 @@ const parseLayers = (value: string | null | undefined) => {
           centerY?: number
           widthPercent?: number
           heightPercent?: number
+          lockPosition?: boolean
+          lockSize?: boolean
         } =>
           Boolean(
             entry &&
@@ -112,7 +116,11 @@ const parseLayers = (value: string | null | undefined) => {
               typeof (entry as { label?: unknown }).label === 'string' &&
               typeof (entry as { position?: unknown }).position === 'string' &&
               typeof (entry as { style?: unknown }).style === 'string' &&
-              typeof (entry as { enabled?: unknown }).enabled === 'boolean',
+              typeof (entry as { enabled?: unknown }).enabled === 'boolean' &&
+              ((entry as { lockPosition?: unknown }).lockPosition === undefined ||
+                typeof (entry as { lockPosition?: unknown }).lockPosition === 'boolean') &&
+              ((entry as { lockSize?: unknown }).lockSize === undefined ||
+                typeof (entry as { lockSize?: unknown }).lockSize === 'boolean'),
           ),
       )
     }
@@ -137,6 +145,8 @@ const remapLayerImageRefs = (
     centerY?: number
     widthPercent?: number
     heightPercent?: number
+    lockPosition?: boolean
+    lockSize?: boolean
   }>,
   uploadedImageUrls: string[],
   retainedImageUrls: string[],
