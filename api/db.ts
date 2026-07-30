@@ -1687,9 +1687,53 @@ export const setSetting = (key: string, value: string) => {
   `).run(key, value)
 }
 
+const defaultSocialMediaLayouts = [
+  { value: 'matchday', label: 'Spieltag', enabled: true },
+  { value: 'result', label: 'Ergebnis', enabled: true },
+  { value: 'training', label: 'Training', enabled: true },
+  { value: 'announcement', label: 'Ankuendigung', enabled: true },
+]
+
+const getSocialMediaLayouts = () => {
+  const rawValue = getSetting('social_media_layouts')
+  if (!rawValue) {
+    return defaultSocialMediaLayouts
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as unknown
+    if (Array.isArray(parsed)) {
+      const mapped = parsed.filter(
+        (
+          entry,
+        ): entry is { value: string; label: string; enabled: boolean } =>
+          Boolean(
+            entry &&
+              typeof entry === 'object' &&
+              typeof (entry as { value?: unknown }).value === 'string' &&
+              typeof (entry as { label?: unknown }).label === 'string' &&
+              typeof (entry as { enabled?: unknown }).enabled === 'boolean',
+          ),
+      )
+
+      if (mapped.length) {
+        return defaultSocialMediaLayouts.map((layout) => {
+          const override = mapped.find((entry) => entry.value === layout.value)
+          return override ? override : layout
+        })
+      }
+    }
+  } catch {
+    return defaultSocialMediaLayouts
+  }
+
+  return defaultSocialMediaLayouts
+}
+
 export const getSettings = () => ({
   clubName: getSetting('club_name') ?? 'SG Wiking Offenbach',
   logoUrl: getSetting('team_logo_url'),
+  socialMediaLayouts: getSocialMediaLayouts(),
 })
 
 export const getBootstrapData = (userId?: string | null) => ({

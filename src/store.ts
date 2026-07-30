@@ -307,6 +307,12 @@ export const initialAppState = {
   settings: {
     clubName: "SG Wiking Offenbach",
     logoUrl: null,
+    socialMediaLayouts: [
+      { value: "matchday", label: "Spieltag", enabled: true },
+      { value: "result", label: "Ergebnis", enabled: true },
+      { value: "training", label: "Training", enabled: true },
+      { value: "announcement", label: "Ankuendigung", enabled: true },
+    ],
   } as AppSettings,
   currentUserId: null as string | null,
   loading: false,

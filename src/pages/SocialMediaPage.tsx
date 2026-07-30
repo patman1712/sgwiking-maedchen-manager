@@ -26,6 +26,7 @@ import type {
   SocialMediaDraftType,
   SocialMediaLayer,
   SocialMediaLayerKind,
+  SocialMediaLayoutOption,
   SocialMediaLayerPosition,
   SocialMediaLayerStyle,
 } from "@/types";
@@ -80,12 +81,12 @@ function buildDraftAssets(draft: SocialMediaDraft, crests: SocialMediaCrest[]): 
   return [...assets.values()];
 }
 
-const layoutOptions = [
-  { value: "matchday", label: "Spieltag" },
-  { value: "result", label: "Ergebnis" },
-  { value: "training", label: "Training" },
-  { value: "announcement", label: "Ankuendigung" },
-] as const;
+const fallbackLayoutOptions: SocialMediaLayoutOption[] = [
+  { value: "matchday", label: "Spieltag", enabled: true },
+  { value: "result", label: "Ergebnis", enabled: true },
+  { value: "training", label: "Training", enabled: true },
+  { value: "announcement", label: "Ankuendigung", enabled: true },
+];
 
 const layerKindOptions: Array<{ value: SocialMediaLayerKind; label: string }> = [
   { value: "image", label: "Bild" },
@@ -214,8 +215,7 @@ function buildFallbackLayers(draft: SocialMediaDraft): SocialMediaLayer[] {
   const fallback = [
     createLayer("image", { imageRef: firstImageRef }),
     createLayer("badge", {
-      text:
-        layoutOptions.find((option) => option.value === draft.layout)?.label ?? "Vorlage",
+      text: fallbackLayoutOptions.find((option) => option.value === draft.layout)?.label ?? "Vorlage",
     }),
     createLayer("title", { text: draft.title || "Titel des Beitrags" }),
     createLayer("subtitle", { text: draft.subtitle || "Kurzer Untertitel" }),
@@ -437,7 +437,7 @@ function SocialPreview({
   onUpdateLayer?: (layerId: string, patch: Partial<SocialMediaLayer>) => void;
 }) {
   const layoutLabel =
-    layoutOptions.find((option) => option.value === layout)?.label ?? "Vorlage";
+    fallbackLayoutOptions.find((option) => option.value === layout)?.label ?? "Vorlage";
 
   const previewRef = useRef<HTMLDivElement | null>(null);
   const interactionRef = useRef<{
@@ -672,6 +672,7 @@ export default function SocialMediaPage() {
   const users = useAppStore((state) => state.users);
   const currentUserId = useAppStore((state) => state.currentUserId);
   const settings = useAppStore((state) => state.settings);
+  const fetchData = useAppStore((state) => state.fetchData);
   const addSocialMediaDraft = useAppStore((state) => state.addSocialMediaDraft);
   const updateSocialMediaDraft = useAppStore((state) => state.updateSocialMediaDraft);
   const deleteSocialMediaDraft = useAppStore((state) => state.deleteSocialMediaDraft);
@@ -716,6 +717,24 @@ export default function SocialMediaPage() {
     () => drafts.filter((draft) => draft.isTemplate),
     [drafts],
   );
+  const managedLayoutOptions = useMemo(
+    () =>
+      settings.socialMediaLayouts?.length
+        ? settings.socialMediaLayouts
+        : fallbackLayoutOptions,
+    [settings.socialMediaLayouts],
+  );
+  const availableLayoutOptions = useMemo(
+    () => managedLayoutOptions.filter((option) => option.enabled),
+    [managedLayoutOptions],
+  );
+  const releasedTemplateDrafts = useMemo(
+    () =>
+      templateDrafts.filter((draft) =>
+        managedLayoutOptions.find((option) => option.value === draft.layout)?.enabled,
+      ),
+    [managedLayoutOptions, templateDrafts],
+  );
   const editableDrafts = useMemo(
     () => drafts.filter((draft) => !draft.isTemplate),
     [drafts],
@@ -752,9 +771,21 @@ export default function SocialMediaPage() {
   const [crestFile, setCrestFile] = useState<File | null>(null);
   const [crestSubmitting, setCrestSubmitting] = useState(false);
   const [accessSavingId, setAccessSavingId] = useState<string | null>(null);
+  const [layoutForm, setLayoutForm] = useState<SocialMediaLayoutOption[]>(managedLayoutOptions);
+  const [layoutSubmitting, setLayoutSubmitting] = useState(false);
 
   const sellerName = (userId: string) =>
     users.find((user) => user.id === userId)?.fullName ?? "Unbekannt";
+  const getLayoutLabel = (value: string) =>
+    managedLayoutOptions.find((option) => option.value === value)?.label ?? "Vorlage";
+  const editorLayoutOptions = useMemo(() => {
+    if (availableLayoutOptions.some((option) => option.value === editorLayout)) {
+      return availableLayoutOptions;
+    }
+
+    const currentOption = managedLayoutOptions.find((option) => option.value === editorLayout);
+    return currentOption ? [...availableLayoutOptions, currentOption] : availableLayoutOptions;
+  }, [availableLayoutOptions, editorLayout, managedLayoutOptions]);
 
   const activeLayer =
     editorLayers.find((layer) => layer.id === activeLayerId) ??
@@ -766,12 +797,18 @@ export default function SocialMediaPage() {
   const selectedTemplate =
     templateDrafts.find((draft) => draft.id === selectedTemplateId) ?? templateDrafts[0] ?? null;
 
+  useEffect(() => {
+    setLayoutForm(managedLayoutOptions);
+  }, [managedLayoutOptions]);
+
   const resetDraftEditor = () => {
     setEditorMode("create");
     setEditingDraftId(null);
     setEditorIsTemplate(false);
     setEditorDraftType("feed");
-    setEditorLayout("matchday");
+    setEditorLayout(
+      availableLayoutOptions[0]?.value ?? managedLayoutOptions[0]?.value ?? "matchday",
+    );
     setEditorAssets([]);
     const starter = createStarterLayers();
     setEditorLayers(starter);
@@ -983,6 +1020,44 @@ export default function SocialMediaPage() {
     setAccessSavingId(null);
   };
 
+  const saveLayoutSettings = async () => {
+    if (!currentUserId) {
+      setError("Bitte zuerst anmelden.");
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+    setLayoutSubmitting(true);
+
+    try {
+      const response = await fetch("/api/settings/social-media-layouts", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actorId: currentUserId,
+          layouts: layoutForm.map((entry) => ({
+            ...entry,
+            label: entry.label.trim() || getLayoutLabel(entry.value),
+          })),
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok || data.success === false) {
+        setError(data.error || "Vorlagen-Namen konnten nicht gespeichert werden.");
+        return;
+      }
+
+      await fetchData();
+      setSuccess("Vorlagen-Namen und Freigaben wurden gespeichert.");
+    } catch {
+      setError("Vorlagen-Namen konnten nicht gespeichert werden.");
+    } finally {
+      setLayoutSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <SectionCard
@@ -1175,8 +1250,7 @@ export default function SocialMediaPage() {
                               </p>
                               <p className="mt-1 text-sm text-slate-600">
                                 {selectedTemplate.draftType === "story" ? "Story" : "Feed"} ·{" "}
-                                {layoutOptions.find((option) => option.value === selectedTemplate.layout)?.label ??
-                                  "Vorlage"}
+                                {getLayoutLabel(selectedTemplate.layout)}
                               </p>
                             </div>
                             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1256,8 +1330,7 @@ export default function SocialMediaPage() {
                                 >
                                   <p className="text-base font-semibold text-slate-900">{draft.title}</p>
                                   <p className="mt-1 text-sm text-slate-600">
-                                    {layoutOptions.find((option) => option.value === draft.layout)?.label ??
-                                      "Vorlage"}
+                                    {getLayoutLabel(draft.layout)}
                                   </p>
                                   <p className="mt-1 text-xs text-slate-500">
                                     Zuletzt aktualisiert: {previewDate(draft.updatedAt)}
@@ -1332,8 +1405,7 @@ export default function SocialMediaPage() {
                                 <div className="min-w-0">
                                   <p className="text-base font-semibold text-slate-900">{draft.title}</p>
                                   <p className="mt-1 text-sm text-slate-600">
-                                    {layoutOptions.find((option) => option.value === draft.layout)?.label ??
-                                      "Vorlage"}
+                                    {getLayoutLabel(draft.layout)}
                                   </p>
                                   <p className="mt-1 text-xs text-slate-500">
                                     Zuletzt aktualisiert: {previewDate(draft.updatedAt)}
@@ -1398,6 +1470,67 @@ export default function SocialMediaPage() {
           <div className="space-y-4">
             {canManageSocial ? (
               <>
+                <SectionCard
+                  title="Vorlagen-Namen"
+                  description="Hier benennst du die Auswahl fuer Feed oder Story um und gibst Eintraege erst sichtbar frei."
+                >
+                  <div className="space-y-3">
+                    {layoutForm.map((layout) => (
+                      <div
+                        key={layout.value}
+                        className="rounded-2xl border border-slate-200 bg-white p-4"
+                      >
+                        <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
+                          <label className="block">
+                            <span className="mb-2 block text-sm font-medium text-slate-700">
+                              Name in der Auswahl
+                            </span>
+                            <input
+                              value={layout.label}
+                              onChange={(event) =>
+                                setLayoutForm((current) =>
+                                  current.map((entry) =>
+                                    entry.value === layout.value
+                                      ? { ...entry, label: event.target.value }
+                                      : entry,
+                                  ),
+                                )
+                              }
+                              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                            />
+                          </label>
+                          <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                            <input
+                              type="checkbox"
+                              checked={layout.enabled}
+                              onChange={(event) =>
+                                setLayoutForm((current) =>
+                                  current.map((entry) =>
+                                    entry.value === layout.value
+                                      ? { ...entry, enabled: event.target.checked }
+                                      : entry,
+                                  ),
+                                )
+                              }
+                              className="h-5 w-5 rounded border-slate-300 text-blue-700 focus:ring-blue-500"
+                            />
+                            <span className="text-sm font-semibold text-slate-700">Freigegeben</span>
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+
+                    <button
+                      type="button"
+                      disabled={layoutSubmitting}
+                      onClick={() => void saveLayoutSettings()}
+                      className="w-full rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {layoutSubmitting ? "Speichert..." : "Namen und Freigaben speichern"}
+                    </button>
+                  </div>
+                </SectionCard>
+
                 <SectionCard
                   title="Trainer-Freigaben"
                   description="Nur freigeschaltete Trainer sehen Social Media und koennen Vorlagen als Entwurf verwenden."
@@ -1787,7 +1920,7 @@ export default function SocialMediaPage() {
                   description="Format, Vorlagenauswahl und Bild-Assets fuer den Entwurf."
                 >
                   <div className="space-y-4">
-                    {!editorIsTemplate && templateDrafts.length ? (
+                    {!editorIsTemplate && releasedTemplateDrafts.length ? (
                       <div className="rounded-3xl border border-sky-200 bg-sky-50/70 p-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
@@ -1809,7 +1942,7 @@ export default function SocialMediaPage() {
                           </button>
                         </div>
                         <div className="mt-3 grid gap-3 md:grid-cols-2">
-                          {templateDrafts.map((template) => (
+                          {releasedTemplateDrafts.map((template) => (
                             <button
                               key={template.id}
                               type="button"
@@ -1819,8 +1952,7 @@ export default function SocialMediaPage() {
                               <p className="text-sm font-semibold text-slate-900">{template.title}</p>
                               <p className="mt-1 text-xs text-slate-500">
                                 {template.draftType === "story" ? "Story" : "Feed"} ·{" "}
-                                {layoutOptions.find((option) => option.value === template.layout)?.label ??
-                                  "Vorlage"}
+                                {getLayoutLabel(template.layout)}
                               </p>
                             </button>
                           ))}
@@ -1868,7 +2000,7 @@ export default function SocialMediaPage() {
                           onChange={(event) => setEditorLayout(event.target.value)}
                           className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                         >
-                          {layoutOptions.map((option) => (
+                          {editorLayoutOptions.map((option) => (
                             <option key={option.value} value={option.value}>
                               {option.label}
                             </option>

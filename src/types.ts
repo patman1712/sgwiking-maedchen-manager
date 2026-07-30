@@ -250,4 +250,11 @@ export interface Message {
 export interface AppSettings {
   clubName: string;
   logoUrl: string | null;
+  socialMediaLayouts: SocialMediaLayoutOption[];
+}
+
+export interface SocialMediaLayoutOption {
+  value: string;
+  label: string;
+  enabled: boolean;
 }
