@@ -69,6 +69,10 @@ const parseLayers = (value: string | null | undefined) => {
       imageRef?: string
       text?: string
       enabled: boolean
+      centerX?: number
+      centerY?: number
+      widthPercent?: number
+      heightPercent?: number
     }>
   }
 
@@ -87,6 +91,10 @@ const parseLayers = (value: string | null | undefined) => {
           imageRef?: string
           text?: string
           enabled: boolean
+          centerX?: number
+          centerY?: number
+          widthPercent?: number
+          heightPercent?: number
         } =>
           Boolean(
             entry &&
@@ -117,6 +125,10 @@ const remapLayerImageRefs = (
     imageRef?: string
     text?: string
     enabled: boolean
+    centerX?: number
+    centerY?: number
+    widthPercent?: number
+    heightPercent?: number
   }>,
   uploadedImageUrls: string[],
   retainedImageUrls: string[],

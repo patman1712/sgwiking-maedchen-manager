@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import {
   ArrowDown,
@@ -106,6 +106,10 @@ function createLayer(
       imageRef: undefined,
       text: "",
       enabled: true,
+      centerX: 50,
+      centerY: 50,
+      widthPercent: 100,
+      heightPercent: 100,
     },
     badge: {
       kind: "badge",
@@ -217,20 +221,73 @@ function getPositionClasses(position: SocialMediaLayerPosition) {
   }
 }
 
-function getImageBoxClasses(position: SocialMediaLayerPosition, style: SocialMediaLayerStyle) {
-  if (position === "full") {
-    return "inset-0 h-full w-full";
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function sanitizePercent(value: number | undefined, fallback: number, min: number, max: number) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return fallback;
+  }
+  return clamp(value, min, max);
+}
+
+function getDefaultImageGeometry(layer: Pick<SocialMediaLayer, "position" | "style">) {
+  if (layer.position === "full") {
+    return {
+      centerX: 50,
+      centerY: 50,
+      widthPercent: 100,
+      heightPercent: 100,
+    };
   }
 
-  const base = getPositionClasses(position);
   const size =
-    style === "cutout"
-      ? "h-36 w-28 md:h-44 md:w-32"
-      : style === "soft"
-        ? "h-32 w-32 md:h-40 md:w-40"
-        : "h-40 w-32 md:h-48 md:w-36";
+    layer.style === "cutout"
+      ? { widthPercent: 28, heightPercent: 40 }
+      : layer.style === "soft"
+        ? { widthPercent: 34, heightPercent: 34 }
+        : layer.style === "pill"
+          ? { widthPercent: 28, heightPercent: 28 }
+          : { widthPercent: 32, heightPercent: 44 };
 
-  return `${base} ${size}`;
+  const placement: Record<
+    Exclude<SocialMediaLayerPosition, "full">,
+    { centerX: number; centerY: number }
+  > = {
+    topLeft: { centerX: 22, centerY: 22 },
+    topRight: { centerX: 78, centerY: 22 },
+    center: { centerX: 50, centerY: 50 },
+    bottomLeft: { centerX: 22, centerY: 78 },
+    bottomCenter: { centerX: 50, centerY: 78 },
+    bottomRight: { centerX: 78, centerY: 78 },
+  };
+
+  return {
+    ...placement[layer.position],
+    ...size,
+  };
+}
+
+function getImageLayerGeometry(layer: Pick<
+  SocialMediaLayer,
+  "position" | "style" | "centerX" | "centerY" | "widthPercent" | "heightPercent"
+>) {
+  const defaults = getDefaultImageGeometry(layer);
+  const widthPercent = sanitizePercent(layer.widthPercent, defaults.widthPercent, 12, 100);
+  const heightPercent = sanitizePercent(layer.heightPercent, defaults.heightPercent, 12, 100);
+
+  return {
+    widthPercent,
+    heightPercent,
+    centerX: sanitizePercent(layer.centerX, defaults.centerX, widthPercent / 2, 100 - widthPercent / 2),
+    centerY: sanitizePercent(
+      layer.centerY,
+      defaults.centerY,
+      heightPercent / 2,
+      100 - heightPercent / 2,
+    ),
+  };
 }
 
 function getImageStyleClasses(style: SocialMediaLayerStyle, full = false) {
@@ -252,6 +309,17 @@ function getImageStyleClasses(style: SocialMediaLayerStyle, full = false) {
     default:
       return "rounded-[1.75rem] border border-white/10 object-cover shadow-[0_24px_60px_rgba(15,23,42,0.28)]";
   }
+}
+
+function normalizeImageLayer(layer: SocialMediaLayer): SocialMediaLayer {
+  if (layer.kind !== "image") {
+    return layer;
+  }
+
+  return {
+    ...layer,
+    ...getImageLayerGeometry(layer),
+  };
 }
 
 function getTextWrapperClasses(
@@ -321,6 +389,7 @@ function SocialPreview({
   logoUrl,
   activeLayerId,
   onSelectLayer,
+  onUpdateLayer,
 }: {
   draftType: SocialMediaDraftType;
   layout: string;
@@ -329,15 +398,96 @@ function SocialPreview({
   logoUrl: string | null;
   activeLayerId?: string | null;
   onSelectLayer?: (layerId: string) => void;
+  onUpdateLayer?: (layerId: string, patch: Partial<SocialMediaLayer>) => void;
 }) {
   const layoutLabel =
     layoutOptions.find((option) => option.value === layout)?.label ?? "Vorlage";
 
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const interactionRef = useRef<{
+    layerId: string;
+    mode: "drag" | "resize";
+    startX: number;
+    startY: number;
+    startCenterX: number;
+    startCenterY: number;
+    startWidthPercent: number;
+    startHeightPercent: number;
+  } | null>(null);
   const resolveAssetUrl = (ref?: string) => assets.find((asset) => asset.ref === ref)?.url;
   const visibleLayers = layers.filter((layer) => layer.enabled);
 
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      const interaction = interactionRef.current;
+      const previewElement = previewRef.current;
+      if (!interaction || !previewElement || !onUpdateLayer) {
+        return;
+      }
+
+      const rect = previewElement.getBoundingClientRect();
+      if (!rect.width || !rect.height) {
+        return;
+      }
+
+      const deltaXPercent = ((event.clientX - interaction.startX) / rect.width) * 100;
+      const deltaYPercent = ((event.clientY - interaction.startY) / rect.height) * 100;
+
+      if (interaction.mode === "drag") {
+        const centerX = clamp(
+          interaction.startCenterX + deltaXPercent,
+          interaction.startWidthPercent / 2,
+          100 - interaction.startWidthPercent / 2,
+        );
+        const centerY = clamp(
+          interaction.startCenterY + deltaYPercent,
+          interaction.startHeightPercent / 2,
+          100 - interaction.startHeightPercent / 2,
+        );
+
+        onUpdateLayer(interaction.layerId, { centerX, centerY });
+        return;
+      }
+
+      const widthPercent = clamp(interaction.startWidthPercent + deltaXPercent * 2, 12, 100);
+      const heightPercent = clamp(interaction.startHeightPercent + deltaYPercent * 2, 12, 100);
+      const centerX = clamp(
+        interaction.startCenterX,
+        widthPercent / 2,
+        100 - widthPercent / 2,
+      );
+      const centerY = clamp(
+        interaction.startCenterY,
+        heightPercent / 2,
+        100 - heightPercent / 2,
+      );
+
+      onUpdateLayer(interaction.layerId, {
+        centerX,
+        centerY,
+        widthPercent,
+        heightPercent,
+      });
+    };
+
+    const handlePointerUp = () => {
+      interactionRef.current = null;
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, [onUpdateLayer]);
+
   return (
     <div
+      ref={previewRef}
       className={cn(
         "relative overflow-hidden rounded-[2.25rem] border border-white/40 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.35),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.28),_transparent_40%),linear-gradient(145deg,#0f172a_5%,#1d4ed8_55%,#7dd3fc_100%)] text-white shadow-[0_28px_90px_rgba(15,23,42,0.32)]",
         draftType === "story" ? "aspect-[9/16]" : "aspect-[4/5]",
@@ -366,18 +516,51 @@ function SocialPreview({
 
         if (layer.kind === "image") {
           const assetUrl = resolveAssetUrl(layer.imageRef);
+          const geometry = getImageLayerGeometry(layer);
+          const isSelected = activeLayerId === layer.id;
           return (
-            <button
+            <div
               key={layer.id}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={() => onSelectLayer?.(layer.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelectLayer?.(layer.id);
+                }
+              }}
+              onPointerDown={(event) => {
+                if (!onUpdateLayer) {
+                  return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                onSelectLayer?.(layer.id);
+                interactionRef.current = {
+                  layerId: layer.id,
+                  mode: "drag",
+                  startX: event.clientX,
+                  startY: event.clientY,
+                  startCenterX: geometry.centerX,
+                  startCenterY: geometry.centerY,
+                  startWidthPercent: geometry.widthPercent,
+                  startHeightPercent: geometry.heightPercent,
+                };
+              }}
               className={cn(
-                "absolute overflow-hidden",
-                getImageBoxClasses(layer.position, layer.style),
-                activeLayerId === layer.id &&
+                "absolute overflow-hidden touch-none cursor-grab active:cursor-grabbing",
+                isSelected &&
                   "ring-2 ring-sky-300 ring-offset-2 ring-offset-transparent",
               )}
-              style={zStyle}
+              style={{
+                ...zStyle,
+                left: `${geometry.centerX}%`,
+                top: `${geometry.centerY}%`,
+                width: `${geometry.widthPercent}%`,
+                height: `${geometry.heightPercent}%`,
+                transform: "translate(-50%, -50%)",
+              }}
             >
               {assetUrl ? (
                 <img
@@ -400,7 +583,29 @@ function SocialPreview({
                   <ImageIcon size={22} />
                 </div>
               )}
-            </button>
+              {isSelected && onUpdateLayer ? (
+                <button
+                  type="button"
+                  aria-label="Bildgroesse anpassen"
+                  className="absolute bottom-2 right-2 h-6 w-6 rounded-full border border-white/80 bg-sky-400 shadow-lg shadow-sky-900/30"
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onSelectLayer?.(layer.id);
+                    interactionRef.current = {
+                      layerId: layer.id,
+                      mode: "resize",
+                      startX: event.clientX,
+                      startY: event.clientY,
+                      startCenterX: geometry.centerX,
+                      startCenterY: geometry.centerY,
+                      startWidthPercent: geometry.widthPercent,
+                      startHeightPercent: geometry.heightPercent,
+                    };
+                  }}
+                />
+              ) : null}
+            </div>
           );
         }
 
@@ -529,7 +734,9 @@ export default function SocialMediaPage() {
       url,
     }));
     setEditorAssets(assets);
-    const layers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
+    const layers = (draft.layers.length ? draft.layers : buildFallbackLayers(draft)).map(
+      normalizeImageLayer,
+    );
     setEditorLayers(layers);
     setActiveLayerId(layers[0]?.id ?? null);
     setEditorOpen(true);
@@ -537,7 +744,13 @@ export default function SocialMediaPage() {
 
   const updateLayer = (layerId: string, patch: Partial<SocialMediaLayer>) => {
     setEditorLayers((current) =>
-      current.map((layer) => (layer.id === layerId ? { ...layer, ...patch } : layer)),
+      current.map((layer) => {
+        if (layer.id !== layerId) {
+          return layer;
+        }
+
+        return normalizeImageLayer({ ...layer, ...patch });
+      }),
     );
   };
 
@@ -557,7 +770,9 @@ export default function SocialMediaPage() {
 
   const addLayer = (kind: SocialMediaLayerKind) => {
     const firstAssetRef = editorAssets[0]?.ref;
-    const nextLayer = createLayer(kind, kind === "image" ? { imageRef: firstAssetRef } : {});
+    const nextLayer = normalizeImageLayer(
+      createLayer(kind, kind === "image" ? { imageRef: firstAssetRef } : {}),
+    );
     setEditorLayers((current) => [...current, nextLayer]);
     setActiveLayerId(nextLayer.id);
   };
@@ -1261,11 +1476,21 @@ export default function SocialMediaPage() {
                           </span>
                           <select
                             value={activeLayer.position}
-                            onChange={(event) =>
-                              updateLayer(activeLayer.id, {
-                                position: event.target.value as SocialMediaLayerPosition,
-                              })
-                            }
+                            onChange={(event) => {
+                              const position = event.target.value as SocialMediaLayerPosition;
+                              if (activeLayer.kind === "image") {
+                                updateLayer(activeLayer.id, {
+                                  position,
+                                  ...getDefaultImageGeometry({
+                                    position,
+                                    style: activeLayer.style,
+                                  }),
+                                });
+                                return;
+                              }
+
+                              updateLayer(activeLayer.id, { position });
+                            }}
                             className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                           >
                             {positionOptions.map((option) => (
@@ -1297,25 +1522,114 @@ export default function SocialMediaPage() {
                       </label>
 
                       {activeLayer.kind === "image" ? (
-                        <label className="block">
-                          <span className="mb-2 block text-sm font-medium text-slate-700">Bildquelle</span>
-                          <select
-                            value={activeLayer.imageRef ?? ""}
-                            onChange={(event) =>
-                              updateLayer(activeLayer.id, {
-                                imageRef: event.target.value || undefined,
-                              })
-                            }
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                          >
-                            <option value="">Kein Bild</option>
-                            {editorAssets.map((asset, index) => (
-                              <option key={asset.id} value={asset.ref}>
-                                Bild {index + 1} {asset.kind === "new" ? "(neu)" : "(gespeichert)"}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                        <div className="space-y-4">
+                          <label className="block">
+                            <span className="mb-2 block text-sm font-medium text-slate-700">Bildquelle</span>
+                            <select
+                              value={activeLayer.imageRef ?? ""}
+                              onChange={(event) =>
+                                updateLayer(activeLayer.id, {
+                                  imageRef: event.target.value || undefined,
+                                })
+                              }
+                              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                            >
+                              <option value="">Kein Bild</option>
+                              {editorAssets.map((asset, index) => (
+                                <option key={asset.id} value={asset.ref}>
+                                  Bild {index + 1} {asset.kind === "new" ? "(neu)" : "(gespeichert)"}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">Bildgeometrie</p>
+                                <p className="text-xs text-slate-500">
+                                  In der Vorschau frei ziehen oder hier exakt einstellen.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateLayer(activeLayer.id, {
+                                    ...getDefaultImageGeometry({
+                                      position: activeLayer.position,
+                                      style: activeLayer.style,
+                                    }),
+                                  })
+                                }
+                                className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                              >
+                                Zuruecksetzen
+                              </button>
+                            </div>
+
+                            {(() => {
+                              const geometry = getImageLayerGeometry(activeLayer);
+                              const controls = [
+                                {
+                                  key: "centerX",
+                                  label: "Horizontal",
+                                  value: geometry.centerX,
+                                  min: geometry.widthPercent / 2,
+                                  max: 100 - geometry.widthPercent / 2,
+                                },
+                                {
+                                  key: "centerY",
+                                  label: "Vertikal",
+                                  value: geometry.centerY,
+                                  min: geometry.heightPercent / 2,
+                                  max: 100 - geometry.heightPercent / 2,
+                                },
+                                {
+                                  key: "widthPercent",
+                                  label: "Breite",
+                                  value: geometry.widthPercent,
+                                  min: 12,
+                                  max: 100,
+                                },
+                                {
+                                  key: "heightPercent",
+                                  label: "Hoehe",
+                                  value: geometry.heightPercent,
+                                  min: 12,
+                                  max: 100,
+                                },
+                              ] as const;
+
+                              return (
+                                <div className="space-y-3">
+                                  {controls.map((control) => (
+                                    <label key={control.key} className="block">
+                                      <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
+                                        <span>{control.label}</span>
+                                        <span className="font-semibold text-slate-900">
+                                          {Math.round(control.value)}%
+                                        </span>
+                                      </div>
+                                      <input
+                                        type="range"
+                                        min={control.min}
+                                        max={control.max}
+                                        step={1}
+                                        value={control.value}
+                                        onChange={(event) =>
+                                          updateLayer(activeLayer.id, {
+                                            [control.key]: Number(event.target.value),
+                                          } as Partial<SocialMediaLayer>)
+                                        }
+                                        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
+                                      />
+                                    </label>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
                       ) : (
                         <label className="block">
                           <span className="mb-2 block text-sm font-medium text-slate-700">Text</span>
@@ -1376,7 +1690,12 @@ export default function SocialMediaPage() {
                     logoUrl={settings.logoUrl}
                     activeLayerId={activeLayer?.id}
                     onSelectLayer={setActiveLayerId}
+                    onUpdateLayer={updateLayer}
                   />
+                  <p className="mt-3 text-xs text-slate-500">
+                    Bild-Layer lassen sich direkt in der Vorschau ziehen. Unten rechts am markierten
+                    Bild kannst du die Groesse anpassen.
+                  </p>
                 </SectionCard>
 
                 <div className="flex flex-wrap gap-3">
@@ -1399,12 +1718,15 @@ export default function SocialMediaPage() {
                           ? asset.url
                           : (placeholderByRef.get(asset.ref) ?? asset.ref),
                       );
-                      const layersPayload = editorLayers.map((layer) => ({
-                        ...layer,
-                        imageRef: layer.imageRef
-                          ? (placeholderByRef.get(layer.imageRef) ?? layer.imageRef)
-                          : undefined,
-                      }));
+                      const layersPayload = editorLayers.map((layer) => {
+                        const normalizedLayer = normalizeImageLayer(layer);
+                        return {
+                          ...normalizedLayer,
+                          imageRef: normalizedLayer.imageRef
+                            ? (placeholderByRef.get(normalizedLayer.imageRef) ?? normalizedLayer.imageRef)
+                            : undefined,
+                        };
+                      });
                       const title = getFirstLayerText(layersPayload, "title");
                       const subtitle = getFirstLayerText(layersPayload, "subtitle");
                       const caption = getFirstLayerText(layersPayload, "caption");

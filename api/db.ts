@@ -1512,6 +1512,10 @@ export const getSocialMediaDrafts = (userId?: string | null) => {
       imageRef?: string
       text?: string
       enabled: boolean
+      centerX?: number
+      centerY?: number
+      widthPercent?: number
+      heightPercent?: number
     }> = []
     try {
       const parsed = JSON.parse(row.layers_json || '[]') as unknown
@@ -1528,6 +1532,10 @@ export const getSocialMediaDrafts = (userId?: string | null) => {
             imageRef?: string
             text?: string
             enabled: boolean
+            centerX?: number
+            centerY?: number
+            widthPercent?: number
+            heightPercent?: number
           } =>
             Boolean(
               entry &&
@@ -1537,7 +1545,15 @@ export const getSocialMediaDrafts = (userId?: string | null) => {
                 typeof (entry as { label?: unknown }).label === 'string' &&
                 typeof (entry as { position?: unknown }).position === 'string' &&
                 typeof (entry as { style?: unknown }).style === 'string' &&
-                typeof (entry as { enabled?: unknown }).enabled === 'boolean',
+                typeof (entry as { enabled?: unknown }).enabled === 'boolean' &&
+                ((entry as { centerX?: unknown }).centerX === undefined ||
+                  typeof (entry as { centerX?: unknown }).centerX === 'number') &&
+                ((entry as { centerY?: unknown }).centerY === undefined ||
+                  typeof (entry as { centerY?: unknown }).centerY === 'number') &&
+                ((entry as { widthPercent?: unknown }).widthPercent === undefined ||
+                  typeof (entry as { widthPercent?: unknown }).widthPercent === 'number') &&
+                ((entry as { heightPercent?: unknown }).heightPercent === undefined ||
+                  typeof (entry as { heightPercent?: unknown }).heightPercent === 'number'),
             ),
         )
       }

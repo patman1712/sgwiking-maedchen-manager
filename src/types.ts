@@ -186,6 +186,10 @@ export interface SocialMediaLayer {
   imageRef?: string;
   text?: string;
   enabled: boolean;
+  centerX?: number;
+  centerY?: number;
+  widthPercent?: number;
+  heightPercent?: number;
 }
 
 export interface SocialMediaDraft {
