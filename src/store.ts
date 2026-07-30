@@ -11,6 +11,7 @@ import type {
   Message,
   PendingPlayerApplication,
   PlayerDocumentType,
+  SocialMediaLayer,
   SocialMediaDraft,
   SocialMediaTextSnippet,
   Team,
@@ -208,6 +209,7 @@ interface AppState {
     callToAction: string;
     imageFiles: File[];
     imageOrder: string[];
+    layers: SocialMediaLayer[];
   }) => Promise<ActionResult>;
   updateSocialMediaDraft: (
     draftId: string,
@@ -221,6 +223,7 @@ interface AppState {
       existingImageUrls: string[];
       newImageFiles: File[];
       imageOrder: string[];
+      layers: SocialMediaLayer[];
     },
   ) => Promise<ActionResult>;
   deleteSocialMediaDraft: (draftId: string) => Promise<ActionResult>;
@@ -1140,6 +1143,7 @@ export const useAppStore = create<AppState>()(
           payload.append("caption", input.caption);
           payload.append("callToAction", input.callToAction);
           payload.append("imageOrder", JSON.stringify(input.imageOrder));
+          payload.append("layers", JSON.stringify(input.layers));
 
           input.imageFiles.forEach((file) => {
             payload.append("images", file);
@@ -1181,6 +1185,7 @@ export const useAppStore = create<AppState>()(
           payload.append("callToAction", input.callToAction);
           payload.append("existingImageUrls", JSON.stringify(input.existingImageUrls));
           payload.append("imageOrder", JSON.stringify(input.imageOrder));
+          payload.append("layers", JSON.stringify(input.layers));
 
           input.newImageFiles.forEach((file) => {
             payload.append("images", file);

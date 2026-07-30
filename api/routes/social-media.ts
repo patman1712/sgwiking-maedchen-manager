@@ -58,6 +58,88 @@ const parseImageUrls = (value: string | null | undefined) => {
   return []
 }
 
+const parseLayers = (value: string | null | undefined) => {
+  if (!value) {
+    return [] as Array<{
+      id: string
+      kind: string
+      label: string
+      position: string
+      style: string
+      imageRef?: string
+      text?: string
+      enabled: boolean
+    }>
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (Array.isArray(parsed)) {
+      return parsed.filter(
+        (
+          entry,
+        ): entry is {
+          id: string
+          kind: string
+          label: string
+          position: string
+          style: string
+          imageRef?: string
+          text?: string
+          enabled: boolean
+        } =>
+          Boolean(
+            entry &&
+              typeof entry === 'object' &&
+              typeof (entry as { id?: unknown }).id === 'string' &&
+              typeof (entry as { kind?: unknown }).kind === 'string' &&
+              typeof (entry as { label?: unknown }).label === 'string' &&
+              typeof (entry as { position?: unknown }).position === 'string' &&
+              typeof (entry as { style?: unknown }).style === 'string' &&
+              typeof (entry as { enabled?: unknown }).enabled === 'boolean',
+          ),
+      )
+    }
+  } catch {
+    return []
+  }
+
+  return []
+}
+
+const remapLayerImageRefs = (
+  layers: Array<{
+    id: string
+    kind: string
+    label: string
+    position: string
+    style: string
+    imageRef?: string
+    text?: string
+    enabled: boolean
+  }>,
+  uploadedImageUrls: string[],
+  retainedImageUrls: string[],
+) =>
+  layers.map((layer) => {
+    if (!layer.imageRef) {
+      return layer
+    }
+
+    const match = /^__new_(\d+)__$/.exec(layer.imageRef)
+    if (match) {
+      return {
+        ...layer,
+        imageRef: uploadedImageUrls[Number(match[1])] ?? undefined,
+      }
+    }
+
+    return {
+      ...layer,
+      imageRef: retainedImageUrls.includes(layer.imageRef) ? layer.imageRef : undefined,
+    }
+  })
+
 const deleteDraftImages = (imageUrls: string[]) => {
   imageUrls.forEach((imageUrl) => {
     const filePath = path.join(uploadDir, path.basename(imageUrl))
@@ -68,7 +150,7 @@ const deleteDraftImages = (imageUrls: string[]) => {
 }
 
 router.post('/drafts', upload.array('images', 8), (req: Request, res: Response) => {
-  const { actorId, draftType, layout, title, subtitle, caption, callToAction, imageOrder } = req.body as {
+  const { actorId, draftType, layout, title, subtitle, caption, callToAction, imageOrder, layers } = req.body as {
     actorId?: string
     draftType?: 'feed' | 'story'
     layout?: string
@@ -77,6 +159,7 @@ router.post('/drafts', upload.array('images', 8), (req: Request, res: Response) 
     caption?: string
     callToAction?: string
     imageOrder?: string
+    layers?: string
   }
 
   const files = (req.files as Express.Multer.File[] | undefined) ?? []
@@ -119,6 +202,7 @@ router.post('/drafts', upload.array('images', 8), (req: Request, res: Response) 
         })
         .filter((entry): entry is string => Boolean(entry))
     : uploadedImageUrls
+  const mappedLayers = remapLayerImageRefs(parseLayers(layers), uploadedImageUrls, imageUrls)
 
   db.prepare(`
     INSERT INTO social_media_drafts (
@@ -130,11 +214,12 @@ router.post('/drafts', upload.array('images', 8), (req: Request, res: Response) 
       caption,
       call_to_action,
       image_urls,
+      layers_json,
       created_by,
       created_at,
       updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     createId('social'),
     draftType,
@@ -144,6 +229,7 @@ router.post('/drafts', upload.array('images', 8), (req: Request, res: Response) 
     (caption || '').trim(),
     (callToAction || '').trim(),
     JSON.stringify(imageUrls),
+    JSON.stringify(mappedLayers),
     actorId,
     timestamp,
     timestamp,
@@ -167,6 +253,7 @@ router.put('/drafts/:id', upload.array('images', 8), (req: Request, res: Respons
     callToAction,
     existingImageUrls,
     imageOrder,
+    layers,
   } = req.body as {
     actorId?: string
     draftType?: 'feed' | 'story'
@@ -177,6 +264,7 @@ router.put('/drafts/:id', upload.array('images', 8), (req: Request, res: Respons
     callToAction?: string
     existingImageUrls?: string
     imageOrder?: string
+    layers?: string
   }
 
   const files = (req.files as Express.Multer.File[] | undefined) ?? []
@@ -229,6 +317,7 @@ router.put('/drafts/:id', upload.array('images', 8), (req: Request, res: Respons
         })
         .filter((entry): entry is string => Boolean(entry))
     : [...retainedImageUrls, ...uploadedImageUrls]
+  const mappedLayers = remapLayerImageRefs(parseLayers(layers), uploadedImageUrls, retainedImageUrls)
   const previousImageUrls = parseImageUrls(existingDraft.image_urls)
   const removedImageUrls = previousImageUrls.filter((imageUrl) => !retainedImageUrls.includes(imageUrl))
 
@@ -242,6 +331,7 @@ router.put('/drafts/:id', upload.array('images', 8), (req: Request, res: Respons
       caption = ?,
       call_to_action = ?,
       image_urls = ?,
+      layers_json = ?,
       updated_at = ?
     WHERE id = ?
   `).run(
@@ -252,6 +342,7 @@ router.put('/drafts/:id', upload.array('images', 8), (req: Request, res: Respons
     (caption || '').trim(),
     (callToAction || '').trim(),
     JSON.stringify(finalImageUrls),
+    JSON.stringify(mappedLayers),
     now(),
     id,
   )

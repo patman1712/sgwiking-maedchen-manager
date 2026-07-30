@@ -152,6 +152,42 @@ export interface FleaMarketListing {
 
 export type SocialMediaDraftType = "feed" | "story";
 
+export type SocialMediaLayerKind =
+  | "image"
+  | "title"
+  | "subtitle"
+  | "caption"
+  | "cta"
+  | "badge";
+
+export type SocialMediaLayerPosition =
+  | "full"
+  | "topLeft"
+  | "topRight"
+  | "center"
+  | "bottomLeft"
+  | "bottomCenter"
+  | "bottomRight";
+
+export type SocialMediaLayerStyle =
+  | "cover"
+  | "soft"
+  | "cutout"
+  | "glass"
+  | "solid"
+  | "pill";
+
+export interface SocialMediaLayer {
+  id: string;
+  kind: SocialMediaLayerKind;
+  label: string;
+  position: SocialMediaLayerPosition;
+  style: SocialMediaLayerStyle;
+  imageRef?: string;
+  text?: string;
+  enabled: boolean;
+}
+
 export interface SocialMediaDraft {
   id: string;
   draftType: SocialMediaDraftType;
@@ -161,6 +197,7 @@ export interface SocialMediaDraft {
   caption: string;
   callToAction: string;
   imageUrls: string[];
+  layers: SocialMediaLayer[];
   createdBy: string;
   createdAt: string;
   updatedAt: string;

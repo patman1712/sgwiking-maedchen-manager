@@ -342,6 +342,7 @@ db.exec(`
     caption TEXT DEFAULT '',
     call_to_action TEXT DEFAULT '',
     image_urls TEXT DEFAULT '[]',
+    layers_json TEXT DEFAULT '[]',
     created_by TEXT NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -494,6 +495,14 @@ if (!inventoryItemColumns.includes('item_condition')) {
 
 if (!inventoryItemColumns.includes('image_url')) {
   db.prepare('ALTER TABLE inventory_items ADD COLUMN image_url TEXT DEFAULT NULL').run()
+}
+
+const socialMediaDraftColumns = (
+  db.prepare('PRAGMA table_info(social_media_drafts)').all() as { name: string }[]
+).map((column) => column.name)
+
+if (!socialMediaDraftColumns.includes('layers_json')) {
+  db.prepare("ALTER TABLE social_media_drafts ADD COLUMN layers_json TEXT DEFAULT '[]'").run()
 }
 
 const now = () => new Date().toISOString()
@@ -1050,6 +1059,7 @@ type SocialMediaDraftRow = {
   caption: string
   call_to_action: string
   image_urls: string
+  layers_json: string
   created_by: string
   created_at: string
   updated_at: string
@@ -1493,6 +1503,48 @@ export const getSocialMediaDrafts = (userId?: string | null) => {
       imageUrls = []
     }
 
+    let layers: Array<{
+      id: string
+      kind: string
+      label: string
+      position: string
+      style: string
+      imageRef?: string
+      text?: string
+      enabled: boolean
+    }> = []
+    try {
+      const parsed = JSON.parse(row.layers_json || '[]') as unknown
+      if (Array.isArray(parsed)) {
+        layers = parsed.filter(
+          (
+            entry,
+          ): entry is {
+            id: string
+            kind: string
+            label: string
+            position: string
+            style: string
+            imageRef?: string
+            text?: string
+            enabled: boolean
+          } =>
+            Boolean(
+              entry &&
+                typeof entry === 'object' &&
+                typeof (entry as { id?: unknown }).id === 'string' &&
+                typeof (entry as { kind?: unknown }).kind === 'string' &&
+                typeof (entry as { label?: unknown }).label === 'string' &&
+                typeof (entry as { position?: unknown }).position === 'string' &&
+                typeof (entry as { style?: unknown }).style === 'string' &&
+                typeof (entry as { enabled?: unknown }).enabled === 'boolean',
+            ),
+        )
+      }
+    } catch {
+      layers = []
+    }
+
     return {
       id: row.id,
       draftType: row.draft_type,
@@ -1502,6 +1554,7 @@ export const getSocialMediaDrafts = (userId?: string | null) => {
       caption: row.caption || '',
       callToAction: row.call_to_action || '',
       imageUrls,
+      layers,
       createdBy: row.created_by,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
