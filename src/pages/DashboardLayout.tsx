@@ -133,25 +133,39 @@ export default function DashboardLayout() {
 
     if (currentUser.role === "trainer") {
       return tournamentOffers
-        .filter(
-          (offer) =>
-            offer.responseStatus === "pending" && currentUser.teamIds.includes(offer.teamId),
-        )
-        .map((offer) => ({
-          id: `tournament-${offer.id}`,
-          createdAt: offer.updatedAt || offer.createdAt,
-          title: "Neue Turnieranfrage",
-          content: `${teamNameById[offer.teamId] ?? "Mannschaft"}: ${offer.title}`,
-          href: "/dashboard/turnierboerse",
-        }));
+        .filter((offer) => currentUser.teamIds.includes(offer.teamId) && offer.trainerNotificationAt)
+        .map((offer) => {
+          let title = "Turnieranfrage aktualisiert";
+          let content = `${teamNameById[offer.teamId] ?? "Mannschaft"}: ${offer.title}`;
+
+          if (offer.responseStatus === "pending") {
+            title = "Neue Turnieranfrage";
+          } else if (offer.tournamentReplyStatus === "accepted") {
+            title = "Turnierzusage eingegangen";
+          } else if (offer.tournamentReplyStatus === "declined") {
+            title = "Turnierabsage eingegangen";
+          } else if (offer.registrationStatus === "registered") {
+            title = "Team wurde angemeldet";
+          } else if (offer.registrationStatus === "cancelled") {
+            title = "Anmeldung wurde abgesagt";
+          }
+
+          return {
+            id: `tournament-${offer.id}`,
+            createdAt: offer.trainerNotificationAt ?? offer.updatedAt ?? offer.createdAt,
+            title,
+            content,
+            href: "/dashboard/turnierboerse",
+          };
+        });
     }
 
     if (currentUser.role === "admin" || currentUser.role === "board") {
       return tournamentOffers
-        .filter((offer) => offer.responseStatus === "accepted" || offer.responseStatus === "declined")
+        .filter((offer) => Boolean(offer.adminNotificationAt))
         .map((offer) => ({
           id: `tournament-${offer.id}`,
-          createdAt: offer.respondedAt || offer.updatedAt || offer.createdAt,
+          createdAt: offer.adminNotificationAt ?? offer.respondedAt ?? offer.updatedAt ?? offer.createdAt,
           title: "Rueckmeldung zur Turnieranfrage",
           content: `${teamNameById[offer.teamId] ?? "Mannschaft"} hat ${
             offer.responseStatus === "accepted" ? "zugesagt" : "abgesagt"

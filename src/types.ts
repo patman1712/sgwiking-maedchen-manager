@@ -152,9 +152,12 @@ export interface FleaMarketListing {
 }
 
 export type TournamentOfferResponseStatus = "pending" | "accepted" | "declined";
+export type TournamentOfferRegistrationStatus = "open" | "registered" | "cancelled";
+export type TournamentOfferReplyStatus = "pending" | "accepted" | "declined";
 
 export interface TournamentOffer {
   id: string;
+  groupId: string;
   teamId: string;
   title: string;
   description: string;
@@ -167,6 +170,14 @@ export interface TournamentOffer {
   responseStatus: TournamentOfferResponseStatus;
   respondedBy?: string | null;
   respondedAt?: string | null;
+  registrationStatus: TournamentOfferRegistrationStatus;
+  registrationUpdatedBy?: string | null;
+  registrationUpdatedAt?: string | null;
+  tournamentReplyStatus: TournamentOfferReplyStatus;
+  tournamentReplyUpdatedBy?: string | null;
+  tournamentReplyUpdatedAt?: string | null;
+  trainerNotificationAt?: string | null;
+  adminNotificationAt?: string | null;
 }
 
 export type SocialMediaDraftType = "feed" | "story";

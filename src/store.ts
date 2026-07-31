@@ -211,17 +211,35 @@ interface AppState {
   }) => Promise<ActionResult>;
   deleteFleaMarketListing: (listingId: string) => Promise<ActionResult>;
   addTournamentOffer: (input: {
-    teamId: string;
+        teamIds: string[];
     title: string;
     description: string;
     location: string;
     startsAt: string;
     tournamentPlanFile?: File | null;
   }) => Promise<ActionResult>;
+      updateTournamentOffer: (
+        offerId: string,
+        input: {
+          title: string;
+          description: string;
+          location: string;
+          startsAt: string;
+          tournamentPlanFile?: File | null;
+          keepExistingPlan?: boolean;
+        },
+      ) => Promise<ActionResult>;
   respondToTournamentOffer: (
     offerId: string,
     status: "accepted" | "declined",
   ) => Promise<ActionResult>;
+      updateTournamentOfferAdminStatus: (
+        offerId: string,
+        input: {
+          registrationStatus?: "open" | "registered" | "cancelled";
+          tournamentReplyStatus?: "pending" | "accepted" | "declined";
+        },
+      ) => Promise<ActionResult>;
   deleteTournamentOffer: (offerId: string) => Promise<ActionResult>;
   addSocialMediaDraft: (input: {
     draftType: "feed" | "story";
@@ -1177,7 +1195,7 @@ export const useAppStore = create<AppState>()(
 
           const payload = new FormData();
           payload.append("actorId", actorId);
-          payload.append("teamId", input.teamId);
+          payload.append("teamIds", JSON.stringify(input.teamIds));
           payload.append("title", input.title);
           payload.append("description", input.description);
           payload.append("location", input.location);
@@ -1200,6 +1218,42 @@ export const useAppStore = create<AppState>()(
             success: false,
             error:
               error instanceof Error ? error.message : "Turnier konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      updateTournamentOffer: async (offerId, input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("actorId", actorId);
+          payload.append("title", input.title);
+          payload.append("description", input.description);
+          payload.append("location", input.location);
+          payload.append("startsAt", input.startsAt);
+          payload.append("keepExistingPlan", input.keepExistingPlan ? "true" : "false");
+
+          if (input.tournamentPlanFile) {
+            payload.append("tournamentPlan", input.tournamentPlanFile);
+          }
+
+          const response = await fetch(`/api/tournaments/${offerId}`, {
+            method: "PUT",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error ? error.message : "Turnier konnte nicht bearbeitet werden.",
           };
         }
       },
@@ -1227,6 +1281,31 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Turnierantwort konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      updateTournamentOfferAdminStatus: async (offerId, input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/tournaments/${offerId}/admin-status`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId, ...input }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error ? error.message : "Turnierstatus konnte nicht gespeichert werden.",
           };
         }
       },

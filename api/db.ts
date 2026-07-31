@@ -336,6 +336,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS tournament_offers (
     id TEXT PRIMARY KEY,
+    group_id TEXT DEFAULT NULL,
     team_id TEXT NOT NULL,
     title TEXT NOT NULL,
     description TEXT DEFAULT '',
@@ -348,9 +349,19 @@ db.exec(`
     response_status TEXT NOT NULL CHECK(response_status IN ('pending', 'accepted', 'declined')) DEFAULT 'pending',
     responded_by TEXT DEFAULT NULL,
     responded_at TEXT DEFAULT NULL,
+    registration_status TEXT NOT NULL CHECK(registration_status IN ('open', 'registered', 'cancelled')) DEFAULT 'open',
+    registration_updated_by TEXT DEFAULT NULL,
+    registration_updated_at TEXT DEFAULT NULL,
+    tournament_reply_status TEXT NOT NULL CHECK(tournament_reply_status IN ('pending', 'accepted', 'declined')) DEFAULT 'pending',
+    tournament_reply_updated_by TEXT DEFAULT NULL,
+    tournament_reply_updated_at TEXT DEFAULT NULL,
+    trainer_notification_at TEXT DEFAULT NULL,
+    admin_notification_at TEXT DEFAULT NULL,
     FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,
     FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY(responded_by) REFERENCES users(id) ON DELETE SET NULL
+    FOREIGN KEY(responded_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY(registration_updated_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY(tournament_reply_updated_by) REFERENCES users(id) ON DELETE SET NULL
   );
 
   CREATE TABLE IF NOT EXISTS social_media_drafts (
@@ -553,6 +564,54 @@ if (!socialMediaDraftColumns.includes('layers_json')) {
 
 if (!socialMediaDraftColumns.includes('is_template')) {
   db.prepare('ALTER TABLE social_media_drafts ADD COLUMN is_template INTEGER NOT NULL DEFAULT 0').run()
+}
+
+const tournamentOfferColumns = (
+  db.prepare('PRAGMA table_info(tournament_offers)').all() as { name: string }[]
+).map((column) => column.name)
+
+if (!tournamentOfferColumns.includes('group_id')) {
+  db.prepare('ALTER TABLE tournament_offers ADD COLUMN group_id TEXT DEFAULT NULL').run()
+}
+
+if (!tournamentOfferColumns.includes('registration_status')) {
+  db.prepare(
+    "ALTER TABLE tournament_offers ADD COLUMN registration_status TEXT NOT NULL DEFAULT 'open'",
+  ).run()
+}
+
+if (!tournamentOfferColumns.includes('registration_updated_by')) {
+  db.prepare('ALTER TABLE tournament_offers ADD COLUMN registration_updated_by TEXT DEFAULT NULL').run()
+}
+
+if (!tournamentOfferColumns.includes('registration_updated_at')) {
+  db.prepare('ALTER TABLE tournament_offers ADD COLUMN registration_updated_at TEXT DEFAULT NULL').run()
+}
+
+if (!tournamentOfferColumns.includes('tournament_reply_status')) {
+  db.prepare(
+    "ALTER TABLE tournament_offers ADD COLUMN tournament_reply_status TEXT NOT NULL DEFAULT 'pending'",
+  ).run()
+}
+
+if (!tournamentOfferColumns.includes('tournament_reply_updated_by')) {
+  db.prepare(
+    'ALTER TABLE tournament_offers ADD COLUMN tournament_reply_updated_by TEXT DEFAULT NULL',
+  ).run()
+}
+
+if (!tournamentOfferColumns.includes('tournament_reply_updated_at')) {
+  db.prepare(
+    'ALTER TABLE tournament_offers ADD COLUMN tournament_reply_updated_at TEXT DEFAULT NULL',
+  ).run()
+}
+
+if (!tournamentOfferColumns.includes('trainer_notification_at')) {
+  db.prepare('ALTER TABLE tournament_offers ADD COLUMN trainer_notification_at TEXT DEFAULT NULL').run()
+}
+
+if (!tournamentOfferColumns.includes('admin_notification_at')) {
+  db.prepare('ALTER TABLE tournament_offers ADD COLUMN admin_notification_at TEXT DEFAULT NULL').run()
 }
 
 const now = () => new Date().toISOString()
@@ -1103,6 +1162,7 @@ type FleaMarketListingRow = {
 
 type TournamentOfferRow = {
   id: string
+  group_id: string | null
   team_id: string
   title: string
   description: string
@@ -1115,6 +1175,14 @@ type TournamentOfferRow = {
   response_status: 'pending' | 'accepted' | 'declined'
   responded_by: string | null
   responded_at: string | null
+  registration_status: 'open' | 'registered' | 'cancelled'
+  registration_updated_by: string | null
+  registration_updated_at: string | null
+  tournament_reply_status: 'pending' | 'accepted' | 'declined'
+  tournament_reply_updated_by: string | null
+  tournament_reply_updated_at: string | null
+  trainer_notification_at: string | null
+  admin_notification_at: string | null
 }
 
 type SocialMediaDraftRow = {
@@ -1609,6 +1677,7 @@ export const getTournamentOffers = (userId?: string | null) => {
 
   return rows.map((row) => ({
     id: row.id,
+    groupId: row.group_id || row.id,
     teamId: row.team_id,
     title: row.title,
     description: row.description || '',
@@ -1621,6 +1690,14 @@ export const getTournamentOffers = (userId?: string | null) => {
     responseStatus: row.response_status,
     respondedBy: row.responded_by || null,
     respondedAt: row.responded_at || null,
+    registrationStatus: row.registration_status || 'open',
+    registrationUpdatedBy: row.registration_updated_by || null,
+    registrationUpdatedAt: row.registration_updated_at || null,
+    tournamentReplyStatus: row.tournament_reply_status || 'pending',
+    tournamentReplyUpdatedBy: row.tournament_reply_updated_by || null,
+    tournamentReplyUpdatedAt: row.tournament_reply_updated_at || null,
+    trainerNotificationAt: row.trainer_notification_at || null,
+    adminNotificationAt: row.admin_notification_at || null,
   }))
 }
 
