@@ -49,6 +49,7 @@ export default function DashboardLayout() {
   const currentUserId = useAppStore((state) => state.currentUserId);
   const conversations = useAppStore((state) => state.conversations);
   const messages = useAppStore((state) => state.messages);
+  const tournamentOffers = useAppStore((state) => state.tournamentOffers);
   const navigate = useNavigate();
   const location = useLocation();
   const [incomingToast, setIncomingToast] = useState<{
@@ -103,7 +104,18 @@ export default function DashboardLayout() {
     return teams.filter((team) => currentUser.teamIds.includes(team.id));
   }, [currentUser, teams]);
 
-  const unreadHint = notificationCount;
+  const pendingTournamentOfferCount = useMemo(() => {
+    if (currentUser?.role !== "trainer") {
+      return 0;
+    }
+
+    return tournamentOffers.filter(
+      (offer) =>
+        offer.responseStatus === "pending" && currentUser.teamIds.includes(offer.teamId),
+    ).length;
+  }, [currentUser, tournamentOffers]);
+
+  const unreadHint = notificationCount + pendingTournamentOfferCount;
 
   useEffect(() => {
     void fetchData();
@@ -219,6 +231,33 @@ export default function DashboardLayout() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof navigator === "undefined") {
+      return;
+    }
+
+    const badgeNavigator = navigator as Navigator & {
+      setAppBadge?: (count?: number) => Promise<void>;
+      clearAppBadge?: () => Promise<void>;
+    };
+
+    if (!badgeNavigator.setAppBadge && !badgeNavigator.clearAppBadge) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        if (unreadHint > 0) {
+          await badgeNavigator.setAppBadge?.(unreadHint);
+        } else {
+          await badgeNavigator.clearAppBadge?.();
+        }
+      } catch {
+        // Browser support is optional; ignore badge failures.
+      }
+    })();
+  }, [unreadHint]);
 
   const handleLogout = () => {
     logout();
@@ -582,7 +621,14 @@ export default function DashboardLayout() {
                 }
               >
                 <Icon size={18} />
-                <span>{item.label}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <span>{item.label}</span>
+                  {item.to === "/dashboard/turnierboerse" && pendingTournamentOfferCount > 0 ? (
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-200 px-1 text-[11px] font-semibold text-blue-950">
+                      {pendingTournamentOfferCount}
+                    </span>
+                  ) : null}
+                </span>
               </NavLink>
             );
           })}
