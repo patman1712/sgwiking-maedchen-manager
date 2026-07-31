@@ -318,6 +318,26 @@ function getPositionClasses(position: SocialMediaLayerPosition) {
   }
 }
 
+function getPlacementByPosition(position: SocialMediaLayerPosition) {
+  if (position === "full") {
+    return { centerX: 50, centerY: 50 };
+  }
+
+  const placement: Record<
+    Exclude<SocialMediaLayerPosition, "full">,
+    { centerX: number; centerY: number }
+  > = {
+    topLeft: { centerX: 22, centerY: 22 },
+    topRight: { centerX: 78, centerY: 22 },
+    center: { centerX: 50, centerY: 50 },
+    bottomLeft: { centerX: 22, centerY: 78 },
+    bottomCenter: { centerX: 50, centerY: 78 },
+    bottomRight: { centerX: 78, centerY: 78 },
+  };
+
+  return placement[position];
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -348,21 +368,27 @@ function getDefaultImageGeometry(layer: Pick<SocialMediaLayer, "position" | "sty
           ? { widthPercent: 28, heightPercent: 28 }
           : { widthPercent: 32, heightPercent: 44 };
 
-  const placement: Record<
-    Exclude<SocialMediaLayerPosition, "full">,
-    { centerX: number; centerY: number }
+  return {
+    ...getPlacementByPosition(layer.position),
+    ...size,
+  };
+}
+
+function getDefaultTextGeometry(layer: Pick<SocialMediaLayer, "kind" | "position">) {
+  const sizeByKind: Record<
+    Exclude<SocialMediaLayerKind, "image">,
+    { widthPercent: number; heightPercent: number }
   > = {
-    topLeft: { centerX: 22, centerY: 22 },
-    topRight: { centerX: 78, centerY: 22 },
-    center: { centerX: 50, centerY: 50 },
-    bottomLeft: { centerX: 22, centerY: 78 },
-    bottomCenter: { centerX: 50, centerY: 78 },
-    bottomRight: { centerX: 78, centerY: 78 },
+    title: { widthPercent: 72, heightPercent: 18 },
+    subtitle: { widthPercent: 68, heightPercent: 14 },
+    caption: { widthPercent: 72, heightPercent: 26 },
+    badge: { widthPercent: 40, heightPercent: 10 },
+    cta: { widthPercent: 44, heightPercent: 10 },
   };
 
   return {
-    ...placement[layer.position],
-    ...size,
+    ...getPlacementByPosition(layer.position),
+    ...sizeByKind[layer.kind],
   };
 }
 
@@ -383,6 +409,26 @@ function getImageLayerGeometry(layer: Pick<
       defaults.centerY,
       heightPercent / 2,
       100 - heightPercent / 2,
+    ),
+  };
+}
+
+function getTextLayerGeometry(layer: Pick<
+  SocialMediaLayer,
+  "kind" | "position" | "centerX" | "centerY" | "widthPercent"
+>) {
+  const defaults = getDefaultTextGeometry(layer);
+  const widthPercent = sanitizePercent(layer.widthPercent, defaults.widthPercent, 18, 100);
+
+  return {
+    widthPercent,
+    heightPercent: defaults.heightPercent,
+    centerX: sanitizePercent(layer.centerX, defaults.centerX, widthPercent / 2, 100 - widthPercent / 2),
+    centerY: sanitizePercent(
+      layer.centerY,
+      defaults.centerY,
+      defaults.heightPercent / 2,
+      100 - defaults.heightPercent / 2,
     ),
   };
 }
@@ -408,11 +454,15 @@ function getImageStyleClasses(style: SocialMediaLayerStyle, full = false) {
   }
 }
 
-function normalizeImageLayer(layer: SocialMediaLayer): SocialMediaLayer {
+function normalizeLayer(layer: SocialMediaLayer): SocialMediaLayer {
   if (layer.kind !== "image") {
     const defaults = getDefaultTextAppearance(layer);
+    const geometry = getTextLayerGeometry(layer);
     return {
       ...layer,
+      centerX: geometry.centerX,
+      centerY: geometry.centerY,
+      widthPercent: geometry.widthPercent,
       lockPosition: layer.lockPosition ?? false,
       lockSize: layer.lockSize ?? false,
       fontFamily: layer.fontFamily ?? defaults.fontFamily,
@@ -434,10 +484,11 @@ function normalizeImageLayer(layer: SocialMediaLayer): SocialMediaLayer {
 function getTextInlineStyle(layer: SocialMediaLayer) {
   const defaults = getDefaultTextAppearance(layer);
   const textEffect = layer.textEffect ?? defaults.textEffect;
+  const fontFamily = layer.fontFamily ?? defaults.fontFamily;
 
   return {
     color: layer.textColor ?? defaults.textColor,
-    fontFamily: `"${layer.fontFamily ?? defaults.fontFamily}", Inter, system-ui, sans-serif`,
+    fontFamily: `"${fontFamily}", "Inter", system-ui, sans-serif`,
     fontSize: `${Math.round(layer.fontSize ?? defaults.fontSize)}px`,
     textAlign: (layer.textAlign ?? defaults.textAlign) as SocialMediaTextAlign,
     textShadow:
@@ -452,10 +503,6 @@ function canMoveLayer(layer: SocialMediaLayer, respectLayerLocks: boolean) {
 }
 
 function canResizeLayer(layer: SocialMediaLayer, respectLayerLocks: boolean) {
-  if (layer.kind !== "image") {
-    return false;
-  }
-
   return !respectLayerLocks || !layer.lockSize;
 }
 
@@ -513,23 +560,11 @@ function getDefaultTextAppearance(layer: SocialMediaLayer) {
 }
 
 function getTextWrapperClasses(
-  layer: SocialMediaLayer,
-  draftType: SocialMediaDraftType,
+  _layer: SocialMediaLayer,
+  _draftType: SocialMediaDraftType,
   isSelected: boolean,
 ) {
-  const selected = isSelected ? "ring-2 ring-sky-300 ring-offset-2 ring-offset-transparent" : "";
-  const narrow = draftType === "story" ? "max-w-[80%]" : "max-w-[72%]";
-
-  if (layer.kind === "title") {
-    return `${getPositionClasses(layer.position)} ${narrow} ${selected}`;
-  }
-  if (layer.kind === "subtitle") {
-    return `${getPositionClasses(layer.position)} ${narrow} ${selected}`;
-  }
-  if (layer.kind === "badge" || layer.kind === "cta") {
-    return `${getPositionClasses(layer.position)} ${selected}`;
-  }
-  return `${getPositionClasses(layer.position)} ${narrow} ${selected}`;
+  return isSelected ? "ring-2 ring-sky-300 ring-offset-2 ring-offset-transparent" : "";
 }
 
 function getTextClasses(layer: SocialMediaLayer) {
@@ -598,6 +633,7 @@ function SocialPreview({
   const previewRef = useRef<HTMLDivElement | null>(null);
   const interactionRef = useRef<{
     layerId: string;
+    layerKind: SocialMediaLayerKind;
     mode: "drag" | "resize";
     startX: number;
     startY: number;
@@ -605,6 +641,7 @@ function SocialPreview({
     startCenterY: number;
     startWidthPercent: number;
     startHeightPercent: number;
+    startFontSize?: number;
   } | null>(null);
   const resolveAssetUrl = (ref?: string) => assets.find((asset) => asset.ref === ref)?.url;
   const visibleLayers = layers.filter((layer) => layer.enabled);
@@ -638,6 +675,41 @@ function SocialPreview({
         );
 
         onUpdateLayer(interaction.layerId, { centerX, centerY });
+        return;
+      }
+
+      const layer = layers.find((entry) => entry.id === interaction.layerId);
+      if (!layer) {
+        return;
+      }
+
+      if (interaction.layerKind !== "image") {
+        const defaults = getDefaultTextAppearance(layer);
+        const widthPercent = clamp(interaction.startWidthPercent + deltaXPercent * 2, 18, 100);
+        const scale = widthPercent / Math.max(interaction.startWidthPercent, 1);
+        const fontSize = clamp(
+          Math.round((interaction.startFontSize ?? defaults.fontSize) * scale),
+          10,
+          96,
+        );
+        const heightPercent = interaction.startHeightPercent * scale;
+        const centerX = clamp(
+          interaction.startCenterX,
+          widthPercent / 2,
+          100 - widthPercent / 2,
+        );
+        const centerY = clamp(
+          interaction.startCenterY,
+          heightPercent / 2,
+          100 - heightPercent / 2,
+        );
+
+        onUpdateLayer(interaction.layerId, {
+          centerX,
+          centerY,
+          widthPercent,
+          fontSize,
+        });
         return;
       }
 
@@ -675,7 +747,7 @@ function SocialPreview({
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerUp);
     };
-  }, [onUpdateLayer]);
+  }, [layers, onUpdateLayer]);
 
   return (
     <div
@@ -733,6 +805,7 @@ function SocialPreview({
                 onSelectLayer?.(layer.id);
                 interactionRef.current = {
                   layerId: layer.id,
+                  layerKind: layer.kind,
                   mode: "drag",
                   startX: event.clientX,
                   startY: event.clientY,
@@ -798,6 +871,7 @@ function SocialPreview({
                     onSelectLayer?.(layer.id);
                     interactionRef.current = {
                       layerId: layer.id,
+                      layerKind: layer.kind,
                       mode: "resize",
                       startX: event.clientX,
                       startY: event.clientY,
@@ -814,21 +888,108 @@ function SocialPreview({
         }
 
         const text = resolveLayerText(layer) || (layer.kind === "badge" ? "Badge" : "Text");
+        const geometry = getTextLayerGeometry(layer);
+        const isSelected = activeLayerId === layer.id;
+        const movable = canMoveLayer(layer, respectLayerLocks);
+        const resizable = canResizeLayer(layer, respectLayerLocks);
         return (
-          <button
+          <div
             key={layer.id}
-            type="button"
-            style={zStyle}
+            role="button"
+            tabIndex={0}
+            style={{
+              ...zStyle,
+              left: `${geometry.centerX}%`,
+              top: `${geometry.centerY}%`,
+              width: `${geometry.widthPercent}%`,
+              transform: "translate(-50%, -50%)",
+            }}
             onClick={() => onSelectLayer?.(layer.id)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onSelectLayer?.(layer.id);
+              }
+            }}
+            onPointerDown={(event) => {
+              if (!onUpdateLayer || !movable) {
+                return;
+              }
+              const previewRect = previewRef.current?.getBoundingClientRect();
+              const targetRect = event.currentTarget.getBoundingClientRect();
+              event.preventDefault();
+              event.stopPropagation();
+              onSelectLayer?.(layer.id);
+              interactionRef.current = {
+                layerId: layer.id,
+                layerKind: layer.kind,
+                mode: "drag",
+                startX: event.clientX,
+                startY: event.clientY,
+                startCenterX: geometry.centerX,
+                startCenterY: geometry.centerY,
+                startWidthPercent:
+                  previewRect && previewRect.width
+                    ? (targetRect.width / previewRect.width) * 100
+                    : geometry.widthPercent,
+                startHeightPercent:
+                  previewRect && previewRect.height
+                    ? (targetRect.height / previewRect.height) * 100
+                    : geometry.heightPercent,
+                startFontSize: layer.fontSize ?? getDefaultTextAppearance(layer).fontSize,
+              };
+            }}
             className={cn(
-              "absolute text-left",
-              getTextWrapperClasses(layer, draftType, activeLayerId === layer.id),
+              "absolute touch-none",
+              movable ? "cursor-grab active:cursor-grabbing" : "cursor-default",
+              getTextWrapperClasses(layer, draftType, isSelected),
             )}
           >
             <div className={getTextClasses(layer)} style={getTextInlineStyle(layer)}>
               {text}
             </div>
-          </button>
+            {isSelected && onUpdateLayer ? (
+              <button
+                type="button"
+                aria-label="Textgroesse anpassen"
+                disabled={!resizable}
+                className={cn(
+                  "absolute bottom-[-0.55rem] right-[-0.55rem] h-6 w-6 rounded-full border border-white/80 shadow-lg shadow-sky-900/30",
+                  resizable
+                    ? "bg-sky-400"
+                    : "cursor-not-allowed bg-slate-300 opacity-75",
+                )}
+                onPointerDown={(event) => {
+                  if (!resizable) {
+                    return;
+                  }
+                  const previewRect = previewRef.current?.getBoundingClientRect();
+                  const parentRect = event.currentTarget.parentElement?.getBoundingClientRect();
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onSelectLayer?.(layer.id);
+                  interactionRef.current = {
+                    layerId: layer.id,
+                    layerKind: layer.kind,
+                    mode: "resize",
+                    startX: event.clientX,
+                    startY: event.clientY,
+                    startCenterX: geometry.centerX,
+                    startCenterY: geometry.centerY,
+                    startWidthPercent:
+                      previewRect && previewRect.width && parentRect
+                        ? (parentRect.width / previewRect.width) * 100
+                        : geometry.widthPercent,
+                    startHeightPercent:
+                      previewRect && previewRect.height && parentRect
+                        ? (parentRect.height / previewRect.height) * 100
+                        : geometry.heightPercent,
+                    startFontSize: layer.fontSize ?? getDefaultTextAppearance(layer).fontSize,
+                  };
+                }}
+              />
+            ) : null}
+          </div>
         );
       })}
     </div>
@@ -1010,7 +1171,9 @@ export default function SocialMediaPage() {
       return;
     }
 
-    const styleTag = document.createElement("style");
+    const existingTag = document.querySelector('style[data-social-fonts="true"]');
+    const styleTag =
+      existingTag instanceof HTMLStyleElement ? existingTag : document.createElement("style");
     styleTag.setAttribute("data-social-fonts", "true");
     styleTag.textContent = socialMediaFonts
       .map(
@@ -1023,11 +1186,9 @@ export default function SocialMediaPage() {
         `.trim(),
       )
       .join("\n");
-    document.head.appendChild(styleTag);
-
-    return () => {
-      styleTag.remove();
-    };
+    if (!styleTag.parentNode) {
+      document.head.appendChild(styleTag);
+    }
   }, [socialMediaFonts]);
 
   const resetDraftEditor = () => {
@@ -1070,9 +1231,7 @@ export default function SocialMediaPage() {
     setEditorLayout(draft.layout);
     const assets = buildDraftAssets(draft, socialMediaCrests);
     setEditorAssets(assets);
-    const layers = (draft.layers.length ? draft.layers : buildFallbackLayers(draft)).map(
-      normalizeImageLayer,
-    );
+    const layers = (draft.layers.length ? draft.layers : buildFallbackLayers(draft)).map(normalizeLayer);
     setEditorLayers(layers);
     setActiveLayerId(layers[0]?.id ?? null);
     setEditorOpen(true);
@@ -1113,9 +1272,7 @@ export default function SocialMediaPage() {
     setEditorDraftType(draft.draftType);
     setEditorLayout(draft.layout);
     setEditorAssets(buildDraftAssets(draft, socialMediaCrests));
-    const layers = (draft.layers.length ? draft.layers : buildFallbackLayers(draft)).map(
-      normalizeImageLayer,
-    );
+    const layers = (draft.layers.length ? draft.layers : buildFallbackLayers(draft)).map(normalizeLayer);
     setEditorLayers(layers);
     setActiveLayerId(layers[0]?.id ?? null);
   };
@@ -1127,7 +1284,7 @@ export default function SocialMediaPage() {
     }
 
     const nextLayer = createLayer("title", { text: value });
-    setEditorLayers((current) => [normalizeImageLayer(nextLayer), ...current]);
+    setEditorLayers((current) => [normalizeLayer(nextLayer), ...current]);
     setActiveLayerId(nextLayer.id);
   };
 
@@ -1138,7 +1295,7 @@ export default function SocialMediaPage() {
           return layer;
         }
 
-        return normalizeImageLayer({ ...layer, ...patch });
+        return normalizeLayer({ ...layer, ...patch });
       }),
     );
   };
@@ -1159,7 +1316,7 @@ export default function SocialMediaPage() {
 
   const addLayer = (kind: SocialMediaLayerKind) => {
     const firstAssetRef = editorAssets[0]?.ref;
-    const nextLayer = normalizeImageLayer(
+    const nextLayer = normalizeLayer(
       createLayer(kind, kind === "image" ? { imageRef: firstAssetRef } : {}),
     );
     setEditorLayers((current) => [...current, nextLayer]);
@@ -2663,15 +2820,26 @@ export default function SocialMediaPage() {
                             value={activeLayer.kind}
                             onChange={(event) => {
                               const kind = event.target.value as SocialMediaLayerKind;
+                              const layerDefaults = createLayer(kind);
+                              const geometryPatch =
+                                kind === "image"
+                                  ? getDefaultImageGeometry({
+                                      position: layerDefaults.position,
+                                      style: layerDefaults.style,
+                                    })
+                                  : getDefaultTextGeometry({
+                                      kind,
+                                      position: layerDefaults.position,
+                                    });
                               updateLayer(activeLayer.id, {
                                 kind,
-                                style: createLayer(kind).style,
-                                position: createLayer(kind).position,
-                                fontFamily: createLayer(kind).fontFamily,
-                                fontSize: createLayer(kind).fontSize,
-                                textColor: createLayer(kind).textColor,
-                                textAlign: createLayer(kind).textAlign,
-                                textEffect: createLayer(kind).textEffect,
+                                style: layerDefaults.style,
+                                position: layerDefaults.position,
+                                fontFamily: layerDefaults.fontFamily,
+                                fontSize: layerDefaults.fontSize,
+                                textColor: layerDefaults.textColor,
+                                textAlign: layerDefaults.textAlign,
+                                textEffect: layerDefaults.textEffect,
                                 imageRef:
                                   kind === "image"
                                     ? activeLayer.imageRef ?? editorAssets[0]?.ref
@@ -2680,8 +2848,9 @@ export default function SocialMediaPage() {
                                   kind === "image"
                                     ? ""
                                     : activeLayer.kind === "image"
-                                      ? createLayer(kind).text
+                                      ? layerDefaults.text
                                       : activeLayer.text,
+                                ...geometryPatch,
                               });
                             }}
                             className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
@@ -2714,7 +2883,13 @@ export default function SocialMediaPage() {
                                 return;
                               }
 
-                              updateLayer(activeLayer.id, { position });
+                              updateLayer(activeLayer.id, {
+                                position,
+                                ...getDefaultTextGeometry({
+                                  kind: activeLayer.kind,
+                                  position,
+                                }),
+                              });
                             }}
                             className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
                           >
@@ -2750,27 +2925,21 @@ export default function SocialMediaPage() {
                               </span>
                             </label>
 
-                            {activeLayer.kind === "image" ? (
-                              <label className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-white px-4 py-3">
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(activeLayer.lockSize)}
-                                  onChange={(event) =>
-                                    updateLayer(activeLayer.id, {
-                                      lockSize: event.target.checked,
-                                    })
-                                  }
-                                  className="h-5 w-5 rounded border-slate-300 text-blue-700 focus:ring-blue-500"
-                                />
-                                <span className="text-sm font-semibold text-slate-700">
-                                  Groesse fixieren
-                                </span>
-                              </label>
-                            ) : (
-                              <div className="rounded-2xl border border-dashed border-amber-200 bg-white px-4 py-3 text-sm text-slate-500">
-                                Text-Ebenen haben aktuell nur eine Positionssperre.
-                              </div>
-                            )}
+                            <label className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-white px-4 py-3">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(activeLayer.lockSize)}
+                                onChange={(event) =>
+                                  updateLayer(activeLayer.id, {
+                                    lockSize: event.target.checked,
+                                  })
+                                }
+                                className="h-5 w-5 rounded border-slate-300 text-blue-700 focus:ring-blue-500"
+                              />
+                              <span className="text-sm font-semibold text-slate-700">
+                                Groesse fixieren
+                              </span>
+                            </label>
                           </div>
                         </div>
                       ) : activeLayerPositionLocked || activeLayerSizeLocked ? (
@@ -2928,6 +3097,93 @@ export default function SocialMediaPage() {
                               className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                             />
                           </label>
+
+                          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">Textfeld</p>
+                                <p className="text-xs text-slate-500">
+                                  In der Vorschau frei ziehen oder hier exakt ausrichten.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={activeLayerPositionLocked || activeLayerSizeLocked}
+                                onClick={() =>
+                                  updateLayer(activeLayer.id, {
+                                    ...getDefaultTextGeometry({
+                                      kind: activeLayer.kind,
+                                      position: activeLayer.position,
+                                    }),
+                                    fontSize: getDefaultTextAppearance(activeLayer).fontSize,
+                                  })
+                                }
+                                className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                Zuruecksetzen
+                              </button>
+                            </div>
+
+                            {(() => {
+                              const geometry = getTextLayerGeometry(activeLayer);
+                              const controls = [
+                                {
+                                  key: "centerX",
+                                  label: "Horizontal",
+                                  value: geometry.centerX,
+                                  min: geometry.widthPercent / 2,
+                                  max: 100 - geometry.widthPercent / 2,
+                                },
+                                {
+                                  key: "centerY",
+                                  label: "Vertikal",
+                                  value: geometry.centerY,
+                                  min: geometry.heightPercent / 2,
+                                  max: 100 - geometry.heightPercent / 2,
+                                },
+                                {
+                                  key: "widthPercent",
+                                  label: "Breite",
+                                  value: geometry.widthPercent,
+                                  min: 18,
+                                  max: 100,
+                                },
+                              ] as const;
+
+                              return (
+                                <div className="space-y-3">
+                                  {controls.map((control) => (
+                                    <label key={control.key} className="block">
+                                      <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
+                                        <span>{control.label}</span>
+                                        <span className="font-semibold text-slate-900">
+                                          {Math.round(control.value)}%
+                                        </span>
+                                      </div>
+                                      <input
+                                        type="range"
+                                        min={control.min}
+                                        max={control.max}
+                                        step={1}
+                                        value={control.value}
+                                        disabled={
+                                          (control.key === "centerX" || control.key === "centerY")
+                                            ? activeLayerPositionLocked
+                                            : activeLayerSizeLocked
+                                        }
+                                        onChange={(event) =>
+                                          updateLayer(activeLayer.id, {
+                                            [control.key]: Number(event.target.value),
+                                          } as Partial<SocialMediaLayer>)
+                                        }
+                                        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                      />
+                                    </label>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </div>
 
                           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
                             <div className="mb-3">
@@ -3149,7 +3405,7 @@ export default function SocialMediaPage() {
                           : (placeholderByRef.get(asset.ref) ?? asset.ref),
                       );
                       const layersPayload = editorLayers.map((layer) => {
-                        const normalizedLayer = normalizeImageLayer(layer);
+                        const normalizedLayer = normalizeLayer(layer);
                         return {
                           ...normalizedLayer,
                           imageRef: normalizedLayer.imageRef
