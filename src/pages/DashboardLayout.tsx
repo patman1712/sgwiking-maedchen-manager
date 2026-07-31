@@ -41,6 +41,7 @@ export default function DashboardLayout() {
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [membersMenuOpen, setMembersMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
   const logout = useAppStore((state) => state.logout);
   const fetchData = useAppStore((state) => state.fetchData);
   const users = useAppStore((state) => state.users);
@@ -57,6 +58,18 @@ export default function DashboardLayout() {
     content: string;
   } | null>(null);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [messageNotifications, setMessageNotifications] = useState<
+    Array<{
+      id: string;
+      title: string;
+      content: string;
+      href: string;
+      createdAt: string;
+    }>
+  >([]);
+  const [tournamentNotificationsSeenAt, setTournamentNotificationsSeenAt] = useState<string | null>(
+    null,
+  );
   const latestMessageIdRef = useRef<string | null>(null);
   const toastTimeoutRef = useRef<number | null>(null);
 
@@ -104,18 +117,80 @@ export default function DashboardLayout() {
     return teams.filter((team) => currentUser.teamIds.includes(team.id));
   }, [currentUser, teams]);
 
-  const pendingTournamentOfferCount = useMemo(() => {
-    if (currentUser?.role !== "trainer") {
-      return 0;
+  const teamNameById = useMemo(
+    () =>
+      teams.reduce<Record<string, string>>((accumulator, team) => {
+        accumulator[team.id] = team.name;
+        return accumulator;
+      }, {}),
+    [teams],
+  );
+
+  const relevantTournamentNotifications = useMemo(() => {
+    if (!currentUser) {
+      return [];
     }
 
-    return tournamentOffers.filter(
-      (offer) =>
-        offer.responseStatus === "pending" && currentUser.teamIds.includes(offer.teamId),
-    ).length;
-  }, [currentUser, tournamentOffers]);
+    if (currentUser.role === "trainer") {
+      return tournamentOffers
+        .filter(
+          (offer) =>
+            offer.responseStatus === "pending" && currentUser.teamIds.includes(offer.teamId),
+        )
+        .map((offer) => ({
+          id: `tournament-${offer.id}`,
+          createdAt: offer.updatedAt || offer.createdAt,
+          title: "Neue Turnieranfrage",
+          content: `${teamNameById[offer.teamId] ?? "Mannschaft"}: ${offer.title}`,
+          href: "/dashboard/turnierboerse",
+        }));
+    }
 
-  const unreadHint = notificationCount + pendingTournamentOfferCount;
+    if (currentUser.role === "admin" || currentUser.role === "board") {
+      return tournamentOffers
+        .filter((offer) => offer.responseStatus === "accepted" || offer.responseStatus === "declined")
+        .map((offer) => ({
+          id: `tournament-${offer.id}`,
+          createdAt: offer.respondedAt || offer.updatedAt || offer.createdAt,
+          title: "Rueckmeldung zur Turnieranfrage",
+          content: `${teamNameById[offer.teamId] ?? "Mannschaft"} hat ${
+            offer.responseStatus === "accepted" ? "zugesagt" : "abgesagt"
+          }: ${offer.title}`,
+          href: "/dashboard/turnierboerse",
+        }));
+    }
+
+    return [];
+  }, [currentUser, teamNameById, tournamentOffers]);
+
+  const unseenTournamentNotificationCount = useMemo(() => {
+    if (!tournamentNotificationsSeenAt) {
+      return relevantTournamentNotifications.length;
+    }
+
+    const seenAt = new Date(tournamentNotificationsSeenAt).getTime();
+    return relevantTournamentNotifications.filter(
+      (notification) => new Date(notification.createdAt).getTime() > seenAt,
+    ).length;
+  }, [relevantTournamentNotifications, tournamentNotificationsSeenAt]);
+
+  const unreadHint = notificationCount + unseenTournamentNotificationCount;
+
+  const notificationItems = useMemo(
+    () =>
+      [
+        ...relevantTournamentNotifications,
+        ...messageNotifications.map((entry) => ({
+          ...entry,
+          id: `message-${entry.id}`,
+        })),
+      ]
+        .sort(
+          (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+        )
+        .slice(0, 10),
+    [messageNotifications, relevantTournamentNotifications],
+  );
 
   useEffect(() => {
     void fetchData();
@@ -164,6 +239,7 @@ export default function DashboardLayout() {
 
   useEffect(() => {
     setProfileMenuOpen(false);
+    setNotificationCenterOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -171,6 +247,16 @@ export default function DashboardLayout() {
       setNotificationCount(0);
     }
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!currentUserId || typeof window === "undefined") {
+      setTournamentNotificationsSeenAt(null);
+      return;
+    }
+
+    const storageKey = `notification-center-last-seen-${currentUserId}`;
+    setTournamentNotificationsSeenAt(window.localStorage.getItem(storageKey));
+  }, [currentUserId]);
 
   useEffect(() => {
     const latestMessage = [...messages].sort((left, right) =>
@@ -208,6 +294,19 @@ export default function DashboardLayout() {
 
     setNotificationCount((count) => count + 1);
     setIncomingToast({ title, content });
+    setMessageNotifications((current) => {
+      const nextEntry = {
+        id: latestMessage.id,
+        title,
+        content,
+        href: conversation
+          ? `/dashboard/messages?conversation=${encodeURIComponent(conversation.id)}`
+          : "/dashboard/messages",
+        createdAt: latestMessage.createdAt,
+      };
+
+      return [nextEntry, ...current.filter((entry) => entry.id !== latestMessage.id)].slice(0, 10);
+    });
 
     if (toastTimeoutRef.current) {
       window.clearTimeout(toastTimeoutRef.current);
@@ -262,6 +361,24 @@ export default function DashboardLayout() {
   const handleLogout = () => {
     logout();
     navigate("/login");
+  };
+
+  const openNotificationCenter = () => {
+    setNotificationCenterOpen((current) => {
+      const nextOpen = !current;
+
+      if (nextOpen) {
+        setNotificationCount(0);
+
+        if (typeof window !== "undefined" && currentUserId) {
+          const seenAt = new Date().toISOString();
+          window.localStorage.setItem(`notification-center-last-seen-${currentUserId}`, seenAt);
+          setTournamentNotificationsSeenAt(seenAt);
+        }
+      }
+
+      return nextOpen;
+    });
   };
 
   return (
@@ -623,9 +740,9 @@ export default function DashboardLayout() {
                 <Icon size={18} />
                 <span className="flex min-w-0 items-center gap-2">
                   <span>{item.label}</span>
-                  {item.to === "/dashboard/turnierboerse" && pendingTournamentOfferCount > 0 ? (
+                  {item.to === "/dashboard/turnierboerse" && unseenTournamentNotificationCount > 0 ? (
                     <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-200 px-1 text-[11px] font-semibold text-blue-950">
-                      {pendingTournamentOfferCount}
+                      {unseenTournamentNotificationCount}
                     </span>
                   ) : null}
                 </span>
@@ -658,17 +775,67 @@ export default function DashboardLayout() {
             </div>
 
             <div className="flex items-center gap-3">
-              <Link
-                to="/dashboard/messages"
-                className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-white/15 hover:shadow-md"
-              >
-                <Bell size={18} />
-                {unreadHint > 0 ? (
-                  <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-200 px-1 text-[11px] font-semibold text-blue-950">
-                    {unreadHint}
-                  </span>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={openNotificationCenter}
+                  className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-white/15 hover:shadow-md"
+                >
+                  <Bell size={18} />
+                  {unreadHint > 0 ? (
+                    <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-200 px-1 text-[11px] font-semibold text-blue-950">
+                      {unreadHint}
+                    </span>
+                  ) : null}
+                </button>
+                {notificationCenterOpen ? (
+                  <div className="absolute right-0 top-[calc(100%+0.75rem)] z-30 w-[22rem] max-w-[calc(100vw-2rem)] rounded-3xl border border-slate-200 bg-white p-3 shadow-2xl">
+                    <div className="flex items-center justify-between gap-3 px-2 py-1">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">Benachrichtigungen</p>
+                        <p className="text-xs text-slate-500">
+                          Turniere und neue Nachrichten auf einen Blick
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setNotificationCenterOpen(false)}
+                        className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+
+                    <div className="mt-2 max-h-96 space-y-2 overflow-y-auto">
+                      {notificationItems.length ? (
+                        notificationItems.map((notification) => (
+                          <button
+                            key={notification.id}
+                            type="button"
+                            onClick={() => {
+                              setNotificationCenterOpen(false);
+                              navigate(notification.href);
+                            }}
+                            className="block w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-blue-200 hover:bg-blue-50"
+                          >
+                            <p className="text-sm font-semibold text-slate-900">
+                              {notification.title}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-600">{notification.content}</p>
+                            <p className="mt-2 text-xs text-slate-500">
+                              {new Date(notification.createdAt).toLocaleString("de-DE")}
+                            </p>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                          Aktuell gibt es keine neuen Benachrichtigungen.
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 ) : null}
-              </Link>
+              </div>
               <div className="relative">
                 <button
                   type="button"
