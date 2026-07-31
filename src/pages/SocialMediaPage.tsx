@@ -901,7 +901,8 @@ function SocialPreview({
               ...zStyle,
               left: `${geometry.centerX}%`,
               top: `${geometry.centerY}%`,
-              width: `${geometry.widthPercent}%`,
+              width: "fit-content",
+              maxWidth: `${geometry.widthPercent}%`,
               transform: "translate(-50%, -50%)",
             }}
             onClick={() => onSelectLayer?.(layer.id)}
@@ -1095,6 +1096,21 @@ export default function SocialMediaPage() {
 
     return merged;
   }, [socialMediaFonts]);
+  const socialFontFaceCss = useMemo(
+    () =>
+      socialMediaFonts
+        .map(
+          (font) => `
+@font-face {
+  font-family: "${font.family}";
+  src: url("${font.fileUrl}");
+  font-display: swap;
+}
+          `.trim(),
+        )
+        .join("\n"),
+    [socialMediaFonts],
+  );
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
@@ -1167,29 +1183,27 @@ export default function SocialMediaPage() {
   }, [managedLayoutOptions]);
 
   useEffect(() => {
-    if (!socialMediaFonts.length || typeof document === "undefined") {
+    if (typeof document === "undefined") {
       return;
     }
 
     const existingTag = document.querySelector('style[data-social-fonts="true"]');
-    const styleTag =
-      existingTag instanceof HTMLStyleElement ? existingTag : document.createElement("style");
+    if (!socialFontFaceCss) {
+      if (existingTag instanceof HTMLStyleElement) {
+        existingTag.remove();
+      }
+      return;
+    }
+
+    const styleTag = existingTag instanceof HTMLStyleElement ? existingTag : document.createElement("style");
     styleTag.setAttribute("data-social-fonts", "true");
-    styleTag.textContent = socialMediaFonts
-      .map(
-        (font) => `
-@font-face {
-  font-family: "${font.family}";
-  src: url("${font.fileUrl}");
-  font-display: swap;
-}
-        `.trim(),
-      )
-      .join("\n");
+    if (styleTag.textContent !== socialFontFaceCss) {
+      styleTag.textContent = socialFontFaceCss;
+    }
     if (!styleTag.parentNode) {
       document.head.appendChild(styleTag);
     }
-  }, [socialMediaFonts]);
+  }, [socialFontFaceCss]);
 
   const resetDraftEditor = () => {
     setEditorMode("create");
