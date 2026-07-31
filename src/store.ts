@@ -2,10 +2,20 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type {
   AppSettings,
+  CashbookEntry,
   Conversation,
+  FleaMarketListing,
   InventoryItem,
   Match,
+  MatchRescheduleRequest,
   Message,
+  PendingPlayerApplication,
+  PlayerDocumentType,
+  SocialMediaCrest,
+  SocialMediaLayer,
+  SocialMediaDraft,
+  SocialMediaFont,
+  SocialMediaTextSnippet,
   Team,
   UserProfile,
   UserRole,
@@ -39,6 +49,10 @@ interface UserInput {
   hasMembershipApplication?: boolean;
   hasMedicalCertificate?: boolean;
   hasPhotoConsentSocial?: boolean;
+  isMemberFileUrl?: string | null;
+  membershipApplicationFileUrl?: string | null;
+  medicalCertificateFileUrl?: string | null;
+  photoConsentSocialFileUrl?: string | null;
 }
 
 interface ApiStatePayload {
@@ -46,6 +60,14 @@ interface ApiStatePayload {
   users: UserProfile[];
   matches: Match[];
   inventoryItems: InventoryItem[];
+  cashbookEntries: CashbookEntry[];
+  pendingPlayerApplications: PendingPlayerApplication[];
+  matchRescheduleRequests: MatchRescheduleRequest[];
+  fleaMarketListings: FleaMarketListing[];
+  socialMediaDrafts: SocialMediaDraft[];
+  socialMediaCrests: SocialMediaCrest[];
+  socialMediaFonts: SocialMediaFont[];
+  socialMediaTextSnippets: SocialMediaTextSnippet[];
   conversations: Conversation[];
   messages: Message[];
   settings: AppSettings;
@@ -55,6 +77,7 @@ interface ApiStatePayload {
 interface ActionResult {
   success: boolean;
   error?: string;
+  userId?: string;
 }
 
 interface UserUpdateInput {
@@ -76,6 +99,11 @@ interface UserUpdateInput {
   hasMembershipApplication?: boolean;
   hasMedicalCertificate?: boolean;
   hasPhotoConsentSocial?: boolean;
+  isMemberFileUrl?: string | null;
+  membershipApplicationFileUrl?: string | null;
+  medicalCertificateFileUrl?: string | null;
+  photoConsentSocialFileUrl?: string | null;
+  socialMediaEnabled?: boolean;
 }
 
 interface AppState {
@@ -83,6 +111,14 @@ interface AppState {
   users: UserProfile[];
   matches: Match[];
   inventoryItems: InventoryItem[];
+  cashbookEntries: CashbookEntry[];
+  pendingPlayerApplications: PendingPlayerApplication[];
+  matchRescheduleRequests: MatchRescheduleRequest[];
+  fleaMarketListings: FleaMarketListing[];
+  socialMediaDrafts: SocialMediaDraft[];
+  socialMediaCrests: SocialMediaCrest[];
+  socialMediaFonts: SocialMediaFont[];
+  socialMediaTextSnippets: SocialMediaTextSnippet[];
   conversations: Conversation[];
   messages: Message[];
   settings: AppSettings;
@@ -111,10 +147,113 @@ interface AppState {
     imageFile?: File | null;
   }) => Promise<ActionResult>;
   deleteInventoryItem: (itemId: string) => Promise<ActionResult>;
+  addCashbookEntry: (input: {
+    teamId: string;
+    entryType: "in" | "out";
+    amount: string;
+    title: string;
+    notes: string;
+    bookedAt?: string;
+    receiptFile?: File | null;
+  }) => Promise<ActionResult>;
+  uploadCashbookReceipt: (entryId: string, file: File) => Promise<ActionResult>;
+  setCashbookOriginalReceived: (entryId: string, value: boolean) => Promise<ActionResult>;
   addUser: (input: UserInput) => Promise<ActionResult>;
   updateUser: (input: UserUpdateInput) => Promise<ActionResult>;
   deleteUser: (userId: string) => Promise<ActionResult>;
   uploadUserAvatar: (userId: string, file: File) => Promise<ActionResult>;
+  uploadPlayerDocument: (
+    userId: string,
+    documentType: PlayerDocumentType,
+    file: File,
+  ) => Promise<ActionResult>;
+  submitPlayerApplication: (input: {
+    teamId: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    birthday?: string;
+    address: string;
+    parentName: string;
+    parentPhone: string;
+    parentEmail: string;
+    notes: string;
+  }) => Promise<ActionResult>;
+  approvePlayerApplication: (
+    applicationId: string,
+    input: { email: string; password: string },
+  ) => Promise<ActionResult>;
+  rejectPlayerApplication: (applicationId: string) => Promise<ActionResult>;
+  clearPlayerApplicationTrash: () => Promise<ActionResult>;
+  submitMatchRescheduleRequest: (input: {
+    teamId: string;
+    matchId?: string | null;
+    matchLabel: string;
+    proposedKickoffAt: string;
+    reason: string;
+    coordinationNotes: string;
+  }) => Promise<ActionResult>;
+  setMatchRescheduleRequestInProgress: (requestId: string) => Promise<ActionResult>;
+  completeMatchRescheduleRequest: (requestId: string) => Promise<ActionResult>;
+  clearMatchRescheduleTrash: () => Promise<ActionResult>;
+  addFleaMarketListing: (input: {
+    title: string;
+    description: string;
+    condition: string;
+    price: string;
+    contactName: string;
+    contactPhone: string;
+    contactEmail: string;
+    imageFiles: File[];
+  }) => Promise<ActionResult>;
+  deleteFleaMarketListing: (listingId: string) => Promise<ActionResult>;
+  addSocialMediaDraft: (input: {
+    draftType: "feed" | "story";
+    layout: string;
+    title: string;
+    subtitle: string;
+    caption: string;
+    callToAction: string;
+    imageFiles: File[];
+    imageOrder: string[];
+    layers: SocialMediaLayer[];
+    isTemplate?: boolean;
+  }) => Promise<ActionResult>;
+  updateSocialMediaDraft: (
+    draftId: string,
+    input: {
+      draftType: "feed" | "story";
+      layout: string;
+      title: string;
+      subtitle: string;
+      caption: string;
+      callToAction: string;
+      existingImageUrls: string[];
+      newImageFiles: File[];
+      imageOrder: string[];
+      layers: SocialMediaLayer[];
+      isTemplate?: boolean;
+    },
+  ) => Promise<ActionResult>;
+  deleteSocialMediaDraft: (draftId: string) => Promise<ActionResult>;
+  addSocialMediaCrest: (input: { name: string; file: File }) => Promise<ActionResult>;
+  deleteSocialMediaCrest: (crestId: string) => Promise<ActionResult>;
+  addSocialMediaFont: (input: { name: string; family: string; file: File }) => Promise<ActionResult>;
+  deleteSocialMediaFont: (fontId: string) => Promise<ActionResult>;
+  addSocialMediaTextSnippet: (input: {
+    label: string;
+    content: string;
+    category: string;
+  }) => Promise<ActionResult>;
+  updateSocialMediaTextSnippet: (
+    snippetId: string,
+    input: {
+      label: string;
+      content: string;
+      category: string;
+    },
+  ) => Promise<ActionResult>;
+  deleteSocialMediaTextSnippet: (snippetId: string) => Promise<ActionResult>;
   addMatch: (input: {
     teamId: string;
     opponent: string;
@@ -138,6 +277,11 @@ interface AppState {
     notes: string;
     password?: string;
   }) => Promise<ActionResult>;
+  completeFirstLogin: (input: {
+    currentPassword: string;
+    newPassword: string;
+    acceptPrivacy: boolean;
+  }) => Promise<ActionResult>;
   setTeamMembership: (
     teamId: string,
     trainerIds: string[],
@@ -156,11 +300,25 @@ export const initialAppState = {
   users: [] as UserProfile[],
   matches: [] as Match[],
   inventoryItems: [] as InventoryItem[],
+  cashbookEntries: [] as CashbookEntry[],
+  pendingPlayerApplications: [] as PendingPlayerApplication[],
+  matchRescheduleRequests: [] as MatchRescheduleRequest[],
+  fleaMarketListings: [] as FleaMarketListing[],
+  socialMediaDrafts: [] as SocialMediaDraft[],
+  socialMediaCrests: [] as SocialMediaCrest[],
+  socialMediaFonts: [] as SocialMediaFont[],
+  socialMediaTextSnippets: [] as SocialMediaTextSnippet[],
   conversations: [] as Conversation[],
   messages: [] as Message[],
   settings: {
     clubName: "SG Wiking Offenbach",
     logoUrl: null,
+    socialMediaLayouts: [
+      { value: "matchday", label: "Spieltag", enabled: true },
+      { value: "result", label: "Ergebnis", enabled: true },
+      { value: "training", label: "Training", enabled: true },
+      { value: "announcement", label: "Ankuendigung", enabled: true },
+    ],
   } as AppSettings,
   currentUserId: null as string | null,
   loading: false,
@@ -192,6 +350,14 @@ const applyPayload = (
     users: payload.users,
     matches: payload.matches,
     inventoryItems: payload.inventoryItems,
+    cashbookEntries: payload.cashbookEntries,
+    pendingPlayerApplications: payload.pendingPlayerApplications,
+    matchRescheduleRequests: payload.matchRescheduleRequests,
+    fleaMarketListings: payload.fleaMarketListings,
+    socialMediaDrafts: payload.socialMediaDrafts,
+    socialMediaCrests: payload.socialMediaCrests,
+    socialMediaFonts: payload.socialMediaFonts,
+    socialMediaTextSnippets: payload.socialMediaTextSnippets,
     conversations: payload.conversations,
     messages: payload.messages,
     settings: payload.settings,
@@ -466,6 +632,103 @@ export const useAppStore = create<AppState>()(
           };
         }
       },
+      addCashbookEntry: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("actorId", actorId);
+          payload.append("teamId", input.teamId);
+          payload.append("entryType", input.entryType);
+          payload.append("amount", input.amount);
+          payload.append("title", input.title);
+          payload.append("notes", input.notes);
+          if (input.bookedAt) {
+            payload.append("bookedAt", input.bookedAt);
+          }
+          if (input.receiptFile) {
+            payload.append("receipt", input.receiptFile);
+          }
+
+          const response = await fetch("/api/cashbook", {
+            method: "POST",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Buchung konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      uploadCashbookReceipt: async (entryId, file) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("actorId", actorId);
+          payload.append("receipt", file);
+
+          const response = await fetch(`/api/cashbook/${entryId}/receipt`, {
+            method: "POST",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Beleg konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      setCashbookOriginalReceived: async (entryId, value) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/cashbook/${entryId}/original-received`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId, value }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Beleg-Status konnte nicht gespeichert werden.",
+          };
+        }
+      },
       addUser: async (input) => {
         try {
           const actorId = get().currentUserId;
@@ -474,10 +737,10 @@ export const useAppStore = create<AppState>()(
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ ...input, actorId }),
           });
-          const data = (await readJson(response)) as ApiStatePayload;
+          const data = (await readJson(response)) as ApiStatePayload & { userId?: string };
           applyPayload(set, data, get().currentUserId);
 
-          return { success: true };
+          return { success: true, userId: data.userId };
         } catch (error) {
           return {
             success: false,
@@ -570,6 +833,629 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Profilbild konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      uploadPlayerDocument: async (userId, documentType, file) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("document", file);
+          payload.append("actorId", actorId);
+
+          const response = await fetch(`/api/users/${userId}/documents/${documentType}`, {
+            method: "POST",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Unterlage konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      submitPlayerApplication: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch("/api/player-applications", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...input, actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Anmeldung konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      approvePlayerApplication: async (applicationId, input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/player-applications/${applicationId}/approve`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...input, actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Freischaltung konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      rejectPlayerApplication: async (applicationId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/player-applications/${applicationId}/reject`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Anmeldung konnte nicht abgelehnt werden.",
+          };
+        }
+      },
+      clearPlayerApplicationTrash: async () => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch("/api/player-applications/trash", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Papierkorb konnte nicht geleert werden.",
+          };
+        }
+      },
+      submitMatchRescheduleRequest: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch("/api/match-reschedule-requests", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...input, actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Spielverlegungsantrag konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      setMatchRescheduleRequestInProgress: async (requestId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/match-reschedule-requests/${requestId}/in-progress`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Bearbeitungsstatus konnte nicht gesetzt werden.",
+          };
+        }
+      },
+      completeMatchRescheduleRequest: async (requestId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/match-reschedule-requests/${requestId}/complete`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Antrag konnte nicht als erledigt markiert werden.",
+          };
+        }
+      },
+      clearMatchRescheduleTrash: async () => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch("/api/match-reschedule-requests/trash", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Papierkorb konnte nicht geleert werden.",
+          };
+        }
+      },
+      addFleaMarketListing: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("actorId", actorId);
+          payload.append("title", input.title);
+          payload.append("description", input.description);
+          payload.append("condition", input.condition);
+          payload.append("price", input.price);
+          payload.append("contactName", input.contactName);
+          payload.append("contactPhone", input.contactPhone);
+          payload.append("contactEmail", input.contactEmail);
+
+          input.imageFiles.forEach((file) => {
+            payload.append("images", file);
+          });
+
+          const response = await fetch("/api/fleamarket", {
+            method: "POST",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Angebot konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      deleteFleaMarketListing: async (listingId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/fleamarket/${listingId}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Angebot konnte nicht geloescht werden.",
+          };
+        }
+      },
+      addSocialMediaDraft: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("actorId", actorId);
+          payload.append("draftType", input.draftType);
+          payload.append("layout", input.layout);
+          payload.append("title", input.title);
+          payload.append("subtitle", input.subtitle);
+          payload.append("caption", input.caption);
+          payload.append("callToAction", input.callToAction);
+          payload.append("imageOrder", JSON.stringify(input.imageOrder));
+          payload.append("layers", JSON.stringify(input.layers));
+          payload.append("isTemplate", input.isTemplate ? "true" : "false");
+
+          input.imageFiles.forEach((file) => {
+            payload.append("images", file);
+          });
+
+          const response = await fetch("/api/social-media/drafts", {
+            method: "POST",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Entwurf konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      updateSocialMediaDraft: async (draftId, input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("actorId", actorId);
+          payload.append("draftType", input.draftType);
+          payload.append("layout", input.layout);
+          payload.append("title", input.title);
+          payload.append("subtitle", input.subtitle);
+          payload.append("caption", input.caption);
+          payload.append("callToAction", input.callToAction);
+          payload.append("existingImageUrls", JSON.stringify(input.existingImageUrls));
+          payload.append("imageOrder", JSON.stringify(input.imageOrder));
+          payload.append("layers", JSON.stringify(input.layers));
+          payload.append("isTemplate", input.isTemplate ? "true" : "false");
+
+          input.newImageFiles.forEach((file) => {
+            payload.append("images", file);
+          });
+
+          const response = await fetch(`/api/social-media/drafts/${draftId}`, {
+            method: "PUT",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Entwurf konnte nicht aktualisiert werden.",
+          };
+        }
+      },
+      deleteSocialMediaDraft: async (draftId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/social-media/drafts/${draftId}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Entwurf konnte nicht geloescht werden.",
+          };
+        }
+      },
+      addSocialMediaCrest: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("actorId", actorId);
+          payload.append("name", input.name);
+          payload.append("image", input.file);
+
+          const response = await fetch("/api/social-media/crests", {
+            method: "POST",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Wappen konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      deleteSocialMediaCrest: async (crestId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/social-media/crests/${crestId}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Wappen konnte nicht geloescht werden.",
+          };
+        }
+      },
+      addSocialMediaFont: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("actorId", actorId);
+          payload.append("name", input.name);
+          payload.append("family", input.family);
+          payload.append("font", input.file);
+
+          const response = await fetch("/api/social-media/fonts", {
+            method: "POST",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Schriftart konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      deleteSocialMediaFont: async (fontId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/social-media/fonts/${fontId}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Schriftart konnte nicht geloescht werden.",
+          };
+        }
+      },
+      addSocialMediaTextSnippet: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch("/api/social-media/snippets", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...input, actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Textbaustein konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      updateSocialMediaTextSnippet: async (snippetId, input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/social-media/snippets/${snippetId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...input, actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Textbaustein konnte nicht aktualisiert werden.",
+          };
+        }
+      },
+      deleteSocialMediaTextSnippet: async (snippetId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/social-media/snippets/${snippetId}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Textbaustein konnte nicht geloescht werden.",
           };
         }
       },
@@ -672,6 +1558,33 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Profil konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      completeFirstLogin: async (input) => {
+        try {
+          const currentUserId = get().currentUserId;
+
+          if (!currentUserId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch("/api/auth/complete-first-login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId: currentUserId, ...input }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, currentUserId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Erstlogin konnte nicht abgeschlossen werden.",
           };
         }
       },

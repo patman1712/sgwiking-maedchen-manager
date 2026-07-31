@@ -1,4 +1,9 @@
 export type UserRole = "admin" | "trainer" | "player" | "board";
+export type PlayerDocumentType =
+  | "member"
+  | "membershipApplication"
+  | "medicalCertificate"
+  | "photoConsentSocial";
 
 export interface Team {
   id: string;
@@ -42,6 +47,25 @@ export interface InventoryItem {
   createdAt: string;
 }
 
+export type CashbookEntryType = "in" | "out";
+
+export interface CashbookEntry {
+  id: string;
+  teamId: string;
+  entryType: CashbookEntryType;
+  amountCents: number;
+  title: string;
+  notes: string;
+  bookedAt: string;
+  receiptUrl?: string | null;
+  originalReceived: boolean;
+  originalReceivedBy?: string | null;
+  originalReceivedAt?: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface UserProfile {
   id: string;
   fullName: string;
@@ -62,7 +86,167 @@ export interface UserProfile {
   hasMembershipApplication?: boolean;
   hasMedicalCertificate?: boolean;
   hasPhotoConsentSocial?: boolean;
+  isMemberFileUrl?: string | null;
+  membershipApplicationFileUrl?: string | null;
+  medicalCertificateFileUrl?: string | null;
+  photoConsentSocialFileUrl?: string | null;
+  mustChangePassword?: boolean;
+  privacyAcceptedAt?: string | null;
+  requiresOnboarding?: boolean;
+  socialMediaEnabled?: boolean;
   createdAt: string;
+}
+
+export interface PendingPlayerApplication {
+  id: string;
+  teamId: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  birthday?: string;
+  address: string;
+  parentName: string;
+  parentPhone: string;
+  parentEmail: string;
+  notes: string;
+  requestedBy: string;
+  requestedAt: string;
+  status: "pending" | "approved" | "rejected";
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  createdUserId?: string | null;
+}
+
+export type MatchRescheduleRequestStatus = "pending" | "in_progress" | "done";
+
+export interface MatchRescheduleRequest {
+  id: string;
+  teamId: string;
+  matchId?: string | null;
+  matchLabel: string;
+  proposedKickoffAt: string;
+  reason: string;
+  coordinationNotes: string;
+  requestedBy: string;
+  requestedAt: string;
+  status: MatchRescheduleRequestStatus;
+  handledBy?: string | null;
+  handledAt?: string | null;
+  completedBy?: string | null;
+  completedAt?: string | null;
+}
+
+export interface FleaMarketListing {
+  id: string;
+  title: string;
+  description: string;
+  condition: string;
+  priceCents: number;
+  contactName: string;
+  contactPhone: string;
+  contactEmail: string;
+  imageUrls: string[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SocialMediaDraftType = "feed" | "story";
+
+export type SocialMediaLayerKind =
+  | "image"
+  | "title"
+  | "subtitle"
+  | "caption"
+  | "cta"
+  | "badge";
+
+export type SocialMediaLayerPosition =
+  | "full"
+  | "topLeft"
+  | "topRight"
+  | "center"
+  | "bottomLeft"
+  | "bottomCenter"
+  | "bottomRight";
+
+export type SocialMediaLayerStyle =
+  | "cover"
+  | "soft"
+  | "cutout"
+  | "glass"
+  | "solid"
+  | "pill";
+
+export type SocialMediaTextAlign = "left" | "center" | "right";
+
+export type SocialMediaTextEffect = "none" | "shadow" | "outline";
+
+export interface SocialMediaLayer {
+  id: string;
+  kind: SocialMediaLayerKind;
+  label: string;
+  position: SocialMediaLayerPosition;
+  style: SocialMediaLayerStyle;
+  imageRef?: string;
+  text?: string;
+  enabled: boolean;
+  centerX?: number;
+  centerY?: number;
+  widthPercent?: number;
+  heightPercent?: number;
+  lockPosition?: boolean;
+  lockSize?: boolean;
+  fontFamily?: string;
+  fontSize?: number;
+  textColor?: string;
+  textAlign?: SocialMediaTextAlign;
+  textEffect?: SocialMediaTextEffect;
+}
+
+export interface SocialMediaDraft {
+  id: string;
+  draftType: SocialMediaDraftType;
+  layout: string;
+  title: string;
+  subtitle: string;
+  caption: string;
+  callToAction: string;
+  imageUrls: string[];
+  layers: SocialMediaLayer[];
+  isTemplate: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SocialMediaCrest {
+  id: string;
+  name: string;
+  imageUrl: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SocialMediaTextSnippet {
+  id: string;
+  label: string;
+  content: string;
+  category: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SocialMediaFont {
+  id: string;
+  name: string;
+  family: string;
+  fileUrl: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type ConversationType = "team" | "direct";
@@ -87,4 +271,11 @@ export interface Message {
 export interface AppSettings {
   clubName: string;
   logoUrl: string | null;
+  socialMediaLayouts: SocialMediaLayoutOption[];
+}
+
+export interface SocialMediaLayoutOption {
+  value: string;
+  label: string;
+  enabled: boolean;
 }

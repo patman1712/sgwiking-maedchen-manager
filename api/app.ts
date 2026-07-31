@@ -15,11 +15,16 @@ import { fileURLToPath } from 'url'
 import { DATA_DIR } from './db.js'
 import authRoutes from './routes/auth.js'
 import bootstrapRoutes from './routes/bootstrap.js'
+import cashbookRoutes from './routes/cashbook.js'
 import conversationsRoutes from './routes/conversations.js'
 import eventsRoutes from './routes/events.js'
+import fleamarketRoutes from './routes/fleamarket.js'
 import inventoryRoutes from './routes/inventory.js'
 import matchesRoutes from './routes/matches.js'
 import messagesRoutes from './routes/messages.js'
+import matchRescheduleRequestsRoutes from './routes/match-reschedule-requests.js'
+import playerApplicationsRoutes from './routes/player-applications.js'
+import socialMediaRoutes from './routes/social-media.js'
 import settingsRoutes from './routes/settings.js'
 import teamsRoutes, { startAutomaticFussballDeImports } from './routes/teams.js'
 import usersRoutes from './routes/users.js'
@@ -46,13 +51,18 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }))
  */
 app.use('/api/auth', authRoutes)
 app.use('/api/bootstrap', bootstrapRoutes)
+app.use('/api/cashbook', cashbookRoutes)
 app.use('/api/events', eventsRoutes)
+app.use('/api/fleamarket', fleamarketRoutes)
 app.use('/api/inventory', inventoryRoutes)
 app.use('/api/teams', teamsRoutes)
 app.use('/api/users', usersRoutes)
 app.use('/api/matches', matchesRoutes)
 app.use('/api/conversations', conversationsRoutes)
 app.use('/api/messages', messagesRoutes)
+app.use('/api/match-reschedule-requests', matchRescheduleRequestsRoutes)
+app.use('/api/player-applications', playerApplicationsRoutes)
+app.use('/api/social-media', socialMediaRoutes)
 app.use('/api/settings', settingsRoutes)
 app.use('/uploads', express.static(uploadPath))
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Briefcase,
@@ -61,6 +61,24 @@ type DashboardUnifiedEvent = {
   category: string;
   sourceType: "manual" | "match";
 };
+
+const StableTeamLogo = memo(function StableTeamLogo({
+  logoUrl,
+  teamName,
+}: {
+  logoUrl: string;
+  teamName: string;
+}) {
+  return (
+    <img
+      src={logoUrl}
+      alt={teamName}
+      className="h-10 w-10 rounded-full border border-white/80 bg-white object-contain shadow-sm"
+      loading="lazy"
+      decoding="async"
+    />
+  );
+});
 
 export default function DashboardHome() {
   const teams = useAppStore((state) => state.teams);
@@ -298,11 +316,7 @@ export default function DashboardHome() {
 
   const renderTeamLogo = (logoUrl: string | null | undefined, teamName: string) =>
     logoUrl ? (
-      <img
-        src={logoUrl}
-        alt={teamName}
-        className="h-10 w-10 rounded-full border border-white/80 bg-white object-contain shadow-sm"
-      />
+      <StableTeamLogo logoUrl={logoUrl} teamName={teamName} />
     ) : (
       <div className="flex h-10 w-10 items-center justify-center rounded-full border border-blue-100 bg-white text-blue-700 shadow-sm">
         <Volleyball size={16} />
@@ -321,10 +335,16 @@ export default function DashboardHome() {
       <>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
-              {team?.name ?? "Mannschaft"}
-            </p>
-            <p className="mt-1 text-sm text-slate-500">{team?.ageGroup ?? ""}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex rounded-full bg-gradient-to-r from-blue-700 to-blue-500 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-white shadow-sm">
+                {team?.name ?? "Mannschaft"}
+              </span>
+              {team?.ageGroup ? (
+                <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 shadow-sm">
+                  {team.ageGroup}
+                </span>
+              ) : null}
+            </div>
           </div>
           <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-blue-900 shadow-sm">
             {formatMatchDate(match.kickoffAt)}

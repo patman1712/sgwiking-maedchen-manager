@@ -2,14 +2,18 @@ import { useEffect } from "react";
 import { BrowserRouter as Router, Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import BoardPage from "@/pages/BoardPage";
+import BoardMailboxPage from "@/pages/BoardMailboxPage";
 import DashboardHome from "@/pages/DashboardHome";
 import DashboardLayout from "@/pages/DashboardLayout";
+import FleaMarketPage from "@/pages/FleaMarketPage";
+import FirstLoginPage from "@/pages/FirstLoginPage";
 import Login from "@/pages/Login";
 import MessagesPage from "@/pages/MessagesPage";
 import PlayersPage from "@/pages/PlayersPage";
 import PlayerEditPage from "@/pages/PlayerEditPage";
 import ProfilePage from "@/pages/ProfilePage";
 import SettingsPage from "@/pages/SettingsPage";
+import SocialMediaPage from "@/pages/SocialMediaPage";
 import TeamDetailPage from "@/pages/TeamDetailPage";
 import TeamsPage from "@/pages/TeamsPage";
 import TrainersPage from "@/pages/TrainersPage";
@@ -113,6 +117,14 @@ export default function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<Login />} />
         <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute allowPendingOnboarding>
+              <FirstLoginPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
@@ -128,8 +140,11 @@ export default function App() {
           <Route path="players" element={<PlayersPage />} />
           <Route path="players/:playerId" element={<PlayerEditPage />} />
           <Route path="board" element={<BoardPage />} />
+          <Route path="board/mailbox" element={<BoardMailboxPage />} />
           <Route path="users" element={<Navigate to="/dashboard/trainers" replace />} />
           <Route path="messages" element={<MessagesPage />} />
+          <Route path="flohmarkt" element={<FleaMarketPage />} />
+          <Route path="social-media" element={<SocialMediaPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
