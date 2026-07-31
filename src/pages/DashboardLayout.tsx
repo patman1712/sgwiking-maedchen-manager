@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
@@ -8,8 +8,6 @@ import {
   LogOut,
   Menu,
   MessageSquare,
-  Megaphone,
-  ShoppingBag,
   Shield,
   ShieldCheck,
   Users,
@@ -24,14 +22,7 @@ const menuItems = [
   { to: "/dashboard/teams", label: "Mannschaften", icon: Volleyball },
   { to: "__members__", label: "Mitglieder", icon: Users },
   { to: "/dashboard/messages", label: "Nachrichten", icon: MessageSquare },
-  { to: "/dashboard/social-media", label: "Social Media", icon: Megaphone },
-  { to: "/dashboard/flohmarkt", label: "Flohmarkt", icon: ShoppingBag },
-  { to: "__board__", label: "Vorstand", icon: Briefcase },
 ] as const;
-
-const StableSidebarLogo = memo(function StableSidebarLogo({ src }: { src: string }) {
-  return <img src={src} alt="Teamwappen" className="h-full w-full object-contain" />;
-});
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -64,16 +55,6 @@ export default function DashboardLayout() {
 
   const canViewMemberLists =
     currentUser?.role === "admin" || currentUser?.role === "board";
-  const canUseSocialMedia =
-    currentUser?.role === "admin" ||
-    (currentUser?.role === "trainer" && Boolean(currentUser.socialMediaEnabled));
-  const visibleMenuItems = useMemo(
-    () =>
-      menuItems.filter((item) =>
-        item.to === "/dashboard/social-media" ? canUseSocialMedia : true,
-      ),
-    [canUseSocialMedia],
-  );
   const keepsCollapsedTeamMenus =
     currentUser?.role === "admin" || currentUser?.role === "board";
 
@@ -231,7 +212,11 @@ export default function DashboardLayout() {
           <Link to="/dashboard" className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl">
               {settings.logoUrl ? (
-                <StableSidebarLogo src={settings.logoUrl} />
+                <img
+                  src={settings.logoUrl}
+                  alt="Teamwappen"
+                  className="h-full w-full object-contain"
+                />
               ) : (
                 <div className="flex h-full w-full items-center justify-center rounded-2xl bg-white/15 text-white">
                   <ShieldCheck size={22} />
@@ -268,7 +253,7 @@ export default function DashboardLayout() {
         </div>
 
         <nav className="flex-1 space-y-2 px-4 py-6">
-          {visibleMenuItems.map((item) => {
+          {menuItems.map((item) => {
             const Icon = item.icon;
 
             if (item.to === "/dashboard/teams") {
@@ -331,16 +316,12 @@ export default function DashboardLayout() {
                           currentUser?.role === "board" ||
                           (currentUser?.role === "trainer" &&
                             currentUser.teamIds.includes(team.id));
-                        const showCashbook = showManagement;
                         const subItems = [
                           { key: "dashboard", label: "Dashboard" },
                           { key: "kader", label: "Kader" },
                           { key: "spielplan", label: "Spielplan" },
                           { key: "termine", label: "Termine" },
                           { key: "inventar", label: "Inventar" },
-                          ...(showCashbook
-                            ? [{ key: "kasse" as const, label: "Schiri-Kasse" }]
-                            : []),
                           ...(showManagement
                             ? [{ key: "verwaltung" as const, label: "Verwaltung" }]
                             : []),
@@ -500,54 +481,6 @@ export default function DashboardLayout() {
                       ))}
                     </div>
                   ) : null}
-                </div>
-              );
-            }
-
-            if (item.to === "__board__") {
-              if (!canViewMemberLists) {
-                return null;
-              }
-
-              const boardAreaActive =
-                location.pathname.startsWith("/dashboard/board") &&
-                location.pathname.includes("/mailbox");
-
-              return (
-                <div key={item.to} className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => navigate("/dashboard/board/mailbox")}
-                      className={cn(
-                        "flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all",
-                        boardAreaActive
-                          ? "bg-white text-blue-950 shadow-lg"
-                          : "text-blue-100 hover:bg-white/10 hover:text-white",
-                      )}
-                    >
-                      <Icon size={18} />
-                      <span>{item.label}</span>
-                    </button>
-                  </div>
-
-                  <div className="ml-4 space-y-1 border-l border-white/15 pl-4">
-                    <NavLink
-                      to="/dashboard/board/mailbox"
-                      onClick={() => setSidebarOpen(false)}
-                      className={({ isActive }) =>
-                        cn(
-                          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
-                          isActive
-                            ? "bg-white text-blue-950 shadow"
-                            : "text-blue-100/90 hover:bg-white/10 hover:text-white",
-                        )
-                      }
-                    >
-                      <MessageSquare size={16} />
-                      <span>Postfach</span>
-                    </NavLink>
-                  </div>
                 </div>
               );
             }

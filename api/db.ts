@@ -134,13 +134,6 @@ db.exec(`
     has_membership_application INTEGER NOT NULL DEFAULT 0,
     has_medical_certificate INTEGER NOT NULL DEFAULT 0,
     has_photo_consent_social INTEGER NOT NULL DEFAULT 0,
-    is_member_file_url TEXT DEFAULT NULL,
-    membership_application_file_url TEXT DEFAULT NULL,
-    medical_certificate_file_url TEXT DEFAULT NULL,
-    photo_consent_social_file_url TEXT DEFAULT NULL,
-    must_change_password INTEGER NOT NULL DEFAULT 0,
-    privacy_accepted_at TEXT DEFAULT NULL,
-    social_media_enabled INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   );
 
@@ -251,137 +244,6 @@ db.exec(`
     FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
   );
-
-  CREATE TABLE IF NOT EXISTS team_cashbook_entries (
-    id TEXT PRIMARY KEY,
-    team_id TEXT NOT NULL,
-    entry_type TEXT NOT NULL CHECK(entry_type IN ('in', 'out')),
-    amount_cents INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    notes TEXT DEFAULT '',
-    booked_at TEXT NOT NULL,
-    receipt_url TEXT DEFAULT NULL,
-    original_received INTEGER NOT NULL DEFAULT 0,
-    original_received_by TEXT DEFAULT NULL,
-    original_received_at TEXT DEFAULT NULL,
-    created_by TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,
-    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY(original_received_by) REFERENCES users(id) ON DELETE SET NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS pending_player_applications (
-    id TEXT PRIMARY KEY,
-    team_id TEXT NOT NULL,
-    full_name TEXT NOT NULL,
-    email TEXT DEFAULT '',
-    phone TEXT DEFAULT '',
-    birthday TEXT DEFAULT '',
-    address TEXT DEFAULT '',
-    parent_name TEXT DEFAULT '',
-    parent_phone TEXT DEFAULT '',
-    parent_email TEXT DEFAULT '',
-    notes TEXT DEFAULT '',
-    requested_by TEXT NOT NULL,
-    requested_at TEXT NOT NULL,
-    status TEXT NOT NULL CHECK(status IN ('pending', 'approved', 'rejected')) DEFAULT 'pending',
-    reviewed_by TEXT DEFAULT NULL,
-    reviewed_at TEXT DEFAULT NULL,
-    created_user_id TEXT DEFAULT NULL,
-    FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,
-    FOREIGN KEY(requested_by) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY(reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
-    FOREIGN KEY(created_user_id) REFERENCES users(id) ON DELETE SET NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS match_reschedule_requests (
-    id TEXT PRIMARY KEY,
-    team_id TEXT NOT NULL,
-    match_id TEXT DEFAULT NULL,
-    match_label TEXT NOT NULL,
-    proposed_kickoff_at TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    coordination_notes TEXT DEFAULT '',
-    requested_by TEXT NOT NULL,
-    requested_at TEXT NOT NULL,
-    status TEXT NOT NULL CHECK(status IN ('pending', 'in_progress', 'done')) DEFAULT 'pending',
-    handled_by TEXT DEFAULT NULL,
-    handled_at TEXT DEFAULT NULL,
-    completed_by TEXT DEFAULT NULL,
-    completed_at TEXT DEFAULT NULL,
-    FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,
-    FOREIGN KEY(match_id) REFERENCES matches(id) ON DELETE SET NULL,
-    FOREIGN KEY(requested_by) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY(handled_by) REFERENCES users(id) ON DELETE SET NULL,
-    FOREIGN KEY(completed_by) REFERENCES users(id) ON DELETE SET NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS flea_market_listings (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT DEFAULT '',
-    listing_condition TEXT DEFAULT '',
-    price_cents INTEGER NOT NULL DEFAULT 0,
-    contact_name TEXT DEFAULT '',
-    contact_phone TEXT DEFAULT '',
-    contact_email TEXT DEFAULT '',
-    image_urls TEXT DEFAULT '[]',
-    created_by TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS social_media_drafts (
-    id TEXT PRIMARY KEY,
-    draft_type TEXT NOT NULL CHECK(draft_type IN ('feed', 'story')),
-    layout TEXT NOT NULL DEFAULT 'matchday',
-    title TEXT NOT NULL,
-    subtitle TEXT DEFAULT '',
-    caption TEXT DEFAULT '',
-    call_to_action TEXT DEFAULT '',
-    image_urls TEXT DEFAULT '[]',
-    layers_json TEXT DEFAULT '[]',
-    is_template INTEGER NOT NULL DEFAULT 0,
-    created_by TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS social_media_crests (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    image_url TEXT NOT NULL,
-    created_by TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS social_media_fonts (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    family TEXT NOT NULL,
-    file_url TEXT NOT NULL,
-    created_by TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS social_media_text_snippets (
-    id TEXT PRIMARY KEY,
-    label TEXT NOT NULL,
-    content TEXT NOT NULL,
-    category TEXT DEFAULT '',
-    created_by TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
-  );
 `)
 
 const teamColumns = (
@@ -448,38 +310,6 @@ if (!userColumns.includes('has_photo_consent_social')) {
   ).run()
 }
 
-if (!userColumns.includes('is_member_file_url')) {
-  db.prepare('ALTER TABLE users ADD COLUMN is_member_file_url TEXT DEFAULT NULL').run()
-}
-
-if (!userColumns.includes('membership_application_file_url')) {
-  db.prepare(
-    'ALTER TABLE users ADD COLUMN membership_application_file_url TEXT DEFAULT NULL',
-  ).run()
-}
-
-if (!userColumns.includes('medical_certificate_file_url')) {
-  db.prepare('ALTER TABLE users ADD COLUMN medical_certificate_file_url TEXT DEFAULT NULL').run()
-}
-
-if (!userColumns.includes('photo_consent_social_file_url')) {
-  db.prepare(
-    'ALTER TABLE users ADD COLUMN photo_consent_social_file_url TEXT DEFAULT NULL',
-  ).run()
-}
-
-if (!userColumns.includes('must_change_password')) {
-  db.prepare('ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0').run()
-}
-
-if (!userColumns.includes('privacy_accepted_at')) {
-  db.prepare('ALTER TABLE users ADD COLUMN privacy_accepted_at TEXT DEFAULT NULL').run()
-}
-
-if (!userColumns.includes('social_media_enabled')) {
-  db.prepare('ALTER TABLE users ADD COLUMN social_media_enabled INTEGER NOT NULL DEFAULT 0').run()
-}
-
 const matchColumns = (
   db.prepare('PRAGMA table_info(matches)').all() as { name: string }[]
 ).map((column) => column.name)
@@ -522,18 +352,6 @@ if (!inventoryItemColumns.includes('item_condition')) {
 
 if (!inventoryItemColumns.includes('image_url')) {
   db.prepare('ALTER TABLE inventory_items ADD COLUMN image_url TEXT DEFAULT NULL').run()
-}
-
-const socialMediaDraftColumns = (
-  db.prepare('PRAGMA table_info(social_media_drafts)').all() as { name: string }[]
-).map((column) => column.name)
-
-if (!socialMediaDraftColumns.includes('layers_json')) {
-  db.prepare("ALTER TABLE social_media_drafts ADD COLUMN layers_json TEXT DEFAULT '[]'").run()
-}
-
-if (!socialMediaDraftColumns.includes('is_template')) {
-  db.prepare('ALTER TABLE social_media_drafts ADD COLUMN is_template INTEGER NOT NULL DEFAULT 0').run()
 }
 
 const now = () => new Date().toISOString()
@@ -867,61 +685,6 @@ if (boardUserCount.count === 0) {
   )
 }
 
-const socialSnippetCount = db
-  .prepare('SELECT COUNT(*) AS count FROM social_media_text_snippets')
-  .get() as { count: number }
-
-if (socialSnippetCount.count === 0) {
-  const insertSnippet = db.prepare(`
-    INSERT INTO social_media_text_snippets (
-      id,
-      label,
-      content,
-      category,
-      created_by,
-      created_at,
-      updated_at
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `)
-
-  const createdAt = now()
-  ;[
-    {
-      label: 'Spieltag',
-      content: 'Heute ist Spieltag. Wir freuen uns ueber jede Unterstuetzung am Spielfeldrand.',
-      category: 'Spieltag',
-    },
-    {
-      label: 'Ergebnis',
-      content:
-        'Starke Teamleistung heute. Danke an alle Spielerinnen, Eltern und Fans fuer die Unterstuetzung.',
-      category: 'Ergebnis',
-    },
-    {
-      label: 'Training',
-      content:
-        'Volle Energie im Training. Schritt fuer Schritt arbeiten wir weiter an unserem Spiel.',
-      category: 'Training',
-    },
-    {
-      label: 'Hinweis',
-      content: 'Weitere Infos folgen ueber unsere Vereinskanaele und direkt im Team.',
-      category: 'Allgemein',
-    },
-  ].forEach((snippet) => {
-    insertSnippet.run(
-      createId('snippet'),
-      snippet.label,
-      snippet.content,
-      snippet.category,
-      'user_admin',
-      createdAt,
-      createdAt,
-    )
-  })
-}
-
 type TeamRow = {
   id: string
   name: string
@@ -954,13 +717,6 @@ type UserRow = {
   has_membership_application: number
   has_medical_certificate: number
   has_photo_consent_social: number
-  is_member_file_url: string | null
-  membership_application_file_url: string | null
-  medical_certificate_file_url: string | null
-  photo_consent_social_file_url: string | null
-  must_change_password: number
-  privacy_accepted_at: string | null
-  social_media_enabled: number
   created_at: string
 }
 
@@ -1013,120 +769,6 @@ type InventoryItemRow = {
   created_at: string
 }
 
-type CashbookEntryRow = {
-  id: string
-  team_id: string
-  entry_type: 'in' | 'out'
-  amount_cents: number
-  title: string
-  notes: string
-  booked_at: string
-  receipt_url: string | null
-  original_received: number
-  original_received_by: string | null
-  original_received_at: string | null
-  created_by: string
-  created_at: string
-  updated_at: string
-}
-
-type PendingPlayerApplicationRow = {
-  id: string
-  team_id: string
-  full_name: string
-  email: string
-  phone: string
-  birthday: string
-  address: string
-  parent_name: string
-  parent_phone: string
-  parent_email: string
-  notes: string
-  requested_by: string
-  requested_at: string
-  status: 'pending' | 'approved' | 'rejected'
-  reviewed_by: string | null
-  reviewed_at: string | null
-  created_user_id: string | null
-}
-
-type MatchRescheduleRequestRow = {
-  id: string
-  team_id: string
-  match_id: string | null
-  match_label: string
-  proposed_kickoff_at: string
-  reason: string
-  coordination_notes: string
-  requested_by: string
-  requested_at: string
-  status: 'pending' | 'in_progress' | 'done'
-  handled_by: string | null
-  handled_at: string | null
-  completed_by: string | null
-  completed_at: string | null
-}
-
-type FleaMarketListingRow = {
-  id: string
-  title: string
-  description: string
-  listing_condition: string
-  price_cents: number
-  contact_name: string
-  contact_phone: string
-  contact_email: string
-  image_urls: string
-  created_by: string
-  created_at: string
-  updated_at: string
-}
-
-type SocialMediaDraftRow = {
-  id: string
-  draft_type: 'feed' | 'story'
-  layout: string
-  title: string
-  subtitle: string
-  caption: string
-  call_to_action: string
-  image_urls: string
-  layers_json: string
-  is_template: number
-  created_by: string
-  created_at: string
-  updated_at: string
-}
-
-type SocialMediaTextSnippetRow = {
-  id: string
-  label: string
-  content: string
-  category: string
-  created_by: string
-  created_at: string
-  updated_at: string
-}
-
-type SocialMediaCrestRow = {
-  id: string
-  name: string
-  image_url: string
-  created_by: string
-  created_at: string
-  updated_at: string
-}
-
-type SocialMediaFontRow = {
-  id: string
-  name: string
-  family: string
-  file_url: string
-  created_by: string
-  created_at: string
-  updated_at: string
-}
-
 export const mapTeam = (row: TeamRow) => ({
   id: row.id,
   name: row.name,
@@ -1148,8 +790,6 @@ export const getTeamIdsByUserId = (userId: string) =>
   ).map((row) => row.team_id)
 
 export const mapUser = (row: UserRow, includePassword = false) => {
-  const mustChangePassword = Boolean(row.must_change_password)
-  const privacyAcceptedAt = row.privacy_accepted_at || null
   const base = {
     id: row.id,
     fullName: row.full_name,
@@ -1169,14 +809,6 @@ export const mapUser = (row: UserRow, includePassword = false) => {
     hasMembershipApplication: Boolean(row.has_membership_application),
     hasMedicalCertificate: Boolean(row.has_medical_certificate),
     hasPhotoConsentSocial: Boolean(row.has_photo_consent_social),
-    isMemberFileUrl: row.is_member_file_url || null,
-    membershipApplicationFileUrl: row.membership_application_file_url || null,
-    medicalCertificateFileUrl: row.medical_certificate_file_url || null,
-    photoConsentSocialFileUrl: row.photo_consent_social_file_url || null,
-    mustChangePassword,
-    privacyAcceptedAt,
-    requiresOnboarding: row.role === 'player' && (mustChangePassword || !privacyAcceptedAt),
-    socialMediaEnabled: Boolean(row.social_media_enabled),
     createdAt: row.created_at,
   }
 
@@ -1235,15 +867,6 @@ export const userHasTeamRole = (
 export const isAdminOrBoard = (userId: string) => {
   const row = getUserRowById(userId)
   return row?.role === 'admin' || row?.role === 'board'
-}
-
-export const canUseSocialMedia = (userId: string) => {
-  const row = getUserRowById(userId)
-  if (!row) {
-    return false
-  }
-
-  return row.role === 'admin' || (row.role === 'trainer' && Boolean(row.social_media_enabled))
 }
 
 const getVisibleConversationRows = (userId?: string | null) => {
@@ -1364,382 +987,6 @@ export const getInventoryItems = () =>
     createdAt: row.created_at,
   }))
 
-export const getCashbookEntries = (userId?: string | null) => {
-  if (!userId) {
-    return []
-  }
-
-  const actor = getUserRowById(userId)
-  if (!actor) {
-    return []
-  }
-
-  const rows = db.prepare(
-    'SELECT * FROM team_cashbook_entries ORDER BY booked_at DESC, created_at DESC',
-  ).all() as CashbookEntryRow[]
-
-  if (actor.role === 'admin' || actor.role === 'board') {
-    return rows.map((row) => ({
-      id: row.id,
-      teamId: row.team_id,
-      entryType: row.entry_type,
-      amountCents: Number(row.amount_cents) || 0,
-      title: row.title,
-      notes: row.notes || '',
-      bookedAt: row.booked_at,
-      receiptUrl: row.receipt_url || null,
-      originalReceived: Boolean(row.original_received),
-      originalReceivedBy: row.original_received_by || null,
-      originalReceivedAt: row.original_received_at || null,
-      createdBy: row.created_by,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }))
-  }
-
-  if (actor.role !== 'trainer') {
-    return []
-  }
-
-  const actorTeamIds = new Set(getTeamIdsByUserId(userId))
-
-  return rows
-    .filter((row) => actorTeamIds.has(row.team_id))
-    .map((row) => ({
-      id: row.id,
-      teamId: row.team_id,
-      entryType: row.entry_type,
-      amountCents: Number(row.amount_cents) || 0,
-      title: row.title,
-      notes: row.notes || '',
-      bookedAt: row.booked_at,
-      receiptUrl: row.receipt_url || null,
-      originalReceived: Boolean(row.original_received),
-      originalReceivedBy: row.original_received_by || null,
-      originalReceivedAt: row.original_received_at || null,
-      createdBy: row.created_by,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }))
-}
-
-export const getPendingPlayerApplications = (userId?: string | null) => {
-  if (!userId) {
-    return []
-  }
-
-  const actor = getUserRowById(userId)
-  if (!actor) {
-    return []
-  }
-
-  const rows = db.prepare(
-    'SELECT * FROM pending_player_applications ORDER BY requested_at DESC',
-  ).all() as PendingPlayerApplicationRow[]
-
-  if (actor.role === 'admin' || actor.role === 'board') {
-    return rows.map((row) => ({
-      id: row.id,
-      teamId: row.team_id,
-      fullName: row.full_name,
-      email: row.email || '',
-      phone: row.phone || '',
-      birthday: row.birthday || '',
-      address: row.address || '',
-      parentName: row.parent_name || '',
-      parentPhone: row.parent_phone || '',
-      parentEmail: row.parent_email || '',
-      notes: row.notes || '',
-      requestedBy: row.requested_by,
-      requestedAt: row.requested_at,
-      status: row.status,
-      reviewedBy: row.reviewed_by || null,
-      reviewedAt: row.reviewed_at || null,
-      createdUserId: row.created_user_id || null,
-    }))
-  }
-
-  return []
-}
-
-export const getMatchRescheduleRequests = (userId?: string | null) => {
-  if (!userId) {
-    return []
-  }
-
-  const actor = getUserRowById(userId)
-  if (!actor) {
-    return []
-  }
-
-  if (actor.role !== 'admin' && actor.role !== 'board') {
-    return []
-  }
-
-  const rows = db.prepare(
-    'SELECT * FROM match_reschedule_requests ORDER BY requested_at DESC',
-  ).all() as MatchRescheduleRequestRow[]
-
-  return rows.map((row) => ({
-    id: row.id,
-    teamId: row.team_id,
-    matchId: row.match_id || null,
-    matchLabel: row.match_label,
-    proposedKickoffAt: row.proposed_kickoff_at,
-    reason: row.reason,
-    coordinationNotes: row.coordination_notes || '',
-    requestedBy: row.requested_by,
-    requestedAt: row.requested_at,
-    status: row.status,
-    handledBy: row.handled_by || null,
-    handledAt: row.handled_at || null,
-    completedBy: row.completed_by || null,
-    completedAt: row.completed_at || null,
-  }))
-}
-
-export const getFleaMarketListings = (userId?: string | null) => {
-  if (!userId) {
-    return []
-  }
-
-  const actor = getUserRowById(userId)
-  if (!actor) {
-    return []
-  }
-
-  const rows = db.prepare(
-    'SELECT * FROM flea_market_listings ORDER BY updated_at DESC, created_at DESC',
-  ).all() as FleaMarketListingRow[]
-
-  return rows.map((row) => {
-    let imageUrls: string[] = []
-    try {
-      const parsed = JSON.parse(row.image_urls || '[]') as unknown
-      if (Array.isArray(parsed)) {
-        imageUrls = parsed.filter((value): value is string => typeof value === 'string')
-      }
-    } catch {
-      imageUrls = []
-    }
-
-    return {
-      id: row.id,
-      title: row.title,
-      description: row.description || '',
-      condition: row.listing_condition || '',
-      priceCents: Number(row.price_cents) || 0,
-      contactName: row.contact_name || '',
-      contactPhone: row.contact_phone || '',
-      contactEmail: row.contact_email || '',
-      imageUrls,
-      createdBy: row.created_by,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }
-  })
-}
-
-export const getSocialMediaDrafts = (userId?: string | null) => {
-  if (!userId) {
-    return []
-  }
-
-  const actor = getUserRowById(userId)
-  if (!actor || !canUseSocialMedia(userId)) {
-    return []
-  }
-
-  const rows =
-    actor.role === 'admin'
-      ? (db
-          .prepare('SELECT * FROM social_media_drafts ORDER BY updated_at DESC, created_at DESC')
-          .all() as SocialMediaDraftRow[])
-      : (db
-          .prepare(
-            'SELECT * FROM social_media_drafts WHERE is_template = 1 OR created_by = ? ORDER BY updated_at DESC, created_at DESC',
-          )
-          .all(userId) as SocialMediaDraftRow[])
-
-  return rows.map((row) => {
-    let imageUrls: string[] = []
-    try {
-      const parsed = JSON.parse(row.image_urls || '[]') as unknown
-      if (Array.isArray(parsed)) {
-        imageUrls = parsed.filter((value): value is string => typeof value === 'string')
-      }
-    } catch {
-      imageUrls = []
-    }
-
-    let layers: Array<{
-      id: string
-      kind: string
-      label: string
-      position: string
-      style: string
-      imageRef?: string
-      text?: string
-      enabled: boolean
-      centerX?: number
-      centerY?: number
-      widthPercent?: number
-      heightPercent?: number
-      lockPosition?: boolean
-      lockSize?: boolean
-      fontFamily?: string
-      fontSize?: number
-      textColor?: string
-      textAlign?: string
-      textEffect?: string
-    }> = []
-    try {
-      const parsed = JSON.parse(row.layers_json || '[]') as unknown
-      if (Array.isArray(parsed)) {
-        layers = parsed.filter(
-          (
-            entry,
-          ): entry is {
-            id: string
-            kind: string
-            label: string
-            position: string
-            style: string
-            imageRef?: string
-            text?: string
-            enabled: boolean
-            centerX?: number
-            centerY?: number
-            widthPercent?: number
-            heightPercent?: number
-            lockPosition?: boolean
-            lockSize?: boolean
-            fontFamily?: string
-            fontSize?: number
-            textColor?: string
-            textAlign?: string
-            textEffect?: string
-          } =>
-            Boolean(
-              entry &&
-                typeof entry === 'object' &&
-                typeof (entry as { id?: unknown }).id === 'string' &&
-                typeof (entry as { kind?: unknown }).kind === 'string' &&
-                typeof (entry as { label?: unknown }).label === 'string' &&
-                typeof (entry as { position?: unknown }).position === 'string' &&
-                typeof (entry as { style?: unknown }).style === 'string' &&
-                typeof (entry as { enabled?: unknown }).enabled === 'boolean' &&
-                ((entry as { centerX?: unknown }).centerX === undefined ||
-                  typeof (entry as { centerX?: unknown }).centerX === 'number') &&
-                ((entry as { centerY?: unknown }).centerY === undefined ||
-                  typeof (entry as { centerY?: unknown }).centerY === 'number') &&
-                ((entry as { widthPercent?: unknown }).widthPercent === undefined ||
-                  typeof (entry as { widthPercent?: unknown }).widthPercent === 'number') &&
-                ((entry as { heightPercent?: unknown }).heightPercent === undefined ||
-                  typeof (entry as { heightPercent?: unknown }).heightPercent === 'number') &&
-                ((entry as { lockPosition?: unknown }).lockPosition === undefined ||
-                  typeof (entry as { lockPosition?: unknown }).lockPosition === 'boolean') &&
-                ((entry as { lockSize?: unknown }).lockSize === undefined ||
-                  typeof (entry as { lockSize?: unknown }).lockSize === 'boolean') &&
-                ((entry as { fontFamily?: unknown }).fontFamily === undefined ||
-                  typeof (entry as { fontFamily?: unknown }).fontFamily === 'string') &&
-                ((entry as { fontSize?: unknown }).fontSize === undefined ||
-                  typeof (entry as { fontSize?: unknown }).fontSize === 'number') &&
-                ((entry as { textColor?: unknown }).textColor === undefined ||
-                  typeof (entry as { textColor?: unknown }).textColor === 'string') &&
-                ((entry as { textAlign?: unknown }).textAlign === undefined ||
-                  typeof (entry as { textAlign?: unknown }).textAlign === 'string') &&
-                ((entry as { textEffect?: unknown }).textEffect === undefined ||
-                  typeof (entry as { textEffect?: unknown }).textEffect === 'string'),
-            ),
-        )
-      }
-    } catch {
-      layers = []
-    }
-
-    return {
-      id: row.id,
-      draftType: row.draft_type,
-      layout: row.layout,
-      title: row.title,
-      subtitle: row.subtitle || '',
-      caption: row.caption || '',
-      callToAction: row.call_to_action || '',
-      imageUrls,
-      layers,
-      isTemplate: Boolean(row.is_template),
-      createdBy: row.created_by,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }
-  })
-}
-
-export const getSocialMediaTextSnippets = (userId?: string | null) => {
-  if (!userId) {
-    return []
-  }
-
-  const actor = getUserRowById(userId)
-  if (!actor || !canUseSocialMedia(userId)) {
-    return []
-  }
-
-  const rows = db.prepare(
-    'SELECT * FROM social_media_text_snippets ORDER BY category COLLATE NOCASE ASC, label COLLATE NOCASE ASC',
-  ).all() as SocialMediaTextSnippetRow[]
-
-  return rows.map((row) => ({
-    id: row.id,
-    label: row.label,
-    content: row.content,
-    category: row.category || '',
-    createdBy: row.created_by,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  }))
-}
-
-export const getSocialMediaCrests = (userId?: string | null) => {
-  if (!userId || !canUseSocialMedia(userId)) {
-    return []
-  }
-
-  const rows = db.prepare(
-    'SELECT * FROM social_media_crests ORDER BY updated_at DESC, created_at DESC',
-  ).all() as SocialMediaCrestRow[]
-
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    imageUrl: row.image_url,
-    createdBy: row.created_by,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  }))
-}
-
-export const getSocialMediaFonts = (userId?: string | null) => {
-  if (!userId || !canUseSocialMedia(userId)) {
-    return []
-  }
-
-  const rows = db.prepare(
-    'SELECT * FROM social_media_fonts ORDER BY updated_at DESC, created_at DESC',
-  ).all() as SocialMediaFontRow[]
-
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    family: row.family,
-    fileUrl: row.file_url,
-    createdBy: row.created_by,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  }))
-}
-
 export const getSetting = (key: string) => {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
     | { value: string }
@@ -1756,53 +1003,9 @@ export const setSetting = (key: string, value: string) => {
   `).run(key, value)
 }
 
-const defaultSocialMediaLayouts = [
-  { value: 'matchday', label: 'Spieltag', enabled: true },
-  { value: 'result', label: 'Ergebnis', enabled: true },
-  { value: 'training', label: 'Training', enabled: true },
-  { value: 'announcement', label: 'Ankuendigung', enabled: true },
-]
-
-const getSocialMediaLayouts = () => {
-  const rawValue = getSetting('social_media_layouts')
-  if (!rawValue) {
-    return defaultSocialMediaLayouts
-  }
-
-  try {
-    const parsed = JSON.parse(rawValue) as unknown
-    if (Array.isArray(parsed)) {
-      const mapped = parsed.filter(
-        (
-          entry,
-        ): entry is { value: string; label: string; enabled: boolean } =>
-          Boolean(
-            entry &&
-              typeof entry === 'object' &&
-              typeof (entry as { value?: unknown }).value === 'string' &&
-              typeof (entry as { label?: unknown }).label === 'string' &&
-              typeof (entry as { enabled?: unknown }).enabled === 'boolean',
-          ),
-      )
-
-      if (mapped.length) {
-        return defaultSocialMediaLayouts.map((layout) => {
-          const override = mapped.find((entry) => entry.value === layout.value)
-          return override ? override : layout
-        })
-      }
-    }
-  } catch {
-    return defaultSocialMediaLayouts
-  }
-
-  return defaultSocialMediaLayouts
-}
-
 export const getSettings = () => ({
   clubName: getSetting('club_name') ?? 'SG Wiking Offenbach',
   logoUrl: getSetting('team_logo_url'),
-  socialMediaLayouts: getSocialMediaLayouts(),
 })
 
 export const getBootstrapData = (userId?: string | null) => ({
@@ -1810,14 +1013,6 @@ export const getBootstrapData = (userId?: string | null) => ({
   users: getUsers(),
   matches: getMatches(),
   inventoryItems: getInventoryItems(),
-  cashbookEntries: getCashbookEntries(userId),
-  pendingPlayerApplications: getPendingPlayerApplications(userId),
-  matchRescheduleRequests: getMatchRescheduleRequests(userId),
-  fleaMarketListings: getFleaMarketListings(userId),
-  socialMediaDrafts: getSocialMediaDrafts(userId),
-  socialMediaCrests: getSocialMediaCrests(userId),
-  socialMediaFonts: getSocialMediaFonts(userId),
-  socialMediaTextSnippets: getSocialMediaTextSnippets(userId),
   conversations: getConversations(userId),
   messages: getMessages(userId),
   settings: getSettings(),
