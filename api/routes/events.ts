@@ -27,6 +27,21 @@ type EventResponseDetail = {
   status: 'accepted' | 'declined'
 }
 
+type TournamentEvent = {
+  id: string
+  teamId: string
+  title: string
+  description: string
+  location: string
+  startsAt: string
+  endsAt: null
+  category: string
+  sourceType: 'tournament'
+  createdBy: string
+  createdAt: string
+  tournamentPlanUrl: string | null
+}
+
 const buildPayload = (teamId: string, actorId: string) => {
   const manualEvents = (
     db.prepare(
@@ -123,8 +138,45 @@ const buildPayload = (teamId: string, actorId: string) => {
     `,
   ).get(teamId) as { response_close_hours_before: number } | undefined
 
+  const tournamentEvents = (
+    db.prepare(
+      `
+        SELECT id, team_id, title, description, location, starts_at, tournament_plan_url, created_by, created_at
+        FROM tournament_offers
+        WHERE team_id = ? AND response_status = 'accepted'
+        ORDER BY starts_at ASC, created_at ASC
+      `,
+    ).all(teamId) as Array<{
+      id: string
+      team_id: string
+      title: string
+      description: string
+      location: string
+      starts_at: string
+      tournament_plan_url: string | null
+      created_by: string
+      created_at: string
+    }>
+  ).map(
+    (row): TournamentEvent => ({
+      id: row.id,
+      teamId: row.team_id,
+      title: row.title,
+      description: row.description || '',
+      location: row.location || '',
+      startsAt: row.starts_at,
+      endsAt: null,
+      category: 'turnier',
+      sourceType: 'tournament',
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      tournamentPlanUrl: row.tournament_plan_url || null,
+    }),
+  )
+
   return {
     manualEvents,
+    tournamentEvents,
     responseSummaries: Array.from(summaries.values()),
     responseDetails: Array.from(responseDetails.entries()).map(([eventId, responses]) => ({
       eventId,

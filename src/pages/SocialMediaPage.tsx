@@ -690,7 +690,7 @@ function SocialPreview({
         const fontSize = clamp(
           Math.round((interaction.startFontSize ?? defaults.fontSize) * scale),
           10,
-          240,
+          480,
         );
         const heightPercent = interaction.startHeightPercent * scale;
         const centerX = clamp(
@@ -3325,7 +3325,7 @@ export default function SocialMediaPage() {
                               <input
                                 type="range"
                                 min={10}
-                                max={240}
+                                max={480}
                                 step={1}
                                 value={
                                   activeLayer.fontSize ?? getDefaultTextAppearance(activeLayer).fontSize

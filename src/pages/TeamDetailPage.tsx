@@ -63,6 +63,21 @@ type TeamEventResponseDetail = {
   declinedUsers: Array<{ userId: string; fullName: string }>;
 };
 
+type TournamentTeamEvent = {
+  id: string;
+  teamId: string;
+  title: string;
+  description: string;
+  location: string;
+  startsAt: string;
+  endsAt: null;
+  category: string;
+  sourceType: "tournament";
+  createdBy: string;
+  createdAt: string;
+  tournamentPlanUrl?: string | null;
+};
+
 type TeamEventSettings = {
   responseCloseHoursBefore: number;
 };
@@ -76,8 +91,9 @@ type UnifiedTeamEvent = {
   startsAt: string;
   endsAt: string | null;
   category: string;
-  sourceType: "manual" | "match";
+  sourceType: "manual" | "match" | "tournament";
   relatedMatchId?: string;
+  tournamentPlanUrl?: string | null;
 };
 
 export default function TeamDetailPage() {
@@ -245,6 +261,7 @@ export default function TeamDetailPage() {
     notes: "",
   });
   const [manualEvents, setManualEvents] = useState<ManualTeamEvent[]>([]);
+  const [tournamentEvents, setTournamentEvents] = useState<TournamentTeamEvent[]>([]);
   const [eventSummaries, setEventSummaries] = useState<TeamEventSummary[]>([]);
   const [eventResponseDetails, setEventResponseDetails] = useState<TeamEventResponseDetail[]>([]);
   const [eventSettings, setEventSettings] = useState<TeamEventSettings>({
@@ -648,6 +665,7 @@ export default function TeamDetailPage() {
       }
 
       setManualEvents(data.manualEvents ?? []);
+      setTournamentEvents(data.tournamentEvents ?? []);
       setEventSummaries(data.responseSummaries ?? []);
       setEventResponseDetails(data.responseDetails ?? []);
       setEventSettings(data.settings ?? { responseCloseHoursBefore: 24 });
@@ -683,6 +701,18 @@ export default function TeamDetailPage() {
       category: event.category,
       sourceType: "manual" as const,
     }));
+    const acceptedTournaments = tournamentEvents.map((event) => ({
+      id: event.id,
+      teamId: event.teamId,
+      title: event.title,
+      description: event.description,
+      location: event.location,
+      startsAt: event.startsAt,
+      endsAt: event.endsAt,
+      category: event.category,
+      sourceType: "tournament" as const,
+      tournamentPlanUrl: event.tournamentPlanUrl ?? null,
+    }));
 
     const derivedMatches = teamMatches.map((match) => ({
       id: match.id,
@@ -700,11 +730,11 @@ export default function TeamDetailPage() {
       relatedMatchId: match.id,
     }));
 
-    return [...manual, ...derivedMatches].sort(
+    return [...manual, ...acceptedTournaments, ...derivedMatches].sort(
       (left, right) =>
         new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime(),
     );
-  }, [manualEvents, team.id, teamMatches]);
+  }, [manualEvents, team.id, teamMatches, tournamentEvents]);
 
   const eventSummaryById = useMemo(
     () =>
@@ -780,6 +810,7 @@ export default function TeamDetailPage() {
     const deadline = getEventDeadline(event);
     const responseClosed = deadline.getTime() <= Date.now();
     const canViewResponseNames = currentUser?.role === "trainer";
+    const isTournament = event.sourceType === "tournament";
 
     return (
       <div
@@ -795,11 +826,20 @@ export default function TeamDetailPage() {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-700 shadow-sm">
-                {event.sourceType === "match" ? "Spiel" : event.category}
+                {event.sourceType === "match"
+                  ? "Spiel"
+                  : event.sourceType === "tournament"
+                    ? "Turnier"
+                    : event.category}
               </span>
               {event.sourceType === "match" ? (
                 <span className="rounded-full bg-blue-100 px-3 py-1 text-[11px] font-semibold text-blue-900">
                   Aus Spielplan
+                </span>
+              ) : null}
+              {isTournament ? (
+                <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold text-amber-800">
+                  Aus Turnierboerse
                 </span>
               ) : null}
             </div>
@@ -836,8 +876,9 @@ export default function TeamDetailPage() {
                   }
 
                   setManualEvents(data.manualEvents ?? []);
+                  setTournamentEvents(data.tournamentEvents ?? []);
                   setEventSummaries(data.responseSummaries ?? []);
-                setEventResponseDetails(data.responseDetails ?? []);
+                  setEventResponseDetails(data.responseDetails ?? []);
                   setEventSettings(data.settings ?? { responseCloseHoursBefore: 24 });
                   setEventsMessage("Termin wurde geloescht.");
                 } catch (error) {
@@ -867,9 +908,21 @@ export default function TeamDetailPage() {
               {event.location}
             </span>
           ) : null}
+          {isTournament && event.tournamentPlanUrl ? (
+            <a
+              href={event.tournamentPlanUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-900 shadow-sm transition hover:bg-blue-50"
+            >
+              <FileText size={14} />
+              Turnierplan
+            </a>
+          ) : null}
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
+        {!isTournament ? (
+          <div className="mt-4 flex flex-wrap items-center gap-3">
           {canViewResponseNames ? (
             <button
               type="button"
@@ -918,9 +971,17 @@ export default function TeamDetailPage() {
               Deine Rueckmeldung: {summary.currentUserStatus === "accepted" ? "Zusage" : "Absage"}
             </span>
           ) : null}
-        </div>
+          </div>
+        ) : (
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+              Teilnahme bestaetigt
+            </span>
+          </div>
+        )}
 
-        <div className="mt-4 flex flex-wrap gap-2">
+        {!isTournament ? (
+          <div className="mt-4 flex flex-wrap gap-2">
           <button
             type="button"
             disabled={responseClosed || eventResponseSavingId === event.id}
@@ -1005,7 +1066,8 @@ export default function TeamDetailPage() {
           >
             Absagen
           </button>
-        </div>
+          </div>
+        ) : null}
       </div>
     );
   };
@@ -2498,7 +2560,9 @@ export default function TeamDetailPage() {
                     }
 
                     setManualEvents(data.manualEvents ?? []);
+                    setTournamentEvents(data.tournamentEvents ?? []);
                     setEventSummaries(data.responseSummaries ?? []);
+                    setEventResponseDetails(data.responseDetails ?? []);
                     setEventSettings(data.settings ?? { responseCloseHoursBefore: 24 });
                     setEventForm({
                       title: "",

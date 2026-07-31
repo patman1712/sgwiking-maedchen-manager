@@ -12,6 +12,7 @@ import {
   ShoppingBag,
   Shield,
   ShieldCheck,
+  Trophy,
   Users,
   Volleyball,
   X,
@@ -26,6 +27,7 @@ const menuItems = [
   { to: "/dashboard/messages", label: "Nachrichten", icon: MessageSquare },
   { to: "/dashboard/social-media", label: "Social Media", icon: Megaphone },
   { to: "/dashboard/flohmarkt", label: "Flohmarkt", icon: ShoppingBag },
+  { to: "/dashboard/turnierboerse", label: "Turnierboerse", icon: Trophy },
   { to: "__board__", label: "Vorstand", icon: Briefcase },
 ] as const;
 
@@ -67,12 +69,24 @@ export default function DashboardLayout() {
   const canUseSocialMedia =
     currentUser?.role === "admin" ||
     (currentUser?.role === "trainer" && Boolean(currentUser.socialMediaEnabled));
+  const canUseTournamentBoerse =
+    currentUser?.role === "admin" ||
+    currentUser?.role === "board" ||
+    currentUser?.role === "trainer";
   const visibleMenuItems = useMemo(
     () =>
-      menuItems.filter((item) =>
-        item.to === "/dashboard/social-media" ? canUseSocialMedia : true,
-      ),
-    [canUseSocialMedia],
+      menuItems.filter((item) => {
+        if (item.to === "/dashboard/social-media") {
+          return canUseSocialMedia;
+        }
+
+        if (item.to === "/dashboard/turnierboerse") {
+          return canUseTournamentBoerse;
+        }
+
+        return true;
+      }),
+    [canUseSocialMedia, canUseTournamentBoerse],
   );
   const keepsCollapsedTeamMenus =
     currentUser?.role === "admin" || currentUser?.role === "board";

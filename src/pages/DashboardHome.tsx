@@ -3,9 +3,12 @@ import { Link } from "react-router-dom";
 import {
   Briefcase,
   CalendarDays,
+  Download,
+  FileText,
   MapPin,
   MessageSquare,
   ShieldCheck,
+  Trophy,
   Users,
   Volleyball,
   X,
@@ -41,8 +44,24 @@ type DashboardEventResponseDetail = {
   declinedUsers: Array<{ userId: string; fullName: string }>;
 };
 
+type DashboardTournamentEvent = {
+  id: string;
+  teamId: string;
+  title: string;
+  description: string;
+  location: string;
+  startsAt: string;
+  endsAt: null;
+  category: string;
+  sourceType: "tournament";
+  createdBy: string;
+  createdAt: string;
+  tournamentPlanUrl?: string | null;
+};
+
 type DashboardTeamEventsPayload = {
   manualEvents: DashboardManualEvent[];
+  tournamentEvents: DashboardTournamentEvent[];
   responseSummaries: DashboardEventSummary[];
   responseDetails: DashboardEventResponseDetail[];
   settings: {
@@ -59,7 +78,8 @@ type DashboardUnifiedEvent = {
   startsAt: string;
   endsAt: string | null;
   category: string;
-  sourceType: "manual" | "match";
+  sourceType: "manual" | "match" | "tournament";
+  tournamentPlanUrl?: string | null;
 };
 
 const StableTeamLogo = memo(function StableTeamLogo({
@@ -172,6 +192,7 @@ export default function DashboardHome() {
           teamId,
           {
             manualEvents: data.manualEvents ?? [],
+            tournamentEvents: data.tournamentEvents ?? [],
             responseSummaries: data.responseSummaries ?? [],
             responseDetails: data.responseDetails ?? [],
             settings: data.settings ?? { responseCloseHoursBefore: 24 },
@@ -225,6 +246,19 @@ export default function DashboardHome() {
           category: event.category,
           sourceType: "manual" as const,
         })) ?? [];
+      const tournamentEvents =
+        payload?.tournamentEvents.map((event) => ({
+          id: event.id,
+          teamId,
+          title: event.title,
+          description: event.description,
+          location: event.location,
+          startsAt: event.startsAt,
+          endsAt: event.endsAt,
+          category: event.category,
+          sourceType: "tournament" as const,
+          tournamentPlanUrl: event.tournamentPlanUrl ?? null,
+        })) ?? [];
 
       const matchEvents = matches
         .filter((match) => match.teamId === teamId)
@@ -240,7 +274,7 @@ export default function DashboardHome() {
           sourceType: "match" as const,
         }));
 
-      return [...manualEvents, ...matchEvents];
+      return [...manualEvents, ...tournamentEvents, ...matchEvents];
     });
 
     return unifiedEvents
@@ -300,6 +334,7 @@ export default function DashboardHome() {
         ...current,
         [event.teamId]: {
           manualEvents: data.manualEvents ?? [],
+          tournamentEvents: data.tournamentEvents ?? [],
           responseSummaries: data.responseSummaries ?? [],
           responseDetails: data.responseDetails ?? [],
           settings: data.settings ?? { responseCloseHoursBefore: 24 },
@@ -412,6 +447,7 @@ export default function DashboardHome() {
     const deadline = getEventDeadline(event);
     const responseClosed = deadline.getTime() <= Date.now();
     const canViewResponseNames = currentUser?.role === "trainer";
+    const isTournament = event.sourceType === "tournament";
 
     return (
       <div
@@ -422,11 +458,20 @@ export default function DashboardHome() {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-700 shadow-sm">
-                {event.sourceType === "match" ? "Spiel" : event.category}
+                {event.sourceType === "match"
+                  ? "Spiel"
+                  : event.sourceType === "tournament"
+                    ? "Turnier"
+                    : event.category}
               </span>
               <span className="rounded-full border border-blue-100 bg-white px-3 py-1 text-[11px] font-semibold text-blue-900">
                 {team?.name ?? "Mannschaft"}
               </span>
+              {isTournament ? (
+                <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold text-amber-800">
+                  Aus Turnierboerse
+                </span>
+              ) : null}
             </div>
             <p className="mt-3 text-lg font-semibold text-slate-900">{event.title}</p>
             {event.description ? (
@@ -452,9 +497,21 @@ export default function DashboardHome() {
               {event.location}
             </span>
           ) : null}
+          {isTournament && event.tournamentPlanUrl ? (
+            <a
+              href={event.tournamentPlanUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-900 shadow-sm transition hover:bg-blue-50"
+            >
+              <FileText size={14} />
+              Turnierplan
+            </a>
+          ) : null}
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
+        {!isTournament ? (
+          <div className="mt-4 flex flex-wrap items-center gap-3">
           {canViewResponseNames ? (
             <button
               type="button"
@@ -503,9 +560,17 @@ export default function DashboardHome() {
               Deine Rueckmeldung: {summary.currentUserStatus === "accepted" ? "Zusage" : "Absage"}
             </span>
           ) : null}
-        </div>
+          </div>
+        ) : (
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+              Teilnahme bereits bestaetigt
+            </span>
+          </div>
+        )}
 
-        <div className="mt-4 flex flex-wrap gap-2">
+        {!isTournament ? (
+          <div className="mt-4 flex flex-wrap gap-2">
           <button
             type="button"
             disabled={responseClosed || eventResponseSavingId === event.id}
@@ -522,7 +587,8 @@ export default function DashboardHome() {
           >
             Absagen
           </button>
-        </div>
+          </div>
+        ) : null}
       </div>
     );
   };

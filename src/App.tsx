@@ -16,6 +16,7 @@ import SettingsPage from "@/pages/SettingsPage";
 import SocialMediaPage from "@/pages/SocialMediaPage";
 import TeamDetailPage from "@/pages/TeamDetailPage";
 import TeamsPage from "@/pages/TeamsPage";
+import TournamentBoersePage from "@/pages/TournamentBoersePage";
 import TrainersPage from "@/pages/TrainersPage";
 import { useAppStore } from "@/store";
 
@@ -144,6 +145,7 @@ export default function App() {
           <Route path="users" element={<Navigate to="/dashboard/trainers" replace />} />
           <Route path="messages" element={<MessagesPage />} />
           <Route path="flohmarkt" element={<FleaMarketPage />} />
+          <Route path="turnierboerse" element={<TournamentBoersePage />} />
           <Route path="social-media" element={<SocialMediaPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="settings" element={<SettingsPage />} />

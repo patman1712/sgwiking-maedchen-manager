@@ -17,6 +17,7 @@ import type {
   SocialMediaFont,
   SocialMediaTextSnippet,
   Team,
+  TournamentOffer,
   UserProfile,
   UserRole,
 } from "@/types";
@@ -64,6 +65,7 @@ interface ApiStatePayload {
   pendingPlayerApplications: PendingPlayerApplication[];
   matchRescheduleRequests: MatchRescheduleRequest[];
   fleaMarketListings: FleaMarketListing[];
+  tournamentOffers: TournamentOffer[];
   socialMediaDrafts: SocialMediaDraft[];
   socialMediaCrests: SocialMediaCrest[];
   socialMediaFonts: SocialMediaFont[];
@@ -115,6 +117,7 @@ interface AppState {
   pendingPlayerApplications: PendingPlayerApplication[];
   matchRescheduleRequests: MatchRescheduleRequest[];
   fleaMarketListings: FleaMarketListing[];
+  tournamentOffers: TournamentOffer[];
   socialMediaDrafts: SocialMediaDraft[];
   socialMediaCrests: SocialMediaCrest[];
   socialMediaFonts: SocialMediaFont[];
@@ -207,6 +210,19 @@ interface AppState {
     imageFiles: File[];
   }) => Promise<ActionResult>;
   deleteFleaMarketListing: (listingId: string) => Promise<ActionResult>;
+  addTournamentOffer: (input: {
+    teamId: string;
+    title: string;
+    description: string;
+    location: string;
+    startsAt: string;
+    tournamentPlanFile?: File | null;
+  }) => Promise<ActionResult>;
+  respondToTournamentOffer: (
+    offerId: string,
+    status: "accepted" | "declined",
+  ) => Promise<ActionResult>;
+  deleteTournamentOffer: (offerId: string) => Promise<ActionResult>;
   addSocialMediaDraft: (input: {
     draftType: "feed" | "story";
     layout: string;
@@ -304,6 +320,7 @@ export const initialAppState = {
   pendingPlayerApplications: [] as PendingPlayerApplication[],
   matchRescheduleRequests: [] as MatchRescheduleRequest[],
   fleaMarketListings: [] as FleaMarketListing[],
+  tournamentOffers: [] as TournamentOffer[],
   socialMediaDrafts: [] as SocialMediaDraft[],
   socialMediaCrests: [] as SocialMediaCrest[],
   socialMediaFonts: [] as SocialMediaFont[],
@@ -354,6 +371,7 @@ const applyPayload = (
     pendingPlayerApplications: payload.pendingPlayerApplications,
     matchRescheduleRequests: payload.matchRescheduleRequests,
     fleaMarketListings: payload.fleaMarketListings,
+    tournamentOffers: payload.tournamentOffers,
     socialMediaDrafts: payload.socialMediaDrafts,
     socialMediaCrests: payload.socialMediaCrests,
     socialMediaFonts: payload.socialMediaFonts,
@@ -1146,6 +1164,94 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Angebot konnte nicht geloescht werden.",
+          };
+        }
+      },
+      addTournamentOffer: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const payload = new FormData();
+          payload.append("actorId", actorId);
+          payload.append("teamId", input.teamId);
+          payload.append("title", input.title);
+          payload.append("description", input.description);
+          payload.append("location", input.location);
+          payload.append("startsAt", input.startsAt);
+
+          if (input.tournamentPlanFile) {
+            payload.append("tournamentPlan", input.tournamentPlanFile);
+          }
+
+          const response = await fetch("/api/tournaments", {
+            method: "POST",
+            body: payload,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error ? error.message : "Turnier konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      respondToTournamentOffer: async (offerId, status) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/tournaments/${offerId}/response`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId, status }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Turnierantwort konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      deleteTournamentOffer: async (offerId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/tournaments/${offerId}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error ? error.message : "Turnier konnte nicht geloescht werden.",
           };
         }
       },

@@ -151,6 +151,24 @@ export interface FleaMarketListing {
   updatedAt: string;
 }
 
+export type TournamentOfferResponseStatus = "pending" | "accepted" | "declined";
+
+export interface TournamentOffer {
+  id: string;
+  teamId: string;
+  title: string;
+  description: string;
+  location: string;
+  startsAt: string;
+  tournamentPlanUrl?: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  responseStatus: TournamentOfferResponseStatus;
+  respondedBy?: string | null;
+  respondedAt?: string | null;
+}
+
 export type SocialMediaDraftType = "feed" | "story";
 
 export type SocialMediaLayerKind =

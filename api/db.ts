@@ -334,6 +334,25 @@ db.exec(`
     FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS tournament_offers (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    location TEXT DEFAULT '',
+    starts_at TEXT NOT NULL,
+    tournament_plan_url TEXT DEFAULT NULL,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    response_status TEXT NOT NULL CHECK(response_status IN ('pending', 'accepted', 'declined')) DEFAULT 'pending',
+    responded_by TEXT DEFAULT NULL,
+    responded_at TEXT DEFAULT NULL,
+    FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(responded_by) REFERENCES users(id) ON DELETE SET NULL
+  );
+
   CREATE TABLE IF NOT EXISTS social_media_drafts (
     id TEXT PRIMARY KEY,
     draft_type TEXT NOT NULL CHECK(draft_type IN ('feed', 'story')),
@@ -1082,6 +1101,22 @@ type FleaMarketListingRow = {
   updated_at: string
 }
 
+type TournamentOfferRow = {
+  id: string
+  team_id: string
+  title: string
+  description: string
+  location: string
+  starts_at: string
+  tournament_plan_url: string | null
+  created_by: string
+  created_at: string
+  updated_at: string
+  response_status: 'pending' | 'accepted' | 'declined'
+  responded_by: string | null
+  responded_at: string | null
+}
+
 type SocialMediaDraftRow = {
   id: string
   draft_type: 'feed' | 'story'
@@ -1540,6 +1575,55 @@ export const getFleaMarketListings = (userId?: string | null) => {
   })
 }
 
+export const getTournamentOffers = (userId?: string | null) => {
+  if (!userId) {
+    return []
+  }
+
+  const actor = getUserRowById(userId)
+  if (!actor) {
+    return []
+  }
+
+  const visibleTeamIds =
+    actor.role === 'admin' || actor.role === 'board' ? null : getTeamIdsByUserId(userId)
+
+  if (actor.role === 'player') {
+    return []
+  }
+
+  const rows =
+    visibleTeamIds === null
+      ? (db
+          .prepare('SELECT * FROM tournament_offers ORDER BY starts_at ASC, created_at DESC')
+          .all() as TournamentOfferRow[])
+      : visibleTeamIds.length
+        ? (db
+            .prepare(
+              `SELECT * FROM tournament_offers
+               WHERE team_id IN (${visibleTeamIds.map(() => '?').join(', ')})
+               ORDER BY starts_at ASC, created_at DESC`,
+            )
+            .all(...visibleTeamIds) as TournamentOfferRow[])
+        : []
+
+  return rows.map((row) => ({
+    id: row.id,
+    teamId: row.team_id,
+    title: row.title,
+    description: row.description || '',
+    location: row.location || '',
+    startsAt: row.starts_at,
+    tournamentPlanUrl: row.tournament_plan_url || null,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    responseStatus: row.response_status,
+    respondedBy: row.responded_by || null,
+    respondedAt: row.responded_at || null,
+  }))
+}
+
 export const getSocialMediaDrafts = (userId?: string | null) => {
   if (!userId) {
     return []
@@ -1814,6 +1898,7 @@ export const getBootstrapData = (userId?: string | null) => ({
   pendingPlayerApplications: getPendingPlayerApplications(userId),
   matchRescheduleRequests: getMatchRescheduleRequests(userId),
   fleaMarketListings: getFleaMarketListings(userId),
+  tournamentOffers: getTournamentOffers(userId),
   socialMediaDrafts: getSocialMediaDrafts(userId),
   socialMediaCrests: getSocialMediaCrests(userId),
   socialMediaFonts: getSocialMediaFonts(userId),
