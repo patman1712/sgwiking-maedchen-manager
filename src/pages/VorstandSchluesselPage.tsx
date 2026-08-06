@@ -23,10 +23,10 @@ function formatDate(value: string | null | undefined) {
 }
 
 const KEY_TYPE_OPTIONS = [
-  { value: "haupttor", label: "Haupttor" },
-  { value: "trainingsraum", label: "Trainingsraum" },
-  { value: "geraeteraum", label: "Geräteraum" },
-  { value: "clubhaus", label: "Clubhaus" },
+  { value: "seiteneingang", label: "Seiteneingang" },
+  { value: "buero", label: "Büro" },
+  { value: "container", label: "Container" },
+  { value: "materialwagen", label: "Materialwagen" },
 ];
 
 const STATUS_STYLES: Record<KeyHandoverStatus, string> = {
