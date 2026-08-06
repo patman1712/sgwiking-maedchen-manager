@@ -23,7 +23,6 @@ import { cn } from "@/lib/utils";
 const menuItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/dashboard/teams", label: "Mannschaften", icon: Volleyball },
-  { to: "__members__", label: "Mitglieder", icon: Users },
   { to: "/dashboard/messages", label: "Nachrichten", icon: MessageSquare },
   { to: "/dashboard/social-media", label: "Social Media", icon: Megaphone },
   { to: "/dashboard/flohmarkt", label: "Flohmarkt", icon: ShoppingBag },
@@ -243,7 +242,7 @@ export default function DashboardLayout() {
       (entry) => entry.status === "pending",
     ).length;
     const openReschedules = matchRescheduleRequests.filter(
-      (entry) => entry.status === "pending" || entry.status === "in_progress",
+      (entry) => entry.status === "pending",
     ).length;
 
     return openPlayerApplications + openReschedules;
@@ -691,12 +690,12 @@ export default function DashboardLayout() {
               );
             }
 
-            if (item.to === "__members__") {
+            if (item.to === "__board__") {
               if (!canViewMemberLists) {
                 return null;
               }
 
-              const membersAreaActive =
+              const boardAreaActive =
                 location.pathname.startsWith("/dashboard/trainers") ||
                 location.pathname.startsWith("/dashboard/players") ||
                 location.pathname.startsWith("/dashboard/board");
@@ -709,7 +708,7 @@ export default function DashboardLayout() {
                       onClick={() => setMembersMenuOpen((open) => !open)}
                       className={cn(
                         "flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all",
-                        membersAreaActive || membersMenuOpen
+                        boardAreaActive || membersMenuOpen
                           ? "bg-white text-blue-950 shadow-lg"
                           : "text-blue-100 hover:bg-white/10 hover:text-white",
                       )}
@@ -719,11 +718,11 @@ export default function DashboardLayout() {
                     </button>
                     <button
                       type="button"
-                      aria-label="Mitglieder aufklappen"
+                      aria-label="Vorstand aufklappen"
                       onClick={() => setMembersMenuOpen((open) => !open)}
                       className={cn(
                         "flex h-11 w-11 items-center justify-center rounded-2xl transition-all",
-                        membersAreaActive || membersMenuOpen
+                        boardAreaActive || membersMenuOpen
                           ? "bg-white/15 text-white"
                           : "text-blue-100 hover:bg-white/10 hover:text-white",
                       )}
@@ -740,6 +739,29 @@ export default function DashboardLayout() {
 
                   {membersMenuOpen ? (
                     <div className="ml-4 space-y-1 border-l border-white/15 pl-4">
+                      <NavLink
+                        to="/dashboard/board/mailbox"
+                        onClick={() => setSidebarOpen(false)}
+                        className={({ isActive }) =>
+                          cn(
+                            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
+                            isActive
+                              ? "bg-white text-blue-950 shadow"
+                              : "text-blue-100/90 hover:bg-white/10 hover:text-white",
+                          )
+                        }
+                      >
+                        <MessageSquare size={16} />
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span>Postfach</span>
+                          {unseenBoardMailboxCount > 0 ? (
+                            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-200 px-1 text-[11px] font-semibold text-blue-950">
+                              {unseenBoardMailboxCount}
+                            </span>
+                          ) : null}
+                        </span>
+                      </NavLink>
+
                       {[
                         { to: "/dashboard/trainers", label: "Trainer", icon: Shield },
                         { to: "/dashboard/players", label: "Spielerinnen", icon: Users },
@@ -764,61 +786,6 @@ export default function DashboardLayout() {
                       ))}
                     </div>
                   ) : null}
-                </div>
-              );
-            }
-
-            if (item.to === "__board__") {
-              if (!canViewMemberLists) {
-                return null;
-              }
-
-              const boardAreaActive =
-                location.pathname.startsWith("/dashboard/board") &&
-                location.pathname.includes("/mailbox");
-
-              return (
-                <div key={item.to} className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => navigate("/dashboard/board/mailbox")}
-                      className={cn(
-                        "flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all",
-                        boardAreaActive
-                          ? "bg-white text-blue-950 shadow-lg"
-                          : "text-blue-100 hover:bg-white/10 hover:text-white",
-                      )}
-                    >
-                      <Icon size={18} />
-                      <span>{item.label}</span>
-                    </button>
-                  </div>
-
-                  <div className="ml-4 space-y-1 border-l border-white/15 pl-4">
-                    <NavLink
-                      to="/dashboard/board/mailbox"
-                      onClick={() => setSidebarOpen(false)}
-                      className={({ isActive }) =>
-                        cn(
-                          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
-                          isActive
-                            ? "bg-white text-blue-950 shadow"
-                            : "text-blue-100/90 hover:bg-white/10 hover:text-white",
-                        )
-                      }
-                    >
-                      <MessageSquare size={16} />
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span>Postfach</span>
-                        {unseenBoardMailboxCount > 0 ? (
-                          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-200 px-1 text-[11px] font-semibold text-blue-950">
-                            {unseenBoardMailboxCount}
-                          </span>
-                        ) : null}
-                      </span>
-                    </NavLink>
-                  </div>
                 </div>
               );
             }
