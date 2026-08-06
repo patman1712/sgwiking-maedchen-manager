@@ -252,6 +252,10 @@ export interface SocialMediaLayer {
   textColor?: string;
   textAlign?: SocialMediaTextAlign;
   textEffect?: SocialMediaTextEffect;
+  strokeColor?: string;
+  strokeWidth?: number;
+  lineHeight?: number;
+  letterSpacing?: number;
 }
 
 export interface SocialMediaDraft {

@@ -173,6 +173,10 @@ function createLayer(
       textColor: undefined,
       textAlign: undefined,
       textEffect: undefined,
+      strokeColor: undefined,
+      strokeWidth: undefined,
+      lineHeight: undefined,
+      letterSpacing: undefined,
     },
     badge: {
       kind: "badge",
@@ -188,6 +192,10 @@ function createLayer(
       textColor: "#0f172a",
       textAlign: "left",
       textEffect: "none",
+      strokeColor: "#ffffff",
+      strokeWidth: 0,
+      lineHeight: 1.3,
+      letterSpacing: 0,
     },
     title: {
       kind: "title",
@@ -203,6 +211,10 @@ function createLayer(
       textColor: "#ffffff",
       textAlign: "left",
       textEffect: "shadow",
+      strokeColor: "#0f172a",
+      strokeWidth: 1.2,
+      lineHeight: 1.1,
+      letterSpacing: 0,
     },
     subtitle: {
       kind: "subtitle",
@@ -218,6 +230,10 @@ function createLayer(
       textColor: "#f8fafc",
       textAlign: "left",
       textEffect: "none",
+      strokeColor: "#0f172a",
+      strokeWidth: 0,
+      lineHeight: 1.4,
+      letterSpacing: 0,
     },
     caption: {
       kind: "caption",
@@ -233,6 +249,10 @@ function createLayer(
       textColor: "#f8fafc",
       textAlign: "left",
       textEffect: "none",
+      strokeColor: "#0f172a",
+      strokeWidth: 0,
+      lineHeight: 1.5,
+      letterSpacing: 0,
     },
     cta: {
       kind: "cta",
@@ -248,6 +268,10 @@ function createLayer(
       textColor: "#0f172a",
       textAlign: "center",
       textEffect: "none",
+      strokeColor: "#ffffff",
+      strokeWidth: 0,
+      lineHeight: 1.3,
+      letterSpacing: 0,
     },
   };
 
@@ -415,20 +439,21 @@ function getImageLayerGeometry(layer: Pick<
 
 function getTextLayerGeometry(layer: Pick<
   SocialMediaLayer,
-  "kind" | "position" | "centerX" | "centerY" | "widthPercent"
+  "kind" | "position" | "centerX" | "centerY" | "widthPercent" | "heightPercent"
 >) {
   const defaults = getDefaultTextGeometry(layer);
   const widthPercent = sanitizePercent(layer.widthPercent, defaults.widthPercent, 18, 100);
+  const heightPercent = sanitizePercent(layer.heightPercent, defaults.heightPercent, 6, 80);
 
   return {
     widthPercent,
-    heightPercent: defaults.heightPercent,
+    heightPercent,
     centerX: sanitizePercent(layer.centerX, defaults.centerX, widthPercent / 2, 100 - widthPercent / 2),
     centerY: sanitizePercent(
       layer.centerY,
       defaults.centerY,
-      defaults.heightPercent / 2,
-      100 - defaults.heightPercent / 2,
+      heightPercent / 2,
+      100 - heightPercent / 2,
     ),
   };
 }
@@ -470,6 +495,10 @@ function normalizeLayer(layer: SocialMediaLayer): SocialMediaLayer {
       textColor: layer.textColor ?? defaults.textColor,
       textAlign: layer.textAlign ?? defaults.textAlign,
       textEffect: layer.textEffect ?? defaults.textEffect,
+      strokeColor: layer.strokeColor ?? defaults.strokeColor,
+      strokeWidth: layer.strokeWidth ?? defaults.strokeWidth,
+      lineHeight: layer.lineHeight ?? defaults.lineHeight,
+      letterSpacing: layer.letterSpacing ?? defaults.letterSpacing,
     };
   }
 
@@ -481,20 +510,36 @@ function normalizeLayer(layer: SocialMediaLayer): SocialMediaLayer {
   };
 }
 
-function getTextInlineStyle(layer: SocialMediaLayer) {
+function getTextInlineStyle(layer: SocialMediaLayer): React.CSSProperties {
   const defaults = getDefaultTextAppearance(layer);
   const textEffect = layer.textEffect ?? defaults.textEffect;
   const fontFamily = layer.fontFamily ?? defaults.fontFamily;
+  const strokeColor = layer.strokeColor ?? defaults.strokeColor;
+  const strokeWidth = layer.strokeWidth ?? defaults.strokeWidth;
+  const lineHeight = layer.lineHeight ?? defaults.lineHeight;
+  const letterSpacing = layer.letterSpacing ?? defaults.letterSpacing;
+  const fontSizeNumber = Math.round(layer.fontSize ?? defaults.fontSize);
+  const isOutline = textEffect === "outline";
+  const effectiveStrokeWidth = isOutline
+    ? strokeWidth > 0
+      ? strokeWidth
+      : 1.2
+    : strokeWidth;
 
   return {
     color: layer.textColor ?? defaults.textColor,
     fontFamily: `"${fontFamily}", "Inter", system-ui, sans-serif`,
-    fontSize: `${Math.round(layer.fontSize ?? defaults.fontSize)}px`,
+    fontSize: `${fontSizeNumber}px`,
+    lineHeight: String(lineHeight),
+    letterSpacing: letterSpacing ? `${letterSpacing}px` : "normal",
     textAlign: (layer.textAlign ?? defaults.textAlign) as SocialMediaTextAlign,
     textShadow:
       textEffect === "shadow" ? "0 10px 30px rgba(15,23,42,0.55)" : "none",
     WebkitTextStroke:
-      textEffect === "outline" ? "1.4px rgba(15,23,42,0.82)" : undefined,
+      isOutline && effectiveStrokeWidth > 0
+        ? `${effectiveStrokeWidth}px ${strokeColor}`
+        : undefined,
+    paintOrder: "stroke fill",
   };
 }
 
@@ -512,9 +557,13 @@ function getDefaultTextAppearance(layer: SocialMediaLayer) {
       return {
         fontFamily: "Oswald",
         fontSize: 42,
-        textColor: "#0f172a",
+        textColor: "#ffffff",
         textAlign: "left" as SocialMediaTextAlign,
         textEffect: "none" as SocialMediaTextEffect,
+        strokeColor: "#0f172a",
+        strokeWidth: 1.2,
+        lineHeight: 1.1,
+        letterSpacing: 0,
       };
     case "subtitle":
       return {
@@ -523,6 +572,10 @@ function getDefaultTextAppearance(layer: SocialMediaLayer) {
         textColor: "#334155",
         textAlign: "left" as SocialMediaTextAlign,
         textEffect: "none" as SocialMediaTextEffect,
+        strokeColor: "#0f172a",
+        strokeWidth: 0,
+        lineHeight: 1.4,
+        letterSpacing: 0,
       };
     case "caption":
       return {
@@ -531,6 +584,10 @@ function getDefaultTextAppearance(layer: SocialMediaLayer) {
         textColor: "#334155",
         textAlign: "left" as SocialMediaTextAlign,
         textEffect: "none" as SocialMediaTextEffect,
+        strokeColor: "#0f172a",
+        strokeWidth: 0,
+        lineHeight: 1.5,
+        letterSpacing: 0,
       };
     case "badge":
       return {
@@ -539,6 +596,10 @@ function getDefaultTextAppearance(layer: SocialMediaLayer) {
         textColor: layer.style === "pill" ? "#ffffff" : "#0f172a",
         textAlign: "left" as SocialMediaTextAlign,
         textEffect: "none" as SocialMediaTextEffect,
+        strokeColor: "#ffffff",
+        strokeWidth: 0,
+        lineHeight: 1.3,
+        letterSpacing: 0,
       };
     case "cta":
       return {
@@ -547,6 +608,10 @@ function getDefaultTextAppearance(layer: SocialMediaLayer) {
         textColor: layer.style === "solid" ? "#ffffff" : "#0f172a",
         textAlign: "center" as SocialMediaTextAlign,
         textEffect: "none" as SocialMediaTextEffect,
+        strokeColor: "#ffffff",
+        strokeWidth: 0,
+        lineHeight: 1.3,
+        letterSpacing: 0,
       };
     default:
       return {
@@ -555,6 +620,10 @@ function getDefaultTextAppearance(layer: SocialMediaLayer) {
         textColor: "#0f172a",
         textAlign: "left" as SocialMediaTextAlign,
         textEffect: "none" as SocialMediaTextEffect,
+        strokeColor: "#0f172a",
+        strokeWidth: 0,
+        lineHeight: 1.4,
+        letterSpacing: 0,
       };
   }
 }
@@ -645,6 +714,7 @@ function SocialPreview({
     startWidthPercent: number;
     startHeightPercent: number;
     startFontSize?: number;
+    startLetterSpacing?: number;
   } | null>(null);
   const resolveAssetUrl = (ref?: string) => assets.find((asset) => asset.ref === ref)?.url;
   const visibleLayers = layers.filter((layer) => layer.enabled);
@@ -688,14 +758,20 @@ function SocialPreview({
 
       if (interaction.layerKind !== "image") {
         const defaults = getDefaultTextAppearance(layer);
-        const widthPercent = clamp(interaction.startWidthPercent + deltaXPercent * 2, 18, 100);
-        const scale = widthPercent / Math.max(interaction.startWidthPercent, 1);
+        const baseDefaults = getDefaultTextGeometry(layer);
+        const scaleX = (interaction.startWidthPercent + deltaXPercent * 2) / Math.max(interaction.startWidthPercent, 1);
+        const scaleY = (interaction.startHeightPercent + deltaYPercent * 2) / Math.max(interaction.startHeightPercent, 1);
+        const scale = clamp(Math.max(scaleX, scaleY), 0.25, 6);
+
+        const widthPercent = clamp(baseDefaults.widthPercent * scale, 18, 100);
+        const heightPercent = clamp(baseDefaults.heightPercent * scale, 6, 80);
         const fontSize = clamp(
           Math.round((interaction.startFontSize ?? defaults.fontSize) * scale),
           10,
           480,
         );
-        const heightPercent = interaction.startHeightPercent * scale;
+        const letterSpacing = Math.round(((interaction.startLetterSpacing ?? defaults.letterSpacing) * scale) * 100) / 100;
+
         const centerX = clamp(
           interaction.startCenterX,
           widthPercent / 2,
@@ -711,7 +787,9 @@ function SocialPreview({
           centerX,
           centerY,
           widthPercent,
+          heightPercent,
           fontSize,
+          letterSpacing,
         });
         return;
       }
@@ -923,6 +1001,7 @@ function SocialPreview({
                     ? (targetRect.height / previewRect.height) * 100
                     : geometry.heightPercent,
                 startFontSize: layer.fontSize ?? getDefaultTextAppearance(layer).fontSize,
+                startLetterSpacing: layer.letterSpacing ?? getDefaultTextAppearance(layer).letterSpacing,
               };
             }}
             className={cn(
@@ -971,6 +1050,7 @@ function SocialPreview({
                         ? (parentRect.height / previewRect.height) * 100
                         : geometry.heightPercent,
                     startFontSize: layer.fontSize ?? getDefaultTextAppearance(layer).fontSize,
+                    startLetterSpacing: layer.letterSpacing ?? getDefaultTextAppearance(layer).letterSpacing,
                   };
                 }}
               />
@@ -3127,7 +3207,7 @@ export default function SocialMediaPage() {
                                       kind: activeLayer.kind,
                                       position: activeLayer.position,
                                     }),
-                                    fontSize: getDefaultTextAppearance(activeLayer).fontSize,
+                                    ...getDefaultTextAppearance(activeLayer),
                                   })
                                 }
                                 className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
@@ -3138,6 +3218,36 @@ export default function SocialMediaPage() {
 
                             {(() => {
                               const geometry = getTextLayerGeometry(activeLayer);
+                              const baseDefaults = getDefaultTextGeometry(activeLayer);
+                              const appearance = getDefaultTextAppearance(activeLayer);
+                              const baseScaleWidth = baseDefaults.widthPercent;
+                              const baseScaleHeight = baseDefaults.heightPercent;
+                              const currentScale = geometry.widthPercent / baseScaleWidth;
+
+                              const handleResizeProportional = (newWidthPercent: number) => {
+                                const scale = clamp(newWidthPercent / baseScaleWidth, 0.25, 6);
+                                const ratio = scale / Math.max(currentScale, 0.0001);
+                                const widthPercent = clamp(baseScaleWidth * scale, 18, 100);
+                                const heightPercent = clamp(baseScaleHeight * scale, 6, 80);
+                                const fontSize = clamp(
+                                  Math.round(
+                                    (activeLayer.fontSize ?? appearance.fontSize) * ratio,
+                                  ),
+                                  10,
+                                  480,
+                                );
+                                const letterSpacing = Math.round(
+                                  ((activeLayer.letterSpacing ?? appearance.letterSpacing) * ratio) *
+                                    100,
+                                ) / 100;
+                                updateLayer(activeLayer.id, {
+                                  widthPercent,
+                                  heightPercent,
+                                  fontSize,
+                                  letterSpacing,
+                                });
+                              };
+
                               const controls = [
                                 {
                                   key: "centerX",
@@ -3145,6 +3255,7 @@ export default function SocialMediaPage() {
                                   value: geometry.centerX,
                                   min: geometry.widthPercent / 2,
                                   max: 100 - geometry.widthPercent / 2,
+                                  kind: "position" as const,
                                 },
                                 {
                                   key: "centerY",
@@ -3152,13 +3263,15 @@ export default function SocialMediaPage() {
                                   value: geometry.centerY,
                                   min: geometry.heightPercent / 2,
                                   max: 100 - geometry.heightPercent / 2,
+                                  kind: "position" as const,
                                 },
                                 {
                                   key: "widthPercent",
-                                  label: "Breite",
+                                  label: "Skalierung (Groesse)",
                                   value: geometry.widthPercent,
                                   min: 18,
                                   max: 100,
+                                  kind: "size" as const,
                                 },
                               ] as const;
 
@@ -3169,7 +3282,9 @@ export default function SocialMediaPage() {
                                       <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
                                         <span>{control.label}</span>
                                         <span className="font-semibold text-slate-900">
-                                          {Math.round(control.value)}%
+                                          {control.kind === "size"
+                                            ? `x${(geometry.widthPercent / baseScaleWidth).toFixed(2)}`
+                                            : `${Math.round(control.value)}%`}
                                         </span>
                                       </div>
                                       <input
@@ -3179,15 +3294,20 @@ export default function SocialMediaPage() {
                                         step={1}
                                         value={control.value}
                                         disabled={
-                                          (control.key === "centerX" || control.key === "centerY")
+                                          control.kind === "position"
                                             ? activeLayerPositionLocked
                                             : activeLayerSizeLocked
                                         }
-                                        onChange={(event) =>
-                                          updateLayer(activeLayer.id, {
-                                            [control.key]: Number(event.target.value),
-                                          } as Partial<SocialMediaLayer>)
-                                        }
+                                        onChange={(event) => {
+                                          const value = Number(event.target.value);
+                                          if (control.kind === "size") {
+                                            handleResizeProportional(value);
+                                          } else {
+                                            updateLayer(activeLayer.id, {
+                                              [control.key]: value,
+                                            } as Partial<SocialMediaLayer>);
+                                          }
+                                        }}
                                         className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                                       />
                                     </label>
@@ -3308,6 +3428,60 @@ export default function SocialMediaPage() {
                                   />
                                 </div>
                               </label>
+
+                              <label className="block">
+                                <span className="mb-2 block text-sm font-medium text-slate-700">
+                                  Konturfarbe
+                                </span>
+                                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                                  <input
+                                    type="color"
+                                    value={
+                                      activeLayer.strokeColor ?? getDefaultTextAppearance(activeLayer).strokeColor
+                                    }
+                                    onChange={(event) =>
+                                      updateLayer(activeLayer.id, {
+                                        strokeColor: event.target.value,
+                                      })
+                                    }
+                                    className="h-11 w-14 cursor-pointer rounded-xl border-0 bg-transparent p-0"
+                                  />
+                                  <input
+                                    value={
+                                      activeLayer.strokeColor ?? getDefaultTextAppearance(activeLayer).strokeColor
+                                    }
+                                    onChange={(event) =>
+                                      updateLayer(activeLayer.id, {
+                                        strokeColor: event.target.value,
+                                      })
+                                    }
+                                    className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                  />
+                                </div>
+                              </label>
+
+                              <label className="block">
+                                <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
+                                  <span>Konturstärke</span>
+                                  <span className="font-semibold text-slate-900">
+                                    {(activeLayer.strokeWidth ?? getDefaultTextAppearance(activeLayer).strokeWidth).toFixed(1)}
+                                    px
+                                  </span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={10}
+                                  step={0.1}
+                                  value={activeLayer.strokeWidth ?? getDefaultTextAppearance(activeLayer).strokeWidth}
+                                  onChange={(event) =>
+                                    updateLayer(activeLayer.id, {
+                                      strokeWidth: Number(event.target.value),
+                                    })
+                                  }
+                                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
+                                />
+                              </label>
                             </div>
 
                             <label className="mt-4 block">
@@ -3336,6 +3510,53 @@ export default function SocialMediaPage() {
                                 className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
                               />
                             </label>
+
+                            <div className="mt-4 grid gap-4 md:grid-cols-2">
+                              <label className="block">
+                                <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
+                                  <span>Zeilenabstand</span>
+                                  <span className="font-semibold text-slate-900">
+                                    {(activeLayer.lineHeight ?? getDefaultTextAppearance(activeLayer).lineHeight).toFixed(2)}
+                                  </span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={0.8}
+                                  max={3}
+                                  step={0.05}
+                                  value={activeLayer.lineHeight ?? getDefaultTextAppearance(activeLayer).lineHeight}
+                                  onChange={(event) =>
+                                    updateLayer(activeLayer.id, {
+                                      lineHeight: Number(event.target.value),
+                                    })
+                                  }
+                                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
+                                />
+                              </label>
+
+                              <label className="block">
+                                <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
+                                  <span>Laufweite</span>
+                                  <span className="font-semibold text-slate-900">
+                                    {(activeLayer.letterSpacing ?? getDefaultTextAppearance(activeLayer).letterSpacing).toFixed(0)}
+                                    px
+                                  </span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={-10}
+                                  max={80}
+                                  step={0.5}
+                                  value={activeLayer.letterSpacing ?? getDefaultTextAppearance(activeLayer).letterSpacing}
+                                  onChange={(event) =>
+                                    updateLayer(activeLayer.id, {
+                                      letterSpacing: Number(event.target.value),
+                                    })
+                                  }
+                                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
+                                />
+                              </label>
+                            </div>
                           </div>
                         </div>
                       )}
