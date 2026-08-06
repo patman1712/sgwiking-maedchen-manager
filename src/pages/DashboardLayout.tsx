@@ -4,6 +4,7 @@ import {
   Bell,
   Briefcase,
   ChevronDown,
+  KeyRound,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -39,6 +40,7 @@ export default function DashboardLayout() {
   const [teamsMenuOpen, setTeamsMenuOpen] = useState(false);
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [membersMenuOpen, setMembersMenuOpen] = useState(false);
+  const [membersSubMenuOpen, setMembersSubMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
   const logout = useAppStore((state) => state.logout);
@@ -323,6 +325,7 @@ export default function DashboardLayout() {
 
     if (membersAreaActive) {
       setMembersMenuOpen(true);
+      setMembersSubMenuOpen(true);
     }
   }, [location.pathname]);
 
@@ -762,28 +765,80 @@ export default function DashboardLayout() {
                         </span>
                       </NavLink>
 
-                      {[
-                        { to: "/dashboard/trainers", label: "Trainer", icon: Shield },
-                        { to: "/dashboard/players", label: "Spielerinnen", icon: Users },
-                        { to: "/dashboard/board", label: "Vorstand", icon: Briefcase },
-                      ].map((subItem) => (
-                        <NavLink
-                          key={subItem.to}
-                          to={subItem.to}
-                          onClick={() => setSidebarOpen(false)}
-                          className={({ isActive }) =>
-                            cn(
-                              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
-                              isActive
-                                ? "bg-white text-blue-950 shadow"
+                      <div className="space-y-1 pt-1">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setMembersSubMenuOpen((open) => !open)}
+                            className={cn(
+                              "flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
+                              membersSubMenuOpen
+                                ? "text-white"
                                 : "text-blue-100/90 hover:bg-white/10 hover:text-white",
-                            )
-                          }
-                        >
-                          <subItem.icon size={16} />
-                          <span>{subItem.label}</span>
-                        </NavLink>
-                      ))}
+                            )}
+                          >
+                            <Users size={16} />
+                            <span>Mitglieder</span>
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Mitglieder aufklappen"
+                            onClick={() => setMembersSubMenuOpen((open) => !open)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-blue-100/90 transition-all hover:bg-white/10 hover:text-white"
+                          >
+                            <ChevronDown
+                              size={16}
+                              className={cn(
+                                "transition-transform duration-200",
+                                membersSubMenuOpen ? "rotate-180" : "",
+                              )}
+                            />
+                          </button>
+                        </div>
+
+                        {membersSubMenuOpen ? (
+                          <div className="ml-6 space-y-1 border-l border-white/10 pl-4">
+                            {[
+                              { to: "/dashboard/trainers", label: "Trainer", icon: Shield },
+                              { to: "/dashboard/players", label: "Spielerinnen", icon: Users },
+                              { to: "/dashboard/board", label: "Vorstand", icon: Briefcase },
+                            ].map((subItem) => (
+                              <NavLink
+                                key={subItem.to}
+                                to={subItem.to}
+                                onClick={() => setSidebarOpen(false)}
+                                className={({ isActive }) =>
+                                  cn(
+                                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
+                                    isActive
+                                      ? "bg-white text-blue-950 shadow"
+                                      : "text-blue-100/90 hover:bg-white/10 hover:text-white",
+                                  )
+                                }
+                              >
+                                <subItem.icon size={16} />
+                                <span>{subItem.label}</span>
+                              </NavLink>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <NavLink
+                        to="/dashboard/board/schluessel"
+                        onClick={() => setSidebarOpen(false)}
+                        className={({ isActive }) =>
+                          cn(
+                            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
+                            isActive
+                              ? "bg-white text-blue-950 shadow"
+                              : "text-blue-100/90 hover:bg-white/10 hover:text-white",
+                          )
+                        }
+                      >
+                        <KeyRound size={16} />
+                        <span>Schlüssel</span>
+                      </NavLink>
                     </div>
                   ) : null}
                 </div>

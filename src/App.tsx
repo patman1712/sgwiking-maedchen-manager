@@ -18,6 +18,7 @@ import TeamDetailPage from "@/pages/TeamDetailPage";
 import TeamsPage from "@/pages/TeamsPage";
 import TournamentBoersePage from "@/pages/TournamentBoersePage";
 import TrainersPage from "@/pages/TrainersPage";
+import VorstandSchluesselPage from "@/pages/VorstandSchluesselPage";
 import { useAppStore } from "@/store";
 
 const ensureHeadLink = (rel: string) => {
@@ -142,6 +143,7 @@ export default function App() {
           <Route path="players/:playerId" element={<PlayerEditPage />} />
           <Route path="board" element={<BoardPage />} />
           <Route path="board/mailbox" element={<BoardMailboxPage />} />
+          <Route path="board/schluessel" element={<VorstandSchluesselPage />} />
           <Route path="users" element={<Navigate to="/dashboard/trainers" replace />} />
           <Route path="messages" element={<MessagesPage />} />
           <Route path="flohmarkt" element={<FleaMarketPage />} />

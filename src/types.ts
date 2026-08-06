@@ -139,6 +139,24 @@ export interface MatchRescheduleRequest {
   trainerNotificationAt?: string | null;
 }
 
+export type KeyType = "haupttor" | string;
+export type KeyHandoverStatus = "not_handed_over" | "handed_over" | "returned";
+
+export interface KeyAssignment {
+  id: string;
+  keyType: KeyType;
+  keyLabel: string;
+  trainerId: string;
+  status: KeyHandoverStatus;
+  handedOverBy?: string | null;
+  handedOverAt?: string | null;
+  returnedBy?: string | null;
+  returnedAt?: string | null;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface FleaMarketListing {
   id: string;
   title: string;

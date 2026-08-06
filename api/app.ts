@@ -23,6 +23,7 @@ import inventoryRoutes from './routes/inventory.js'
 import matchesRoutes from './routes/matches.js'
 import messagesRoutes from './routes/messages.js'
 import matchRescheduleRequestsRoutes from './routes/match-reschedule-requests.js'
+import keyAssignmentsRoutes from './routes/key-assignments.js'
 import playerApplicationsRoutes from './routes/player-applications.js'
 import socialMediaRoutes from './routes/social-media.js'
 import settingsRoutes from './routes/settings.js'
@@ -62,6 +63,7 @@ app.use('/api/matches', matchesRoutes)
 app.use('/api/conversations', conversationsRoutes)
 app.use('/api/messages', messagesRoutes)
 app.use('/api/match-reschedule-requests', matchRescheduleRequestsRoutes)
+app.use('/api/key-assignments', keyAssignmentsRoutes)
 app.use('/api/player-applications', playerApplicationsRoutes)
 app.use('/api/social-media', socialMediaRoutes)
 app.use('/api/settings', settingsRoutes)

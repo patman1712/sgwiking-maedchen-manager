@@ -6,6 +6,7 @@ import type {
   Conversation,
   FleaMarketListing,
   InventoryItem,
+  KeyAssignment,
   Match,
   MatchRescheduleRequest,
   Message,
@@ -64,6 +65,7 @@ interface ApiStatePayload {
   cashbookEntries: CashbookEntry[];
   pendingPlayerApplications: PendingPlayerApplication[];
   matchRescheduleRequests: MatchRescheduleRequest[];
+  keyAssignments: KeyAssignment[];
   fleaMarketListings: FleaMarketListing[];
   tournamentOffers: TournamentOffer[];
   socialMediaDrafts: SocialMediaDraft[];
@@ -116,6 +118,7 @@ interface AppState {
   cashbookEntries: CashbookEntry[];
   pendingPlayerApplications: PendingPlayerApplication[];
   matchRescheduleRequests: MatchRescheduleRequest[];
+  keyAssignments: KeyAssignment[];
   fleaMarketListings: FleaMarketListing[];
   tournamentOffers: TournamentOffer[];
   socialMediaDrafts: SocialMediaDraft[];
@@ -199,6 +202,24 @@ interface AppState {
   setMatchRescheduleRequestInProgress: (requestId: string) => Promise<ActionResult>;
   completeMatchRescheduleRequest: (requestId: string) => Promise<ActionResult>;
   clearMatchRescheduleTrash: () => Promise<ActionResult>;
+  addKeyAssignment: (input: {
+    trainerId: string;
+    keyType: string;
+    keyLabel?: string;
+    notes?: string;
+  }) => Promise<ActionResult>;
+  updateKeyAssignment: (
+    assignmentId: string,
+    input: {
+      trainerId?: string;
+      keyType?: string;
+      keyLabel?: string;
+      notes?: string;
+    },
+  ) => Promise<ActionResult>;
+  handOverKey: (assignmentId: string, notes?: string) => Promise<ActionResult>;
+  returnKey: (assignmentId: string, notes?: string) => Promise<ActionResult>;
+  deleteKeyAssignment: (assignmentId: string) => Promise<ActionResult>;
   addFleaMarketListing: (input: {
     title: string;
     description: string;
@@ -337,6 +358,7 @@ export const initialAppState = {
   cashbookEntries: [] as CashbookEntry[],
   pendingPlayerApplications: [] as PendingPlayerApplication[],
   matchRescheduleRequests: [] as MatchRescheduleRequest[],
+  keyAssignments: [] as KeyAssignment[],
   fleaMarketListings: [] as FleaMarketListing[],
   tournamentOffers: [] as TournamentOffer[],
   socialMediaDrafts: [] as SocialMediaDraft[],
@@ -388,6 +410,7 @@ const applyPayload = (
     cashbookEntries: payload.cashbookEntries,
     pendingPlayerApplications: payload.pendingPlayerApplications,
     matchRescheduleRequests: payload.matchRescheduleRequests,
+    keyAssignments: payload.keyAssignments,
     fleaMarketListings: payload.fleaMarketListings,
     tournamentOffers: payload.tournamentOffers,
     socialMediaDrafts: payload.socialMediaDrafts,
@@ -1115,6 +1138,137 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Papierkorb konnte nicht geleert werden.",
+          };
+        }
+      },
+      addKeyAssignment: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch("/api/key-assignments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId, ...input }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error ? error.message : "Schlüsselzuweisung konnte nicht angelegt werden.",
+          };
+        }
+      },
+      updateKeyAssignment: async (assignmentId, input) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/key-assignments/${encodeURIComponent(assignmentId)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId, ...input }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error ? error.message : "Schlüsselzuweisung konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      handOverKey: async (assignmentId, notes) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(
+            `/api/key-assignments/${encodeURIComponent(assignmentId)}/hand-over`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ actorId, notes }),
+            },
+          );
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error ? error.message : "Aushändigung konnte nicht gebucht werden.",
+          };
+        }
+      },
+      returnKey: async (assignmentId, notes) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(
+            `/api/key-assignments/${encodeURIComponent(assignmentId)}/return`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ actorId, notes }),
+            },
+          );
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error ? error.message : "Rückgabe konnte nicht gebucht werden.",
+          };
+        }
+      },
+      deleteKeyAssignment: async (assignmentId) => {
+        try {
+          const actorId = get().currentUserId;
+
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/key-assignments/${encodeURIComponent(assignmentId)}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error ? error.message : "Schlüsselzuweisung konnte nicht entfernt werden.",
           };
         }
       },

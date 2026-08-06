@@ -414,6 +414,24 @@ db.exec(`
     updated_at TEXT NOT NULL,
     FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS key_assignments (
+    id TEXT PRIMARY KEY,
+    key_type TEXT NOT NULL DEFAULT 'haupttor',
+    key_label TEXT NOT NULL,
+    trainer_id TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('not_handed_over', 'handed_over', 'returned')) DEFAULT 'not_handed_over',
+    handed_over_by TEXT DEFAULT NULL,
+    handed_over_at TEXT DEFAULT NULL,
+    returned_by TEXT DEFAULT NULL,
+    returned_at TEXT DEFAULT NULL,
+    notes TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(trainer_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(handed_over_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY(returned_by) REFERENCES users(id) ON DELETE SET NULL
+  );
 `)
 
 const teamColumns = (
@@ -1654,6 +1672,59 @@ export const getMatchRescheduleRequests = (userId?: string | null) => {
   return []
 }
 
+type KeyAssignmentRow = {
+  id: string;
+  key_type: string;
+  key_label: string;
+  trainer_id: string;
+  status: "not_handed_over" | "handed_over" | "returned";
+  handed_over_by: string | null;
+  handed_over_at: string | null;
+  returned_by: string | null;
+  returned_at: string | null;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export const getKeyAssignments = (userId?: string | null) => {
+  if (!userId) {
+    return []
+  }
+
+  const actor = getUserRowById(userId)
+  if (!actor) {
+    return []
+  }
+
+  let rows: KeyAssignmentRow[] = []
+
+  if (actor.role === 'admin' || actor.role === 'board') {
+    rows = db.prepare(
+      'SELECT * FROM key_assignments ORDER BY updated_at DESC, created_at DESC',
+    ).all() as KeyAssignmentRow[]
+  } else if (actor.role === 'trainer') {
+    rows = db.prepare(
+      'SELECT * FROM key_assignments WHERE trainer_id = ? ORDER BY updated_at DESC, created_at DESC',
+    ).all(userId) as KeyAssignmentRow[]
+  }
+
+  return rows.map((row) => ({
+    id: row.id,
+    keyType: row.key_type,
+    keyLabel: row.key_label,
+    trainerId: row.trainer_id,
+    status: row.status,
+    handedOverBy: row.handed_over_by,
+    handedOverAt: row.handed_over_at,
+    returnedBy: row.returned_by,
+    returnedAt: row.returned_at,
+    notes: row.notes || '',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }))
+}
+
 export const getFleaMarketListings = (userId?: string | null) => {
   if (!userId) {
     return []
@@ -2027,6 +2098,7 @@ export const getBootstrapData = (userId?: string | null) => ({
   cashbookEntries: getCashbookEntries(userId),
   pendingPlayerApplications: getPendingPlayerApplications(userId),
   matchRescheduleRequests: getMatchRescheduleRequests(userId),
+  keyAssignments: getKeyAssignments(userId),
   fleaMarketListings: getFleaMarketListings(userId),
   tournamentOffers: getTournamentOffers(userId),
   socialMediaDrafts: getSocialMediaDrafts(userId),
