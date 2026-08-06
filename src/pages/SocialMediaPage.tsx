@@ -1109,6 +1109,7 @@ export default function SocialMediaPage() {
   const [success, setSuccess] = useState("");
   const [editorDraftType, setEditorDraftType] = useState<SocialMediaDraftType>("feed");
   const [editorLayout, setEditorLayout] = useState("matchday");
+  const [editorTemplateName, setEditorTemplateName] = useState("");
   const [editorAssets, setEditorAssets] = useState<EditorAsset[]>([]);
   const [editorLayers, setEditorLayers] = useState<SocialMediaLayer[]>(createStarterLayers());
   const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
@@ -1198,6 +1199,7 @@ export default function SocialMediaPage() {
     setEditorLayout(
       availableLayoutOptions[0]?.value ?? managedLayoutOptions[0]?.value ?? "matchday",
     );
+    setEditorTemplateName("");
     setEditorAssets([]);
     const starter = createStarterLayers();
     setEditorLayers(starter);
@@ -1217,6 +1219,8 @@ export default function SocialMediaPage() {
     setSuccess("");
     resetDraftEditor();
     setEditorIsTemplate(true);
+    setEditorLayers([]);
+    setActiveLayerId(null);
     setEditorOpen(true);
   };
 
@@ -1228,6 +1232,7 @@ export default function SocialMediaPage() {
     setEditorIsTemplate(asTemplate);
     setEditorDraftType(draft.draftType);
     setEditorLayout(draft.layout);
+    setEditorTemplateName(draft.title);
     const assets = buildDraftAssets(draft, socialMediaCrests);
     setEditorAssets(assets);
     const layers = (draft.layers.length ? draft.layers : buildFallbackLayers(draft)).map(normalizeLayer);
@@ -1277,6 +1282,10 @@ export default function SocialMediaPage() {
   };
 
   const updatePrimaryTitle = (value: string) => {
+    if (editorIsTemplate) {
+      setEditorTemplateName(value);
+      return;
+    }
     if (primaryTitleLayer) {
       updateLayer(primaryTitleLayer.id, { text: value });
       return;
@@ -2526,7 +2535,11 @@ export default function SocialMediaPage() {
                         {editorIsTemplate ? "Vorlagenname" : "Titel"}
                       </span>
                       <input
-                        value={primaryTitleLayer?.text ?? ""}
+                        value={
+                          editorIsTemplate
+                            ? editorTemplateName
+                            : primaryTitleLayer?.text ?? ""
+                        }
                         onChange={(event) => updatePrimaryTitle(event.target.value)}
                         placeholder={
                           editorIsTemplate ? "Name der Vorlage" : "Titel fuer Feed oder Story"
@@ -3412,12 +3425,23 @@ export default function SocialMediaPage() {
                             : undefined,
                         };
                       });
-                      const title = getFirstLayerText(layersPayload, "title");
+                      const title = editorIsTemplate
+                        ? editorTemplateName.trim()
+                        : getFirstLayerText(layersPayload, "title");
                       const subtitle = getFirstLayerText(layersPayload, "subtitle");
                       const caption = getFirstLayerText(layersPayload, "caption");
                       const callToAction = getFirstLayerText(layersPayload, "cta");
 
-                      if (!title) {
+                      if (editorIsTemplate) {
+                        if (!editorTemplateName.trim()) {
+                          setError("Bitte gib einen Vorlagennamen ein.");
+                          return;
+                        }
+                        if (layersPayload.length === 0) {
+                          setError("Bitte mindestens eine Ebene anlegen, bevor die Vorlage gespeichert wird.");
+                          return;
+                        }
+                      } else if (!title) {
                         setError("Bitte mindestens eine Titel-Ebene mit Inhalt anlegen.");
                         return;
                       }
