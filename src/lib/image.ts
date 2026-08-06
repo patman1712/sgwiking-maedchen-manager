@@ -7,7 +7,7 @@ export async function optimizeImageForUpload(file: File): Promise<File> {
 
   try {
     const image = await loadImage(imageUrl);
-    const maxDimension = 1200;
+    const maxDimension = 1600;
     const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
     const width = Math.max(1, Math.round(image.width * scale));
     const height = Math.max(1, Math.round(image.height * scale));
@@ -20,10 +20,24 @@ export async function optimizeImageForUpload(file: File): Promise<File> {
       return file;
     }
 
+    context.clearRect(0, 0, width, height);
     context.drawImage(image, 0, 0, width, height);
 
+    const isPngLike =
+      file.type === "image/png" || file.type === "image/webp" || /\.png$/i.test(file.name);
+
+    let blobType = "image/jpeg";
+    let blobQuality = 0.82;
+    let extension = "jpg";
+
+    if (isPngLike) {
+      blobType = "image/png";
+      blobQuality = undefined;
+      extension = "png";
+    }
+
     const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob(resolve, "image/jpeg", 0.78);
+      canvas.toBlob(resolve, blobType, blobQuality);
     });
 
     if (!blob) {
@@ -31,7 +45,7 @@ export async function optimizeImageForUpload(file: File): Promise<File> {
     }
 
     const nextName = file.name.replace(/\.[^.]+$/, "") || "spielerinnen-foto";
-    return new File([blob], `${nextName}.jpg`, { type: "image/jpeg" });
+    return new File([blob], `${nextName}.${extension}`, { type: blobType });
   } finally {
     URL.revokeObjectURL(imageUrl);
   }
@@ -45,3 +59,4 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     image.src = src;
   });
 }
+
