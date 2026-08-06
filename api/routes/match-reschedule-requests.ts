@@ -62,6 +62,7 @@ router.post('/', (req: Request, res: Response) => {
     return
   }
 
+  const timestamp = now()
   db.prepare(`
     INSERT INTO match_reschedule_requests (
       id,
@@ -73,9 +74,10 @@ router.post('/', (req: Request, res: Response) => {
       coordination_notes,
       requested_by,
       requested_at,
-      status
+      status,
+      admin_notification_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
   `).run(
     createId('reschedule'),
     teamId,
@@ -85,7 +87,8 @@ router.post('/', (req: Request, res: Response) => {
     reason.trim(),
     coordinationNotes ?? '',
     actorId,
-    now(),
+    timestamp,
+    timestamp,
   )
 
   res.json({
@@ -112,14 +115,16 @@ router.patch('/:id/in-progress', (req: Request, res: Response) => {
     return
   }
 
+  const timestamp = now()
   db.prepare(`
     UPDATE match_reschedule_requests
     SET
       status = 'in_progress',
       handled_by = ?,
-      handled_at = ?
+      handled_at = ?,
+      trainer_notification_at = ?
     WHERE id = ?
-  `).run(actorId, now(), id)
+  `).run(actorId, timestamp, timestamp, id)
 
   res.json({
     success: true,
@@ -153,9 +158,10 @@ router.patch('/:id/complete', (req: Request, res: Response) => {
       handled_by = COALESCE(handled_by, ?),
       handled_at = COALESCE(handled_at, ?),
       completed_by = ?,
-      completed_at = ?
+      completed_at = ?,
+      trainer_notification_at = ?
     WHERE id = ?
-  `).run(actorId, timestamp, actorId, timestamp, id)
+  `).run(actorId, timestamp, actorId, timestamp, timestamp, id)
 
   res.json({
     success: true,

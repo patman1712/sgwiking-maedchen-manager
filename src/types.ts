@@ -129,11 +129,14 @@ export interface MatchRescheduleRequest {
   coordinationNotes: string;
   requestedBy: string;
   requestedAt: string;
+  updatedAt: string;
   status: MatchRescheduleRequestStatus;
   handledBy?: string | null;
   handledAt?: string | null;
   completedBy?: string | null;
   completedAt?: string | null;
+  adminNotificationAt?: string | null;
+  trainerNotificationAt?: string | null;
 }
 
 export interface FleaMarketListing {

@@ -51,6 +51,8 @@ export default function DashboardLayout() {
   const conversations = useAppStore((state) => state.conversations);
   const messages = useAppStore((state) => state.messages);
   const tournamentOffers = useAppStore((state) => state.tournamentOffers);
+  const matchRescheduleRequests = useAppStore((state) => state.matchRescheduleRequests);
+  const pendingPlayerApplications = useAppStore((state) => state.pendingPlayerApplications);
   const navigate = useNavigate();
   const location = useLocation();
   const [incomingToast, setIncomingToast] = useState<{
@@ -68,6 +70,9 @@ export default function DashboardLayout() {
     }>
   >([]);
   const [tournamentNotificationsSeenAt, setTournamentNotificationsSeenAt] = useState<string | null>(
+    null,
+  );
+  const [rescheduleNotificationsSeenAt, setRescheduleNotificationsSeenAt] = useState<string | null>(
     null,
   );
   const latestMessageIdRef = useRef<string | null>(null);
@@ -177,6 +182,73 @@ export default function DashboardLayout() {
     return [];
   }, [currentUser, teamNameById, tournamentOffers]);
 
+  const relevantRescheduleNotifications = useMemo(() => {
+    if (!currentUser) {
+      return [];
+    }
+
+    if (currentUser.role === "trainer") {
+      return matchRescheduleRequests
+        .filter((entry) => currentUser.teamIds.includes(entry.teamId) && entry.trainerNotificationAt)
+        .map((entry) => {
+          let title = "Spielverlegung aktualisiert";
+          if (entry.status === "in_progress") {
+            title = "Spielverlegung in Bearbeitung";
+          } else if (entry.status === "done") {
+            title = "Spielverlegung erledigt";
+          }
+
+          return {
+            id: `reschedule-${entry.id}`,
+            createdAt: entry.trainerNotificationAt ?? entry.updatedAt ?? entry.requestedAt,
+            title,
+            content: `${teamNameById[entry.teamId] ?? "Mannschaft"}: ${entry.matchLabel}`,
+            href: "/dashboard/board/mailbox",
+          };
+        });
+    }
+
+    if (currentUser.role === "admin" || currentUser.role === "board") {
+      return matchRescheduleRequests
+        .filter((entry) => Boolean(entry.adminNotificationAt) && entry.status !== "done")
+        .map((entry) => ({
+          id: `reschedule-${entry.id}`,
+          createdAt: entry.adminNotificationAt ?? entry.requestedAt,
+          title: "Neue Spielverlegungsanfrage",
+          content: `${teamNameById[entry.teamId] ?? "Mannschaft"}: ${entry.matchLabel}`,
+          href: "/dashboard/board/mailbox",
+        }));
+    }
+
+    return [];
+  }, [currentUser, matchRescheduleRequests, teamNameById]);
+
+  const unseenRescheduleNotificationCount = useMemo(() => {
+    if (!rescheduleNotificationsSeenAt) {
+      return relevantRescheduleNotifications.length;
+    }
+
+    const seenAt = new Date(rescheduleNotificationsSeenAt).getTime();
+    return relevantRescheduleNotifications.filter(
+      (notification) => new Date(notification.createdAt).getTime() > seenAt,
+    ).length;
+  }, [relevantRescheduleNotifications, rescheduleNotificationsSeenAt]);
+
+  const unseenBoardMailboxCount = useMemo(() => {
+    if (currentUser?.role !== "admin" && currentUser?.role !== "board") {
+      return 0;
+    }
+
+    const openPlayerApplications = pendingPlayerApplications.filter(
+      (entry) => entry.status === "pending",
+    ).length;
+    const openReschedules = matchRescheduleRequests.filter(
+      (entry) => entry.status === "pending" || entry.status === "in_progress",
+    ).length;
+
+    return openPlayerApplications + openReschedules;
+  }, [currentUser, matchRescheduleRequests, pendingPlayerApplications]);
+
   const unseenTournamentNotificationCount = useMemo(() => {
     if (!tournamentNotificationsSeenAt) {
       return relevantTournamentNotifications.length;
@@ -188,11 +260,15 @@ export default function DashboardLayout() {
     ).length;
   }, [relevantTournamentNotifications, tournamentNotificationsSeenAt]);
 
-  const unreadHint = notificationCount + unseenTournamentNotificationCount;
+  const unreadHint =
+    notificationCount +
+    unseenTournamentNotificationCount +
+    unseenRescheduleNotificationCount;
 
   const notificationItems = useMemo(
     () =>
       [
+        ...relevantRescheduleNotifications,
         ...relevantTournamentNotifications,
         ...messageNotifications.map((entry) => ({
           ...entry,
@@ -203,7 +279,7 @@ export default function DashboardLayout() {
           (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
         )
         .slice(0, 10),
-    [messageNotifications, relevantTournamentNotifications],
+    [messageNotifications, relevantRescheduleNotifications, relevantTournamentNotifications],
   );
 
   useEffect(() => {
@@ -265,11 +341,14 @@ export default function DashboardLayout() {
   useEffect(() => {
     if (!currentUserId || typeof window === "undefined") {
       setTournamentNotificationsSeenAt(null);
+      setRescheduleNotificationsSeenAt(null);
       return;
     }
 
     const storageKey = `notification-center-last-seen-${currentUserId}`;
-    setTournamentNotificationsSeenAt(window.localStorage.getItem(storageKey));
+    const seenAt = window.localStorage.getItem(storageKey);
+    setTournamentNotificationsSeenAt(seenAt);
+    setRescheduleNotificationsSeenAt(seenAt);
   }, [currentUserId]);
 
   useEffect(() => {
@@ -388,6 +467,7 @@ export default function DashboardLayout() {
           const seenAt = new Date().toISOString();
           window.localStorage.setItem(`notification-center-last-seen-${currentUserId}`, seenAt);
           setTournamentNotificationsSeenAt(seenAt);
+          setRescheduleNotificationsSeenAt(seenAt);
         }
       }
 
@@ -729,7 +809,14 @@ export default function DashboardLayout() {
                       }
                     >
                       <MessageSquare size={16} />
-                      <span>Postfach</span>
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span>Postfach</span>
+                        {unseenBoardMailboxCount > 0 ? (
+                          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-200 px-1 text-[11px] font-semibold text-blue-950">
+                            {unseenBoardMailboxCount}
+                          </span>
+                        ) : null}
+                      </span>
                     </NavLink>
                   </div>
                 </div>

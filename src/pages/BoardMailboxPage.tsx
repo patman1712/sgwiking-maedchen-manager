@@ -50,10 +50,25 @@ export default function BoardMailboxPage() {
   >({});
 
   const canManageMailbox = currentUser?.role === "admin" || currentUser?.role === "board";
+  const canViewMailboxPage =
+    canManageMailbox ||
+    (currentUser?.role === "trainer" && matchRescheduleRequests.length > 0);
 
   const requestedByName = (userId: string | null | undefined) =>
     users.find((user) => user.id === userId)?.fullName ?? "Unbekannt";
   const teamName = (teamId: string) => teams.find((entry) => entry.id === teamId)?.name ?? "Mannschaft";
+
+  const visibleRescheduleRequests = useMemo(() => {
+    if (canManageMailbox) {
+      return matchRescheduleRequests;
+    }
+
+    if (currentUser?.role === "trainer") {
+      return matchRescheduleRequests.filter((entry) => currentUser.teamIds.includes(entry.teamId));
+    }
+
+    return [];
+  }, [canManageMailbox, currentUser, matchRescheduleRequests]);
 
   const inboxPlayerApplications = pendingPlayerApplications.filter(
     (entry) => entry.status === "pending",
@@ -61,12 +76,12 @@ export default function BoardMailboxPage() {
   const trashPlayerApplications = pendingPlayerApplications.filter(
     (entry) => entry.status === "approved" || entry.status === "rejected",
   );
-  const inboxRescheduleRequests = matchRescheduleRequests.filter(
+  const inboxRescheduleRequests = visibleRescheduleRequests.filter(
     (entry) => entry.status === "pending" || entry.status === "in_progress",
   );
-  const trashRescheduleRequests = matchRescheduleRequests.filter((entry) => entry.status === "done");
+  const trashRescheduleRequests = visibleRescheduleRequests.filter((entry) => entry.status === "done");
 
-  if (!canManageMailbox) {
+  if (!canViewMailboxPage) {
     return null;
   }
 

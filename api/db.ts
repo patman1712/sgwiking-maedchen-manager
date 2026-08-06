@@ -311,6 +311,8 @@ db.exec(`
     handled_at TEXT DEFAULT NULL,
     completed_by TEXT DEFAULT NULL,
     completed_at TEXT DEFAULT NULL,
+    admin_notification_at TEXT DEFAULT NULL,
+    trainer_notification_at TEXT DEFAULT NULL,
     FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,
     FOREIGN KEY(match_id) REFERENCES matches(id) ON DELETE SET NULL,
     FOREIGN KEY(requested_by) REFERENCES users(id) ON DELETE CASCADE,
@@ -612,6 +614,18 @@ if (!tournamentOfferColumns.includes('trainer_notification_at')) {
 
 if (!tournamentOfferColumns.includes('admin_notification_at')) {
   db.prepare('ALTER TABLE tournament_offers ADD COLUMN admin_notification_at TEXT DEFAULT NULL').run()
+}
+
+const matchRescheduleColumns = (
+  db.prepare('PRAGMA table_info(match_reschedule_requests)').all() as { name: string }[]
+).map((column) => column.name)
+
+if (!matchRescheduleColumns.includes('admin_notification_at')) {
+  db.prepare('ALTER TABLE match_reschedule_requests ADD COLUMN admin_notification_at TEXT DEFAULT NULL').run()
+}
+
+if (!matchRescheduleColumns.includes('trainer_notification_at')) {
+  db.prepare('ALTER TABLE match_reschedule_requests ADD COLUMN trainer_notification_at TEXT DEFAULT NULL').run()
 }
 
 const now = () => new Date().toISOString()
@@ -1143,6 +1157,8 @@ type MatchRescheduleRequestRow = {
   handled_at: string | null
   completed_by: string | null
   completed_at: string | null
+  admin_notification_at: string | null
+  trainer_notification_at: string | null
 }
 
 type FleaMarketListingRow = {
@@ -1575,30 +1591,67 @@ export const getMatchRescheduleRequests = (userId?: string | null) => {
     return []
   }
 
-  if (actor.role !== 'admin' && actor.role !== 'board') {
-    return []
+  if (actor.role === 'admin' || actor.role === 'board') {
+    const rows = db.prepare(
+      'SELECT * FROM match_reschedule_requests ORDER BY requested_at DESC',
+    ).all() as MatchRescheduleRequestRow[]
+
+    return rows.map((row) => ({
+      id: row.id,
+      teamId: row.team_id,
+      matchId: row.match_id || null,
+      matchLabel: row.match_label,
+      proposedKickoffAt: row.proposed_kickoff_at,
+      reason: row.reason,
+      coordinationNotes: row.coordination_notes || '',
+      requestedBy: row.requested_by,
+      requestedAt: row.requested_at,
+      updatedAt:
+        row.completed_at || row.handled_at || row.trainer_notification_at || row.admin_notification_at || row.requested_at,
+      status: row.status,
+      handledBy: row.handled_by || null,
+      handledAt: row.handled_at || null,
+      completedBy: row.completed_by || null,
+      completedAt: row.completed_at || null,
+      adminNotificationAt: row.admin_notification_at || null,
+      trainerNotificationAt: row.trainer_notification_at || null,
+    }))
   }
 
-  const rows = db.prepare(
-    'SELECT * FROM match_reschedule_requests ORDER BY requested_at DESC',
-  ).all() as MatchRescheduleRequestRow[]
+  if (actor.role === 'trainer') {
+    const rows = db.prepare(
+      `SELECT requests.*
+       FROM match_reschedule_requests requests
+       JOIN team_members members
+         ON members.team_id = requests.team_id
+        AND members.user_id = ?
+        AND members.membership_role = 'trainer'
+       ORDER BY requests.requested_at DESC`,
+    ).all(userId) as MatchRescheduleRequestRow[]
 
-  return rows.map((row) => ({
-    id: row.id,
-    teamId: row.team_id,
-    matchId: row.match_id || null,
-    matchLabel: row.match_label,
-    proposedKickoffAt: row.proposed_kickoff_at,
-    reason: row.reason,
-    coordinationNotes: row.coordination_notes || '',
-    requestedBy: row.requested_by,
-    requestedAt: row.requested_at,
-    status: row.status,
-    handledBy: row.handled_by || null,
-    handledAt: row.handled_at || null,
-    completedBy: row.completed_by || null,
-    completedAt: row.completed_at || null,
-  }))
+    return rows.map((row) => ({
+      id: row.id,
+      teamId: row.team_id,
+      matchId: row.match_id || null,
+      matchLabel: row.match_label,
+      proposedKickoffAt: row.proposed_kickoff_at,
+      reason: row.reason,
+      coordinationNotes: row.coordination_notes || '',
+      requestedBy: row.requested_by,
+      requestedAt: row.requested_at,
+      updatedAt:
+        row.completed_at || row.handled_at || row.trainer_notification_at || row.admin_notification_at || row.requested_at,
+      status: row.status,
+      handledBy: row.handled_by || null,
+      handledAt: row.handled_at || null,
+      completedBy: row.completed_by || null,
+      completedAt: row.completed_at || null,
+      adminNotificationAt: row.admin_notification_at || null,
+      trainerNotificationAt: row.trainer_notification_at || null,
+    }))
+  }
+
+  return []
 }
 
 export const getFleaMarketListings = (userId?: string | null) => {
