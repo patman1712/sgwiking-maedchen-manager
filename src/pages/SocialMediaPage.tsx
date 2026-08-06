@@ -440,17 +440,17 @@ function getImageStyleClasses(style: SocialMediaLayerStyle, full = false) {
 
   switch (style) {
     case "soft":
-      return "rounded-[1.75rem] border border-white/35 object-cover opacity-85 shadow-[0_24px_60px_rgba(15,23,42,0.28)]";
+      return "rounded-[1.75rem] border border-slate-200 object-cover opacity-95 shadow-[0_24px_60px_rgba(15,23,42,0.14)]";
     case "cutout":
-      return "rounded-[1.5rem] border-4 border-white/90 bg-transparent object-contain p-2 shadow-[0_24px_60px_rgba(15,23,42,0.3)]";
+      return "rounded-[1.5rem] border-4 border-white bg-white object-contain p-2 shadow-[0_24px_60px_rgba(15,23,42,0.18)]";
     case "glass":
-      return "rounded-[1.75rem] border border-white/25 object-cover shadow-[0_24px_60px_rgba(15,23,42,0.3)]";
+      return "rounded-[1.75rem] border border-slate-200 object-cover shadow-[0_24px_60px_rgba(15,23,42,0.18)]";
     case "pill":
-      return "rounded-full border-4 border-white/80 object-cover shadow-[0_16px_50px_rgba(15,23,42,0.28)]";
+      return "rounded-full border-4 border-white object-cover shadow-[0_16px_50px_rgba(15,23,42,0.18)]";
     case "solid":
-      return "rounded-[1.25rem] border border-blue-950/20 object-cover shadow-[0_20px_40px_rgba(15,23,42,0.25)]";
+      return "rounded-[1.25rem] border border-blue-950/20 object-cover shadow-[0_20px_40px_rgba(15,23,42,0.2)]";
     default:
-      return "rounded-[1.75rem] border border-white/10 object-cover shadow-[0_24px_60px_rgba(15,23,42,0.28)]";
+      return "rounded-[1.75rem] border border-slate-200 object-cover shadow-[0_24px_60px_rgba(15,23,42,0.18)]";
   }
 }
 
@@ -512,15 +512,15 @@ function getDefaultTextAppearance(layer: SocialMediaLayer) {
       return {
         fontFamily: "Oswald",
         fontSize: 42,
-        textColor: "#ffffff",
+        textColor: "#0f172a",
         textAlign: "left" as SocialMediaTextAlign,
-        textEffect: "shadow" as SocialMediaTextEffect,
+        textEffect: "none" as SocialMediaTextEffect,
       };
     case "subtitle":
       return {
         fontFamily: "Inter",
         fontSize: layer.style === "solid" ? 16 : 18,
-        textColor: "#f8fafc",
+        textColor: "#334155",
         textAlign: "left" as SocialMediaTextAlign,
         textEffect: "none" as SocialMediaTextEffect,
       };
@@ -528,7 +528,7 @@ function getDefaultTextAppearance(layer: SocialMediaLayer) {
       return {
         fontFamily: "Inter",
         fontSize: 16,
-        textColor: "#f8fafc",
+        textColor: "#334155",
         textAlign: "left" as SocialMediaTextAlign,
         textEffect: "none" as SocialMediaTextEffect,
       };
@@ -536,7 +536,7 @@ function getDefaultTextAppearance(layer: SocialMediaLayer) {
       return {
         fontFamily: "Montserrat",
         fontSize: 12,
-        textColor: layer.style === "pill" ? "#0f172a" : "#ffffff",
+        textColor: layer.style === "pill" ? "#ffffff" : "#0f172a",
         textAlign: "left" as SocialMediaTextAlign,
         textEffect: "none" as SocialMediaTextEffect,
       };
@@ -544,7 +544,7 @@ function getDefaultTextAppearance(layer: SocialMediaLayer) {
       return {
         fontFamily: "Montserrat",
         fontSize: 12,
-        textColor: layer.style === "solid" ? "#0f172a" : "#ffffff",
+        textColor: layer.style === "solid" ? "#ffffff" : "#0f172a",
         textAlign: "center" as SocialMediaTextAlign,
         textEffect: "none" as SocialMediaTextEffect,
       };
@@ -552,7 +552,7 @@ function getDefaultTextAppearance(layer: SocialMediaLayer) {
       return {
         fontFamily: "Inter",
         fontSize: 16,
-        textColor: "#ffffff",
+        textColor: "#0f172a",
         textAlign: "left" as SocialMediaTextAlign,
         textEffect: "none" as SocialMediaTextEffect,
       };
@@ -571,38 +571,41 @@ function getTextClasses(layer: SocialMediaLayer) {
   switch (layer.kind) {
     case "title":
       return cn(
-        "whitespace-pre-wrap text-3xl font-black uppercase tracking-[0.08em] text-white md:text-4xl",
-        layer.style === "glass" && "rounded-[1.5rem] border border-white/10 bg-white/8 px-4 py-3 backdrop-blur",
+        "whitespace-pre-wrap text-3xl font-black uppercase tracking-[0.08em] text-slate-900 md:text-4xl",
+        layer.style === "glass" &&
+          "rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-3",
       );
     case "subtitle":
       return cn(
-        "whitespace-pre-wrap text-sm font-semibold leading-6 text-white/90 md:text-base",
-        layer.style === "solid" && "rounded-[1.25rem] bg-blue-950/75 px-4 py-3 text-white",
-        layer.style === "glass" && "rounded-[1.25rem] border border-white/15 bg-white/10 px-4 py-3 backdrop-blur",
+        "whitespace-pre-wrap text-sm font-semibold leading-6 text-slate-700 md:text-base",
+        layer.style === "solid" &&
+          "rounded-[1.25rem] bg-blue-950 px-4 py-3 text-white",
+        layer.style === "glass" &&
+          "rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3",
       );
     case "badge":
       return cn(
         "inline-flex items-center rounded-full px-4 py-2 text-[11px] font-bold uppercase tracking-[0.24em]",
         layer.style === "pill"
-          ? "border border-white/15 bg-white text-blue-950 shadow-lg"
-          : "border border-white/20 bg-white/10 text-white backdrop-blur",
+          ? "border border-blue-950 bg-blue-950 text-white shadow-lg"
+          : "border border-slate-300 bg-white text-slate-900 shadow-sm",
       );
     case "cta":
       return cn(
         "inline-flex items-center rounded-full px-4 py-2 text-xs font-bold uppercase tracking-[0.18em]",
         layer.style === "solid"
-          ? "bg-white text-blue-950 shadow-xl"
-          : "border border-white/20 bg-blue-950/65 text-white backdrop-blur",
+          ? "bg-blue-950 text-white shadow-xl"
+          : "border border-slate-300 bg-white text-slate-900 shadow-sm",
       );
     case "caption":
       return cn(
         "whitespace-pre-wrap rounded-[1.75rem] px-4 py-4 text-sm leading-6 md:px-5",
         layer.style === "solid"
-          ? "bg-blue-950/90 text-white shadow-[0_18px_50px_rgba(15,23,42,0.38)]"
-          : "border border-white/15 bg-white/12 text-white/92 backdrop-blur-xl shadow-[0_18px_50px_rgba(15,23,42,0.28)]",
+          ? "bg-slate-900 text-white shadow-[0_18px_50px_rgba(15,23,42,0.2)]"
+          : "border border-slate-200 bg-slate-50 text-slate-800 shadow-[0_18px_50px_rgba(15,23,42,0.08)]",
       );
     default:
-      return "text-sm text-white";
+      return "text-sm text-slate-900";
   }
 }
 
@@ -753,28 +756,10 @@ function SocialPreview({
     <div
       ref={previewRef}
       className={cn(
-        "relative overflow-hidden rounded-[2.25rem] border border-white/40 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.35),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.28),_transparent_40%),linear-gradient(145deg,#0f172a_5%,#1d4ed8_55%,#7dd3fc_100%)] text-white shadow-[0_28px_90px_rgba(15,23,42,0.32)]",
+        "relative overflow-hidden rounded-[2.25rem] border border-slate-200 bg-white text-slate-900 shadow-[0_28px_90px_rgba(15,23,42,0.14)]",
         draftType === "story" ? "aspect-[9/16]" : "aspect-[4/5]",
       )}
     >
-      <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:28px_28px]" />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(15,23,42,0.08),rgba(15,23,42,0.78))]" />
-
-      <div className="absolute left-5 top-5 flex items-center gap-3">
-        <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-white/95 backdrop-blur-md">
-          <Sparkles size={12} />
-          {draftType === "story" ? "Story" : "Feed"} · {layoutLabel}
-        </div>
-      </div>
-
-      <div className="absolute right-5 top-5 flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md shadow-lg">
-        {logoUrl ? (
-          <img src={logoUrl} alt="Vereinslogo" className="h-full w-full object-contain p-1.5" />
-        ) : (
-          <ImageIcon size={18} />
-        )}
-      </div>
-
       {visibleLayers.map((layer, index) => {
         const zStyle = { zIndex: index + 5 };
 
@@ -842,10 +827,10 @@ function SocialPreview({
               ) : (
                 <div
                   className={cn(
-                    "flex h-full w-full items-center justify-center text-white/70",
+                    "flex h-full w-full items-center justify-center text-slate-500",
                     layer.position === "full"
-                      ? "bg-slate-900/30"
-                      : "rounded-[1.5rem] border border-dashed border-white/30 bg-white/10 backdrop-blur",
+                      ? "bg-slate-100"
+                      : "rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50",
                   )}
                 >
                   <ImageIcon size={22} />
@@ -857,7 +842,7 @@ function SocialPreview({
                   aria-label="Bildgroesse anpassen"
                   disabled={!resizable}
                   className={cn(
-                    "absolute bottom-2 right-2 h-6 w-6 rounded-full border border-white/80 shadow-lg shadow-sky-900/30",
+                    "absolute bottom-2 right-2 h-6 w-6 rounded-full border border-slate-200 shadow-lg shadow-slate-500/20",
                     resizable
                       ? "bg-sky-400"
                       : "cursor-not-allowed bg-slate-300 opacity-75",
@@ -955,7 +940,7 @@ function SocialPreview({
                 aria-label="Textgroesse anpassen"
                 disabled={!resizable}
                 className={cn(
-                  "absolute bottom-[-0.55rem] right-[-0.55rem] h-6 w-6 rounded-full border border-white/80 shadow-lg shadow-sky-900/30",
+                  "absolute bottom-[-0.55rem] right-[-0.55rem] h-6 w-6 rounded-full border border-slate-200 shadow-lg shadow-slate-500/20",
                   resizable
                     ? "bg-sky-400"
                     : "cursor-not-allowed bg-slate-300 opacity-75",
