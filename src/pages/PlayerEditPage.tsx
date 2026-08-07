@@ -120,6 +120,7 @@ export default function PlayerEditPage() {
   const [success, setSuccess] = useState("");
   const [uploading, setUploading] = useState(false);
   const [documentUploading, setDocumentUploading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -184,6 +185,9 @@ export default function PlayerEditPage() {
     if (!playerId || !player) {
       return;
     }
+    if (isEditing) {
+      return;
+    }
 
     setForm({
       fullName: player.fullName,
@@ -204,10 +208,9 @@ export default function PlayerEditPage() {
       password: "",
     });
     setDocumentFiles(createEmptyDocumentFiles());
-    setIsEditing(false);
     setError("");
     setSuccess("");
-  }, [playerId, player?.id]);
+  }, [playerId, isEditing]);
 
   if (!playerId || !player) {
     return <Navigate to="/dashboard/players" replace />;
@@ -449,6 +452,7 @@ export default function PlayerEditPage() {
                 event.preventDefault();
                 setError("");
                 setSuccess("");
+                setSubmitting(true);
                 try {
                   const result = await updateUser({
                     userId: player.id,
@@ -496,6 +500,7 @@ export default function PlayerEditPage() {
                   );
                 } finally {
                   setDocumentUploading(false);
+                  setSubmitting(false);
                 }
               }}
             >
@@ -773,14 +778,15 @@ export default function PlayerEditPage() {
               <div className="flex flex-wrap gap-3">
                 <button
                   type="submit"
-                  disabled={documentUploading}
-                  className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
+                  disabled={submitting || documentUploading}
+                  className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {documentUploading ? "Wird gespeichert..." : "Spielerin speichern"}
+                  {submitting || documentUploading ? "Wird gespeichert..." : "Spielerin speichern"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsEditing(false)}
+                  disabled={submitting || documentUploading}
                   className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
                   Abbrechen

@@ -294,9 +294,9 @@ export default function DashboardLayout() {
 
     const intervalId = window.setInterval(() => {
       if (document.visibilityState === "visible") {
-        void fetchData();
+        void fetchData({ silent: true });
       }
-    }, 4000);
+    }, 60000);
 
     return () => window.clearInterval(intervalId);
   }, [currentUserId, fetchData]);

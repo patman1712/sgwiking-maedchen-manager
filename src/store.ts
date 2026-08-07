@@ -131,7 +131,7 @@ interface AppState {
   currentUserId: string | null;
   loading: boolean;
   initialized: boolean;
-  fetchData: () => Promise<void>;
+  fetchData: (options?: { silent?: boolean }) => Promise<void>;
   login: (email: string, password: string) => Promise<ActionResult>;
   logout: () => void;
   addTeam: (input: TeamInput) => Promise<ActionResult>;
@@ -397,30 +397,113 @@ const storage = createJSONStorage(() =>
   typeof window === "undefined" ? memoryStorage : window.localStorage,
 );
 
+function arrayShallowEqualsById<T extends { id?: string }>(
+  current: T[] | undefined,
+  next: T[],
+): T[] {
+  if (!current) {
+    return next;
+  }
+  if (current === next) {
+    return current;
+  }
+  if (current.length !== next.length) {
+    return next;
+  }
+  for (let index = 0; index < next.length; index += 1) {
+    const left = current[index];
+    const right = next[index];
+    if (left === right) {
+      continue;
+    }
+    if (
+      left &&
+      right &&
+      typeof left === "object" &&
+      typeof right === "object" &&
+      "id" in left &&
+      "id" in right &&
+      typeof (left as { id?: unknown }).id !== undefined &&
+      (left as { id?: unknown }).id === (right as { id?: unknown }).id &&
+      JSON.stringify(left) === JSON.stringify(right)
+    ) {
+      continue;
+    }
+    return next;
+  }
+  return current;
+}
+
+function objectShallowEquals<T extends object>(current: T | undefined, next: T): T {
+  if (!current) {
+    return next;
+  }
+  if (current === next) {
+    return current;
+  }
+  return JSON.stringify(current) === JSON.stringify(next) ? current : next;
+}
+
 const applyPayload = (
   set: (partial: Partial<AppState>) => void,
   payload: ApiStatePayload,
   fallbackUserId: string | null,
+  stateSnapshot: () => AppState,
 ) => {
+  const state = stateSnapshot();
+  const nextTeams = arrayShallowEqualsById(state.teams, payload.teams);
+  const nextUsers = arrayShallowEqualsById(state.users, payload.users);
+  const nextMatches = arrayShallowEqualsById(state.matches, payload.matches);
+  const nextInventoryItems = arrayShallowEqualsById(state.inventoryItems, payload.inventoryItems);
+  const nextCashbookEntries = arrayShallowEqualsById(state.cashbookEntries, payload.cashbookEntries);
+  const nextPendingApplications = arrayShallowEqualsById(
+    state.pendingPlayerApplications,
+    payload.pendingPlayerApplications,
+  );
+  const nextRescheduleRequests = arrayShallowEqualsById(
+    state.matchRescheduleRequests,
+    payload.matchRescheduleRequests,
+  );
+  const nextKeyAssignments = arrayShallowEqualsById(state.keyAssignments, payload.keyAssignments);
+  const nextFleaMarketListings = arrayShallowEqualsById(
+    state.fleaMarketListings,
+    payload.fleaMarketListings,
+  );
+  const nextTournamentOffers = arrayShallowEqualsById(
+    state.tournamentOffers,
+    payload.tournamentOffers,
+  );
+  const nextSocialDrafts = arrayShallowEqualsById(state.socialMediaDrafts, payload.socialMediaDrafts);
+  const nextSocialCrests = arrayShallowEqualsById(state.socialMediaCrests, payload.socialMediaCrests);
+  const nextSocialFonts = arrayShallowEqualsById(state.socialMediaFonts, payload.socialMediaFonts);
+  const nextSocialSnippets = arrayShallowEqualsById(
+    state.socialMediaTextSnippets,
+    payload.socialMediaTextSnippets,
+  );
+  const nextConversations = arrayShallowEqualsById(state.conversations, payload.conversations);
+  const nextMessages = arrayShallowEqualsById(state.messages, payload.messages);
+  const nextSettings = objectShallowEquals(state.settings, payload.settings);
+  const nextCurrentUserId = payload.currentUser?.id ?? fallbackUserId;
+
   set({
-    teams: payload.teams,
-    users: payload.users,
-    matches: payload.matches,
-    inventoryItems: payload.inventoryItems,
-    cashbookEntries: payload.cashbookEntries,
-    pendingPlayerApplications: payload.pendingPlayerApplications,
-    matchRescheduleRequests: payload.matchRescheduleRequests,
-    keyAssignments: payload.keyAssignments,
-    fleaMarketListings: payload.fleaMarketListings,
-    tournamentOffers: payload.tournamentOffers,
-    socialMediaDrafts: payload.socialMediaDrafts,
-    socialMediaCrests: payload.socialMediaCrests,
-    socialMediaFonts: payload.socialMediaFonts,
-    socialMediaTextSnippets: payload.socialMediaTextSnippets,
-    conversations: payload.conversations,
-    messages: payload.messages,
-    settings: payload.settings,
-    currentUserId: payload.currentUser?.id ?? fallbackUserId,
+    teams: nextTeams,
+    users: nextUsers,
+    matches: nextMatches,
+    inventoryItems: nextInventoryItems,
+    cashbookEntries: nextCashbookEntries,
+    pendingPlayerApplications: nextPendingApplications,
+    matchRescheduleRequests: nextRescheduleRequests,
+    keyAssignments: nextKeyAssignments,
+    fleaMarketListings: nextFleaMarketListings,
+    tournamentOffers: nextTournamentOffers,
+    socialMediaDrafts: nextSocialDrafts,
+    socialMediaCrests: nextSocialCrests,
+    socialMediaFonts: nextSocialFonts,
+    socialMediaTextSnippets: nextSocialSnippets,
+    conversations: nextConversations,
+    messages: nextMessages,
+    settings: nextSettings,
+    currentUserId: state.currentUserId ?? nextCurrentUserId,
     initialized: true,
   });
 };
@@ -439,8 +522,13 @@ export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
       ...initialAppState,
-      fetchData: async () => {
-        set({ loading: true });
+      fetchData: async (options?: { silent?: boolean }) => {
+        if (get().loading) {
+          return;
+        }
+        if (!options?.silent) {
+          set({ loading: true });
+        }
 
         try {
           const currentUserId = get().currentUserId;
@@ -450,9 +538,13 @@ export const useAppStore = create<AppState>()(
           const response = await fetch(`/api/bootstrap${query}`);
           const data = (await readJson(response)) as ApiStatePayload;
 
-          applyPayload(set, data, get().currentUserId);
+          applyPayload(set, data, get().currentUserId, get);
         } finally {
-          set({ loading: false, initialized: true });
+          if (!options?.silent) {
+            set({ loading: false, initialized: true });
+          } else {
+            set({ initialized: true });
+          }
         }
       },
       login: async (email, password) => {
@@ -498,7 +590,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ ...input, actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -523,7 +615,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ ...input, actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -553,7 +645,7 @@ export const useAppStore = create<AppState>()(
             body: payload,
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -582,7 +674,7 @@ export const useAppStore = create<AppState>()(
           const data = (await readJson(response)) as ApiStatePayload & {
             importedCount?: number;
           };
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true, importedCount: data.importedCount ?? 0 };
         } catch (error) {
@@ -611,7 +703,7 @@ export const useAppStore = create<AppState>()(
           const data = (await readJson(response)) as ApiStatePayload & {
             deletedCount?: number;
           };
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true, deletedCount: data.deletedCount ?? 0 };
         } catch (error) {
@@ -651,7 +743,7 @@ export const useAppStore = create<AppState>()(
             body: payload,
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -678,7 +770,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -718,7 +810,7 @@ export const useAppStore = create<AppState>()(
             body: payload,
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -748,7 +840,7 @@ export const useAppStore = create<AppState>()(
             body: payload,
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -775,7 +867,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId, value }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -825,7 +917,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ ...payload, actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -852,7 +944,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -882,7 +974,7 @@ export const useAppStore = create<AppState>()(
             body: payload,
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -912,7 +1004,7 @@ export const useAppStore = create<AppState>()(
             body: payload,
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -939,7 +1031,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ ...input, actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -966,7 +1058,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ ...input, actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -993,7 +1085,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1020,7 +1112,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1047,7 +1139,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ ...input, actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1074,7 +1166,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1101,7 +1193,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1128,7 +1220,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1155,7 +1247,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId, ...input }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1180,7 +1272,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId, ...input }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1208,7 +1300,7 @@ export const useAppStore = create<AppState>()(
             },
           );
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1236,7 +1328,7 @@ export const useAppStore = create<AppState>()(
             },
           );
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1261,7 +1353,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1299,7 +1391,7 @@ export const useAppStore = create<AppState>()(
             body: payload,
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1326,7 +1418,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1364,7 +1456,7 @@ export const useAppStore = create<AppState>()(
             body: payload,
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1400,7 +1492,7 @@ export const useAppStore = create<AppState>()(
             body: payload,
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1425,7 +1517,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId, status }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1452,7 +1544,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId, ...input }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1477,7 +1569,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1517,7 +1609,7 @@ export const useAppStore = create<AppState>()(
             body: payload,
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1560,7 +1652,7 @@ export const useAppStore = create<AppState>()(
             body: payload,
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1587,7 +1679,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1618,7 +1710,7 @@ export const useAppStore = create<AppState>()(
             body: payload,
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1645,7 +1737,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1677,7 +1769,7 @@ export const useAppStore = create<AppState>()(
             body: payload,
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1704,7 +1796,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1731,7 +1823,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ ...input, actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1758,7 +1850,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ ...input, actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1785,7 +1877,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1812,7 +1904,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ ...input, actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1837,7 +1929,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ ...input, actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1862,7 +1954,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
@@ -1887,7 +1979,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ ...input, actorId: currentUserId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, currentUserId);
+          applyPayload(set, data, currentUserId, get);
 
           return { success: true };
         } catch (error) {
@@ -1914,7 +2006,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId: currentUserId, ...input }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, currentUserId);
+          applyPayload(set, data, currentUserId, get);
 
           return { success: true };
         } catch (error) {
@@ -1965,7 +2057,7 @@ export const useAppStore = create<AppState>()(
           const data = (await readJson(response)) as ApiStatePayload & {
             conversationId: string;
           };
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return data.conversationId;
         } catch {
@@ -1988,7 +2080,7 @@ export const useAppStore = create<AppState>()(
           const data = (await readJson(response)) as ApiStatePayload & {
             conversationId: string;
           };
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return data.conversationId;
         } catch {
@@ -2011,7 +2103,7 @@ export const useAppStore = create<AppState>()(
           const data = (await readJson(response)) as ApiStatePayload & {
             conversationId: string;
           };
-          applyPayload(set, data, currentUserId);
+          applyPayload(set, data, currentUserId, get);
 
           return data.conversationId;
         } catch {
@@ -2034,7 +2126,7 @@ export const useAppStore = create<AppState>()(
           const data = (await readJson(response)) as ApiStatePayload & {
             conversationId: string;
           };
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return data.conversationId;
         } catch {
@@ -2082,7 +2174,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId);
+          applyPayload(set, data, actorId, get);
 
           return { success: true };
         } catch (error) {
