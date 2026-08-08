@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Briefcase,
@@ -128,35 +128,69 @@ export default function DashboardHome() {
   const canOpenTeam = (teamId: string) =>
     Boolean(canOpenAllTeams || currentUser?.teamIds.includes(teamId));
   const visibleTeams = teams;
-  const visibleMatches = [...matches].sort(
-    (left, right) =>
-      new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime(),
-  );
-  const now = Date.now();
 
-  const trainers = users.filter((user) => user.role === "trainer");
-  const players = users.filter((user) => user.role === "player");
-  const boardMembers = users.filter((user) => user.role === "board");
-  const recentMessages = [...messages]
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
-    .slice(0, 5);
-  const nextMatches = visibleMatches
-    .filter((match) => new Date(match.kickoffAt).getTime() >= now)
-    .slice(0, 5);
-  const previousMatches = [...visibleMatches]
-    .filter((match) => new Date(match.kickoffAt).getTime() < now)
-    .sort(
-      (left, right) =>
-        new Date(right.kickoffAt).getTime() - new Date(left.kickoffAt).getTime(),
-    )
-    .slice(0, 5);
+  const renderTick = useMemo(
+    () => Date.now(),
+    [matches, teamEventsByTeamId, messages],
+  );
+  const now = renderTick;
+
+  const visibleMatches = useMemo(
+    () =>
+      [...matches].sort(
+        (left, right) =>
+          new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime(),
+      ),
+    [matches],
+  );
+
+  const trainers = useMemo(
+    () => users.filter((user) => user.role === "trainer"),
+    [users],
+  );
+  const players = useMemo(
+    () => users.filter((user) => user.role === "player"),
+    [users],
+  );
+  const boardMembers = useMemo(
+    () => users.filter((user) => user.role === "board"),
+    [users],
+  );
+  const recentMessages = useMemo(
+    () =>
+      [...messages]
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+        .slice(0, 5),
+    [messages],
+  );
+  const nextMatches = useMemo(
+    () =>
+      visibleMatches
+        .filter((match) => new Date(match.kickoffAt).getTime() >= now)
+        .slice(0, 5),
+    [now, visibleMatches],
+  );
+  const previousMatches = useMemo(
+    () =>
+      [...visibleMatches]
+        .filter((match) => new Date(match.kickoffAt).getTime() < now)
+        .sort(
+          (left, right) =>
+            new Date(right.kickoffAt).getTime() - new Date(left.kickoffAt).getTime(),
+        )
+        .slice(0, 5),
+    [now, visibleMatches],
+  );
   const showBoardOverview = currentUser?.role === "board";
   const ownTeamIds = useMemo(
     () => (isTrainerOrPlayer ? currentUser?.teamIds ?? [] : []),
     [currentUser?.teamIds, isTrainerOrPlayer],
   );
 
-  const getTeamById = (teamId: string) => teams.find((team) => team.id === teamId);
+  const getTeamById = useCallback(
+    (teamId: string) => teams.find((team) => team.id === teamId),
+    [teams],
+  );
   const formatMatchDate = (kickoffAt: string) =>
     new Intl.DateTimeFormat("de-DE", {
       day: "2-digit",
@@ -278,29 +312,36 @@ export default function DashboardHome() {
     });
 
     return unifiedEvents
-      .filter((event) => new Date(event.startsAt).getTime() >= Date.now())
+      .filter((event) => new Date(event.startsAt).getTime() >= now)
       .sort(
         (left, right) =>
           new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime(),
       )
       .slice(0, 2);
-  }, [getTeamById, matches, ownTeamIds, teamEventsByTeamId]);
+  }, [getTeamById, matches, now, ownTeamIds, teamEventsByTeamId]);
 
-  const getEventSummary = (event: DashboardUnifiedEvent) =>
-    teamEventsByTeamId[event.teamId]?.responseSummaries.find(
-      (summary) => summary.eventId === event.id,
-    );
-
-  const getEventResponseDetail = (event: DashboardUnifiedEvent) =>
-    teamEventsByTeamId[event.teamId]?.responseDetails.find(
-      (detail) => detail.eventId === event.id,
-    );
-
-  const getEventDeadline = (event: DashboardUnifiedEvent) => {
-    const closeHours =
-      teamEventsByTeamId[event.teamId]?.settings.responseCloseHoursBefore ?? 24;
-    return new Date(new Date(event.startsAt).getTime() - closeHours * 60 * 60 * 1000);
-  };
+  const getEventSummary = useCallback(
+    (event: DashboardUnifiedEvent) =>
+      teamEventsByTeamId[event.teamId]?.responseSummaries.find(
+        (summary) => summary.eventId === event.id,
+      ),
+    [teamEventsByTeamId],
+  );
+  const getEventResponseDetail = useCallback(
+    (event: DashboardUnifiedEvent) =>
+      teamEventsByTeamId[event.teamId]?.responseDetails.find(
+        (detail) => detail.eventId === event.id,
+      ),
+    [teamEventsByTeamId],
+  );
+  const getEventDeadline = useCallback(
+    (event: DashboardUnifiedEvent) => {
+      const closeHours =
+        teamEventsByTeamId[event.teamId]?.settings.responseCloseHoursBefore ?? 24;
+      return new Date(new Date(event.startsAt).getTime() - closeHours * 60 * 60 * 1000);
+    },
+    [teamEventsByTeamId],
+  );
 
   const handleEventResponse = async (
     event: DashboardUnifiedEvent,
@@ -445,7 +486,7 @@ export default function DashboardHome() {
     const summary = getEventSummary(event);
     const responseDetail = getEventResponseDetail(event);
     const deadline = getEventDeadline(event);
-    const responseClosed = deadline.getTime() <= Date.now();
+    const responseClosed = deadline.getTime() <= now;
     const canViewResponseNames = currentUser?.role === "trainer";
     const isTournament = event.sourceType === "tournament";
 
@@ -755,14 +796,14 @@ export default function DashboardHome() {
           title="Naechste 2 Termine"
           description="Die naechsten Teamtermine direkt ueber den Spielen, damit Zu- und Absagen ohne Umwege moeglich sind."
         >
-          <div className="space-y-4">
+          <div className="space-y-4 min-h-[260px]">
             {eventsError ? (
               <div className="rounded-3xl border border-rose-200 bg-rose-50 px-6 py-4 text-sm text-rose-700">
                 {eventsError}
               </div>
             ) : null}
 
-            {eventsLoading ? (
+            {eventsLoading && Object.keys(teamEventsByTeamId).length === 0 ? (
               <div className="rounded-3xl border border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm text-slate-500">
                 Termine werden geladen...
               </div>
@@ -782,7 +823,7 @@ export default function DashboardHome() {
           title="Naechste 5 Spiele"
           description="Die naechsten Begegnungen aller sichtbaren Mannschaften gesammelt auf dem Dashboard."
         >
-          <div className="space-y-4">
+          <div className="space-y-4 min-h-[320px]">
             {nextMatches.length ? (
               nextMatches.map(renderMatchCard)
             ) : (
@@ -797,7 +838,7 @@ export default function DashboardHome() {
           title="Letzte 5 Spiele"
           description="Die juengsten Ergebnisse und zuletzt gespielten Begegnungen aller sichtbaren Mannschaften."
         >
-          <div className="space-y-3">
+          <div className="space-y-3 min-h-[320px]">
             {previousMatches.length ? (
               previousMatches.map(renderMatchCard)
             ) : (
