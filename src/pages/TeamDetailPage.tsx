@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowDownRight,
@@ -165,6 +165,7 @@ export default function TeamDetailPage() {
     notes: "",
     fussballDeTeamId: "",
   });
+  const formInitializedForTeamIdRef = useRef<string | null>(null);
   const [teamPhotoUploading, setTeamPhotoUploading] = useState(false);
   const [teamPhotoError, setTeamPhotoError] = useState("");
   const [teamPhotoSuccess, setTeamPhotoSuccess] = useState("");
@@ -336,16 +337,48 @@ export default function TeamDetailPage() {
       return;
     }
 
-    setForm({
-      name: team.name,
-      ageGroup: team.ageGroup,
-      season: team.season,
-      trainingDay: team.trainingDay,
-      location: team.location,
-      notes: team.notes,
-      fussballDeTeamId: team.fussballDeTeamId ?? "",
-    });
-  }, [team]);
+    if (formInitializedForTeamIdRef.current !== team.id) {
+      setForm({
+        name: team.name,
+        ageGroup: team.ageGroup,
+        season: team.season,
+        trainingDay: team.trainingDay,
+        location: team.location,
+        notes: team.notes,
+        fussballDeTeamId: team.fussballDeTeamId ?? "",
+      });
+      formInitializedForTeamIdRef.current = team.id;
+      return;
+    }
+
+    if (activeSection === "verwaltung") {
+      return;
+    }
+
+    setForm((prev) => {
+      const next = {
+        name: team.name,
+        ageGroup: team.ageGroup,
+        season: team.season,
+        trainingDay: team.trainingDay,
+        location: team.location,
+        notes: team.notes,
+        fussballDeTeamId: team.fussballDeTeamId ?? "",
+      };
+      if (
+        prev.name === next.name &&
+        prev.ageGroup === next.ageGroup &&
+        prev.season === next.season &&
+        prev.trainingDay === next.trainingDay &&
+        prev.location === next.location &&
+        prev.notes === next.notes &&
+        prev.fussballDeTeamId === next.fussballDeTeamId
+      ) {
+        return prev;
+      }
+      return next;
+    };
+  }, [activeSection, team]);
 
   if (!teamId || !team) {
     return <Navigate to="/dashboard/teams" replace />;
