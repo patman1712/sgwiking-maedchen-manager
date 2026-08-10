@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import multer from 'multer'
 import { Router, type Request, type Response } from 'express'
-import db, { canUseSocialMedia, createId, DATA_DIR, getBootstrapData, getUserRowById, now } from '../db.js'
+import db, { canUseSocialMedia, createId, DATA_DIR, getBootstrapData, getUserRowById, isAdminOrBoard, now } from '../db.js'
 
 const router = Router()
 const uploadDir = path.join(DATA_DIR, 'uploads', 'social-media')
@@ -48,7 +48,7 @@ const fontStorage = multer.diskStorage({
 
 const fontUpload = multer({ storage: fontStorage })
 
-const canManageSocialMediaLibrary = (actorId: string) => getUserRowById(actorId)?.role === 'admin'
+const canManageSocialMediaLibrary = (actorId: string) => isAdminOrBoard(actorId)
 const isSharedSocialAssetUrl = (value: string) => value.startsWith('/uploads/social-media-crests/')
 
 const cleanupFiles = (files: Express.Multer.File[] | undefined) => {

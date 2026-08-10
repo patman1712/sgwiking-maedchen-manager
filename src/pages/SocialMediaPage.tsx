@@ -4223,8 +4223,8 @@ export default function SocialMediaPage() {
 
                         setSuccess(
                           editorMode === "create"
-                            ? "Posting wurde eingereicht."
-                            : "Posting wurde aktualisiert und liegt erneut zur Freigabe.",
+                            ? "Posting erfolgreich eingereicht! Es liegt jetzt im Postfach von Vorstand und Admin."
+                            : "Aenderungen wurden erfolgreich eingereicht. Posting liegt wieder im Postfach.",
                         );
                         setEditorOpen(false);
                         resetDraftEditor();

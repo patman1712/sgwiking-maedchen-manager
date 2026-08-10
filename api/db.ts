@@ -1388,7 +1388,11 @@ export const canUseSocialMedia = (userId: string) => {
     return false
   }
 
-  return row.role === 'admin' || (row.role === 'trainer' && Boolean(row.social_media_enabled))
+  return (
+    row.role === 'admin' ||
+    row.role === 'board' ||
+    (row.role === 'trainer' && Boolean(row.social_media_enabled))
+  )
 }
 
 const getVisibleConversationRows = (userId?: string | null) => {
