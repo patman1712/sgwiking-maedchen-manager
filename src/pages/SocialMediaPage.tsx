@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import { Navigate } from "react-router-dom";
 import {
   ArrowDown,
   ArrowUp,
   CopyPlus,
+  Download,
   Eye,
   EyeOff,
   Image as ImageIcon,
+  Inbox,
   Layers3,
   Pencil,
   Plus,
@@ -16,6 +19,7 @@ import {
   Type,
   X,
 } from "lucide-react";
+import * as htmlToImage from "html-to-image";
 import SectionCard from "@/components/SectionCard";
 import { optimizeImageForUpload } from "@/lib/image";
 import { cn } from "@/lib/utils";
@@ -1087,7 +1091,7 @@ export default function SocialMediaPage() {
     () => users.find((user) => user.id === currentUserId) ?? null,
     [currentUserId, users],
   );
-  const canManageSocial = currentUser?.role === "admin";
+  const canManageSocial = currentUser?.role === "admin" || currentUser?.role === "board";
   const canUseSocial =
     canManageSocial || (currentUser?.role === "trainer" && Boolean(currentUser.socialMediaEnabled));
   const isTrainerSocialUser = currentUser?.role === "trainer";
@@ -1137,9 +1141,116 @@ export default function SocialMediaPage() {
     [managedLayoutOptions, templateDrafts],
   );
   const editableDrafts = useMemo(
-    () => drafts.filter((draft) => !draft.isTemplate),
+    () =>
+      drafts.filter(
+        (draft) =>
+          !draft.isTemplate &&
+          (canManageSocial || currentUserId === draft.createdBy),
+      ),
+    [canManageSocial, currentUserId, drafts],
+  );
+  const submittedInboxDrafts = useMemo(
+    () =>
+      drafts.filter(
+        (draft) => !draft.isTemplate && draft.status === "submitted",
+      ),
     [drafts],
   );
+  const submittedPostingInboxCount = submittedInboxDrafts.length;
+
+  const downloadPostingJpg = async (draft: SocialMediaDraft) => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    setExportingJpgId(draft.id);
+    try {
+      const previewAssets = buildDraftAssets(draft, socialMediaCrests);
+      const previewLayers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
+      const pixelScale = draft.draftType === "story" ? 3 : 2.5;
+      const wrap = document.createElement("div");
+      wrap.style.position = "fixed";
+      wrap.style.left = "-100000px";
+      wrap.style.top = "0px";
+      wrap.style.pointerEvents = "none";
+      wrap.style.zIndex = "-9999";
+      document.body.appendChild(wrap);
+      const root: Root = createRoot(wrap);
+      await new Promise<void>((resolve, reject) => {
+        let settled = false;
+        try {
+          root.render(
+            <div
+              style={{
+                background: "#ffffff",
+                padding: "16px",
+                borderRadius: "32px",
+              }}
+            >
+              <div style={{ position: "relative", width: "1000px" }}>
+                <SocialPreview
+                  draftType={draft.draftType}
+                  layout={draft.layout}
+                  layers={previewLayers}
+                  assets={previewAssets}
+                  logoUrl={settings.logoUrl}
+                />
+              </div>
+            </div>,
+          );
+
+          window.setTimeout(() => {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            resolve();
+          }, 250);
+        } catch (error) {
+          settled = true;
+          reject(error);
+        }
+      });
+
+      const target = wrap.firstElementChild as HTMLElement | null;
+      if (!target) {
+        throw new Error("Vorschau konnte nicht erstellt werden.");
+      }
+
+      const dataUrl = await htmlToImage.toJpeg(target, {
+        pixelRatio: pixelScale,
+        quality: 0.95,
+        cacheBust: true,
+        backgroundColor: "#ffffff",
+      });
+
+      const slug = draft.title
+        .toLowerCase()
+        .replace(/[^a-z0-9äöüß]+/g, "-")
+        .replace(/(^-|-$)/g, "")
+        .slice(0, 60) || "posting";
+      const link = document.createElement("a");
+      link.href = dataUrl;
+      const stamp = new Date().toISOString().slice(0, 10);
+      link.download = `sg-wiking-${slug}-${stamp}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } finally {
+      setExportingJpgId(null);
+      const leftover = document.body.querySelector(
+        'body > div[style*="left: -100000px"]',
+      ) as HTMLElement | null;
+      if (leftover?.parentNode === document.body) {
+        try {
+          (leftover as HTMLElement & { _reactRoot?: Root })._reactRoot?.unmount?.();
+        } catch {
+          // ignore
+        }
+        document.body.removeChild(leftover);
+      }
+    }
+  };
   const trainerUsers = useMemo(
     () => users.filter((user) => user.role === "trainer"),
     [users],
@@ -1190,9 +1301,12 @@ export default function SocialMediaPage() {
   const [editorDraftType, setEditorDraftType] = useState<SocialMediaDraftType>("feed");
   const [editorLayout, setEditorLayout] = useState("matchday");
   const [editorTemplateName, setEditorTemplateName] = useState("");
+  const [editorPostingText, setEditorPostingText] = useState("");
+  const [editorHashtags, setEditorHashtags] = useState<string[]>(["", "", "", "", ""]);
   const [editorAssets, setEditorAssets] = useState<EditorAsset[]>([]);
   const [editorLayers, setEditorLayers] = useState<SocialMediaLayer[]>(createStarterLayers());
   const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
+  const [exportingJpgId, setExportingJpgId] = useState<string | null>(null);
 
   const [snippetForm, setSnippetForm] = useState({
     label: "",
@@ -1280,6 +1394,8 @@ export default function SocialMediaPage() {
       availableLayoutOptions[0]?.value ?? managedLayoutOptions[0]?.value ?? "matchday",
     );
     setEditorTemplateName("");
+    setEditorPostingText("");
+    setEditorHashtags(["", "", "", "", ""]);
     setEditorAssets([]);
     const starter = createStarterLayers();
     setEditorLayers(starter);
@@ -1313,6 +1429,12 @@ export default function SocialMediaPage() {
     setEditorDraftType(draft.draftType);
     setEditorLayout(draft.layout);
     setEditorTemplateName(draft.title);
+    const base = Array.from({ length: 5 }, () => "");
+    for (let index = 0; index < Math.min(5, draft.hashtags?.length ?? 0); index++) {
+      base[index] = draft.hashtags[index];
+    }
+    setEditorHashtags(base);
+    setEditorPostingText(draft.postingText ?? "");
     const assets = buildDraftAssets(draft, socialMediaCrests);
     setEditorAssets(assets);
     const layers = (draft.layers.length ? draft.layers : buildFallbackLayers(draft)).map(normalizeLayer);
@@ -1884,6 +2006,118 @@ export default function SocialMediaPage() {
                                 >
                                   <Plus size={15} />
                                   Posting starten
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
+                {canManageSocial && submittedInboxDrafts.length ? (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          Postfach eingereichte Postings
+                        </p>
+                        <p className="text-sm text-slate-600">
+                          Neue Postings von Trainern zur Freigabe. Hier Text + Bild herunterladen.
+                        </p>
+                      </div>
+                      <span className="inline-flex items-center gap-2 rounded-full bg-blue-900 px-4 py-1.5 text-xs font-semibold text-white shadow-lg shadow-blue-900/20">
+                        <Inbox size={14} />
+                        {submittedPostingInboxCount} neu
+                      </span>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {submittedInboxDrafts.map((draft) => {
+                        const previewAssets = buildDraftAssets(draft, socialMediaCrests);
+                        const previewLayers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
+                        const hashtagsLine =
+                          draft.hashtags && draft.hashtags.length > 0
+                            ? draft.hashtags.map((tag) => `#${tag}`).join(" ")
+                            : null;
+
+                        return (
+                          <div
+                            key={draft.id}
+                            className="overflow-hidden rounded-[2rem] border border-blue-200 bg-gradient-to-b from-white to-blue-50/50 shadow-sm ring-2 ring-blue-500/10"
+                          >
+                            <div className="border-b border-blue-100 bg-blue-50/70 p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-900 shadow-sm">
+                                  <Inbox size={14} />
+                                  Eingereicht
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                                    {draft.draftType === "story" ? "Story" : "Feed"}
+                                  </span>
+                                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                                    {previewLayers.length} Ebenen
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="p-4">
+                              <SocialPreview
+                                draftType={draft.draftType}
+                                layout={draft.layout}
+                                layers={previewLayers}
+                                assets={previewAssets}
+                                logoUrl={settings.logoUrl}
+                              />
+
+                              <div className="mt-4 rounded-2xl border border-blue-100 bg-white/80 p-4">
+                                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-900">
+                                  Text unter dem Posting
+                                </p>
+                                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">
+                                  {draft.postingText ? draft.postingText : "— Kein Text hinterlegt —"}
+                                </p>
+                                {hashtagsLine ? (
+                                  <p className="mt-3 text-sm font-semibold text-blue-700">
+                                    {hashtagsLine}
+                                  </p>
+                                ) : null}
+                              </div>
+
+                              <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-base font-semibold text-slate-900">{draft.title}</p>
+                                  <p className="mt-1 text-sm text-slate-600">
+                                    {getLayoutLabel(draft.layout)}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    Eingereicht am {previewDate(draft.updatedAt)}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    Von {sellerName(draft.createdBy)}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditDraft(draft)}
+                                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                >
+                                  <Pencil size={15} />
+                                  Bearbeiten
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={exportingJpgId === draft.id}
+                                  onClick={() => void downloadPostingJpg(draft)}
+                                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  <Download size={15} />
+                                  {exportingJpgId === draft.id ? "Rendert JPG..." : "JPG herunterladen"}
                                 </button>
                               </div>
                             </div>
@@ -3617,6 +3851,64 @@ export default function SocialMediaPage() {
                   </p>
                 </SectionCard>
 
+                {!editorIsTemplate ? (
+                  <SectionCard
+                    title="Posting Text & Hashtags"
+                    description="Der Text steht spaeter unter dem Bild. Hashtags werden automatisch mit # gespeichert."
+                  >
+                    <div className="space-y-4">
+                      <label className="block">
+                        <span className="mb-2 block text-sm font-medium text-slate-700">
+                          Text unter dem Posting
+                        </span>
+                        <textarea
+                          value={editorPostingText}
+                          onChange={(event) => setEditorPostingText(event.target.value)}
+                          rows={5}
+                          placeholder="z.B. Heute geht es endlich wieder los! Wir freuen uns auf einen spannenden Spieltag gegen unseren Gegner..."
+                          className="min-h-32 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                        />
+                      </label>
+
+                      <div>
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium text-slate-700">
+                            Hashtags (bis 5 Stueck)
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {editorHashtags.filter((entry) => entry.trim().length > 0).length}/5
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          {editorHashtags.map((value, index) => (
+                            <div
+                              key={index}
+                              className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 focus-within:border-blue-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-100"
+                            >
+                              <span className="text-sm font-semibold text-blue-700">#</span>
+                              <input
+                                type="text"
+                                value={value}
+                                maxLength={60}
+                                placeholder={`Hashtag ${index + 1}`}
+                                onChange={(event) => {
+                                  const clean = event.target.value
+                                    .replace(/^#+/g, "")
+                                    .replace(/[^a-zA-Z0-9ÄÖÜäöüß_]/g, "");
+                                  setEditorHashtags((current) =>
+                                    current.map((entry, idx) => (idx === index ? clean : entry)),
+                                  );
+                                }}
+                                className="flex-1 bg-transparent text-sm text-slate-900 outline-none"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </SectionCard>
+                ) : null}
+
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
@@ -3652,6 +3944,12 @@ export default function SocialMediaPage() {
                       const subtitle = getFirstLayerText(layersPayload, "subtitle");
                       const caption = getFirstLayerText(layersPayload, "caption");
                       const callToAction = getFirstLayerText(layersPayload, "cta");
+                      const normalizedHashtags = editorHashtags
+                        .map((entry) => entry.trim())
+                        .filter((entry) => entry.length > 0)
+                        .slice(0, 5);
+                      const normalizedStatus: "draft" | "submitted" =
+                        !editorIsTemplate && isTrainerSocialUser ? "submitted" : "draft";
 
                       if (editorIsTemplate) {
                         if (!editorTemplateName.trim()) {
@@ -3684,6 +3982,9 @@ export default function SocialMediaPage() {
                               imageOrder,
                               layers: layersPayload,
                               isTemplate: editorIsTemplate,
+                              postingText: editorPostingText,
+                              hashtags: normalizedHashtags,
+                              status: normalizedStatus,
                             })
                           : await updateSocialMediaDraft(editingDraftId ?? "", {
                               draftType: editorDraftType,
@@ -3702,6 +4003,9 @@ export default function SocialMediaPage() {
                               imageOrder,
                               layers: layersPayload,
                               isTemplate: editorIsTemplate,
+                              postingText: editorPostingText,
+                              hashtags: normalizedHashtags,
+                              status: normalizedStatus,
                             });
 
                       if (!result.success) {

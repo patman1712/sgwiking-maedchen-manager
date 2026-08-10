@@ -273,6 +273,9 @@ interface AppState {
     imageOrder: string[];
     layers: SocialMediaLayer[];
     isTemplate?: boolean;
+    postingText?: string;
+    hashtags?: string[];
+    status?: "draft" | "submitted";
   }) => Promise<ActionResult>;
   updateSocialMediaDraft: (
     draftId: string,
@@ -288,6 +291,10 @@ interface AppState {
       imageOrder: string[];
       layers: SocialMediaLayer[];
       isTemplate?: boolean;
+      postingText?: string;
+      hashtags?: string[];
+      status?: "draft" | "submitted";
+      setAdminNotified?: boolean;
     },
   ) => Promise<ActionResult>;
   deleteSocialMediaDraft: (draftId: string) => Promise<ActionResult>;
@@ -1599,6 +1606,15 @@ export const useAppStore = create<AppState>()(
           payload.append("imageOrder", JSON.stringify(input.imageOrder));
           payload.append("layers", JSON.stringify(input.layers));
           payload.append("isTemplate", input.isTemplate ? "true" : "false");
+          if (typeof input.postingText === "string") {
+            payload.append("postingText", input.postingText);
+          }
+          if (input.hashtags) {
+            payload.append("hashtags", JSON.stringify(input.hashtags));
+          }
+          if (input.status) {
+            payload.append("status", input.status);
+          }
 
           input.imageFiles.forEach((file) => {
             payload.append("images", file);
@@ -1642,6 +1658,18 @@ export const useAppStore = create<AppState>()(
           payload.append("imageOrder", JSON.stringify(input.imageOrder));
           payload.append("layers", JSON.stringify(input.layers));
           payload.append("isTemplate", input.isTemplate ? "true" : "false");
+          if (typeof input.postingText === "string") {
+            payload.append("postingText", input.postingText);
+          }
+          if (input.hashtags) {
+            payload.append("hashtags", JSON.stringify(input.hashtags));
+          }
+          if (input.status) {
+            payload.append("status", input.status);
+          }
+          if (typeof input.setAdminNotified === "boolean") {
+            payload.append("setAdminNotified", input.setAdminNotified ? "true" : "false");
+          }
 
           input.newImageFiles.forEach((file) => {
             payload.append("images", file);

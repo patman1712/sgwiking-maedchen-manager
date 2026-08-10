@@ -377,6 +377,10 @@ db.exec(`
     image_urls TEXT DEFAULT '[]',
     layers_json TEXT DEFAULT '[]',
     is_template INTEGER NOT NULL DEFAULT 0,
+    posting_text TEXT DEFAULT '',
+    hashtags TEXT DEFAULT '[]',
+    status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft', 'submitted')),
+    admin_notification_at TEXT,
     created_by TEXT NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -1230,6 +1234,10 @@ type SocialMediaDraftRow = {
   image_urls: string
   layers_json: string
   is_template: number
+  posting_text?: string
+  hashtags?: string
+  status?: 'draft' | 'submitted'
+  admin_notification_at?: string | null
   created_by: string
   created_at: string
   updated_at: string
@@ -1954,9 +1962,23 @@ export const getSocialMediaDrafts = (userId?: string | null) => {
       imageUrls,
       layers,
       isTemplate: Boolean(row.is_template),
+      postingText: row.posting_text || '',
+      hashtags: (() => {
+        try {
+          const parsed = JSON.parse(row.hashtags || '[]')
+          if (!Array.isArray(parsed)) return []
+          return parsed
+            .filter((entry): entry is string => typeof entry === 'string')
+            .slice(0, 10)
+        } catch {
+          return []
+        }
+      })(),
+      status: (row.status === 'submitted' ? 'submitted' : 'draft'),
       createdBy: row.created_by,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      adminNotificationAt: row.admin_notification_at ?? null,
     }
   })
 }

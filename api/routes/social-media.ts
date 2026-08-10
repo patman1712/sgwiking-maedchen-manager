@@ -222,6 +222,25 @@ const deleteDraftImages = (imageUrls: string[]) => {
   })
 }
 
+const parseHashtags = (value: string | undefined): string[] => {
+  if (!value) {
+    return []
+  }
+  try {
+    const parsed = JSON.parse(value)
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+    return parsed
+      .filter((entry): entry is string => typeof entry === 'string')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0)
+      .slice(0, 10)
+  } catch {
+    return []
+  }
+}
+
 const resolveCreateImageOrder = (imageOrder: string | undefined, uploadedImageUrls: string[]) => {
   const orderEntries = parseImageUrls(imageOrder)
   if (!orderEntries.length) {
@@ -271,7 +290,7 @@ const resolveUpdateImageOrder = (
 }
 
 router.post('/drafts', upload.array('images', 8), (req: Request, res: Response) => {
-  const { actorId, draftType, layout, title, subtitle, caption, callToAction, imageOrder, layers, isTemplate } = req.body as {
+  const { actorId, draftType, layout, title, subtitle, caption, callToAction, imageOrder, layers, isTemplate, postingText, hashtags, status } = req.body as {
     actorId?: string
     draftType?: 'feed' | 'story'
     layout?: string
@@ -282,6 +301,9 @@ router.post('/drafts', upload.array('images', 8), (req: Request, res: Response) 
     imageOrder?: string
     layers?: string
     isTemplate?: string
+    postingText?: string
+    hashtags?: string
+    status?: 'draft' | 'submitted'
   }
 
   const files = (req.files as Express.Multer.File[] | undefined) ?? []
@@ -317,6 +339,8 @@ router.post('/drafts', upload.array('images', 8), (req: Request, res: Response) 
     return
   }
 
+  const normalizedHashtags = parseHashtags(hashtags)
+  const normalizedStatus = status === 'submitted' ? 'submitted' : 'draft'
   const timestamp = now()
   const uploadedImageUrls = files.map((file) => `/uploads/social-media/${file.filename}`)
   const imageUrls = resolveCreateImageOrder(imageOrder, uploadedImageUrls)
@@ -334,11 +358,15 @@ router.post('/drafts', upload.array('images', 8), (req: Request, res: Response) 
       image_urls,
       layers_json,
       is_template,
+      posting_text,
+      hashtags,
+      status,
+      admin_notification_at,
       created_by,
       created_at,
       updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     createId('social'),
     draftType,
@@ -350,6 +378,10 @@ router.post('/drafts', upload.array('images', 8), (req: Request, res: Response) 
     JSON.stringify(imageUrls),
     JSON.stringify(mappedLayers),
     wantsTemplate ? 1 : 0,
+    (postingText || '').trim(),
+    JSON.stringify(normalizedHashtags),
+    normalizedStatus,
+    normalizedStatus === 'submitted' ? timestamp : null,
     actorId,
     timestamp,
     timestamp,
@@ -375,6 +407,10 @@ router.put('/drafts/:id', upload.array('images', 8), (req: Request, res: Respons
     imageOrder,
     layers,
     isTemplate,
+    postingText,
+    hashtags,
+    status,
+    setAdminNotified,
   } = req.body as {
     actorId?: string
     draftType?: 'feed' | 'story'
@@ -387,6 +423,10 @@ router.put('/drafts/:id', upload.array('images', 8), (req: Request, res: Respons
     imageOrder?: string
     layers?: string
     isTemplate?: string
+    postingText?: string
+    hashtags?: string
+    status?: 'draft' | 'submitted'
+    setAdminNotified?: string
   }
 
   const files = (req.files as Express.Multer.File[] | undefined) ?? []
@@ -404,8 +444,8 @@ router.put('/drafts/:id', upload.array('images', 8), (req: Request, res: Respons
   }
 
   const existingDraft = db
-    .prepare('SELECT id, image_urls, created_by, is_template FROM social_media_drafts WHERE id = ?')
-    .get(id) as { id: string; image_urls: string; created_by: string; is_template: number } | undefined
+    .prepare('SELECT id, image_urls, created_by, is_template, status, admin_notification_at FROM social_media_drafts WHERE id = ?')
+    .get(id) as { id: string; image_urls: string; created_by: string; is_template: number; status?: string; admin_notification_at?: string | null } | undefined
 
   if (!existingDraft) {
     cleanupFiles(files)
@@ -453,6 +493,14 @@ router.put('/drafts/:id', upload.array('images', 8), (req: Request, res: Respons
   const mappedLayers = remapLayerImageRefs(parseLayers(layers), uploadedImageUrls, retainedImageUrls)
   const previousImageUrls = parseImageUrls(existingDraft.image_urls)
   const removedImageUrls = previousImageUrls.filter((imageUrl) => !retainedImageUrls.includes(imageUrl))
+  const normalizedHashtags = parseHashtags(hashtags)
+  const normalizedStatus = status === 'submitted' ? 'submitted' : (status === 'draft' ? 'draft' : (existingDraft.status as 'draft' | 'submitted' | undefined) ?? 'draft')
+  const shouldFlagAdmin =
+    (setAdminNotified === 'true' && !existingDraft.admin_notification_at) ||
+    (normalizedStatus === 'submitted' && !existingDraft.admin_notification_at && existingDraft.status !== 'submitted')
+  const nextAdminNotificationAt = shouldFlagAdmin
+    ? now()
+    : (existingDraft.admin_notification_at ?? null)
 
   db.prepare(`
     UPDATE social_media_drafts
@@ -466,6 +514,10 @@ router.put('/drafts/:id', upload.array('images', 8), (req: Request, res: Respons
       image_urls = ?,
       layers_json = ?,
       is_template = ?,
+      posting_text = ?,
+      hashtags = ?,
+      status = ?,
+      admin_notification_at = ?,
       updated_at = ?
     WHERE id = ?
   `).run(
@@ -478,6 +530,10 @@ router.put('/drafts/:id', upload.array('images', 8), (req: Request, res: Respons
     JSON.stringify(finalImageUrls),
     JSON.stringify(mappedLayers),
     wantsTemplate ? 1 : 0,
+    (postingText || '').trim(),
+    JSON.stringify(normalizedHashtags),
+    normalizedStatus,
+    nextAdminNotificationAt,
     now(),
     id,
   )

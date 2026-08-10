@@ -269,9 +269,13 @@ export interface SocialMediaDraft {
   imageUrls: string[];
   layers: SocialMediaLayer[];
   isTemplate: boolean;
+  postingText: string;
+  hashtags: string[];
+  status: "draft" | "submitted";
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  adminNotificationAt?: string | null;
 }
 
 export interface SocialMediaCrest {
