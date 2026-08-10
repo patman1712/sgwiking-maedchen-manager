@@ -896,7 +896,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ ...input, actorId }),
           });
           const data = (await readJson(response)) as ApiStatePayload & { userId?: string };
-          applyPayload(set, data, get().currentUserId);
+          applyPayload(set, data, get().currentUserId, get);
 
           return { success: true, userId: data.userId };
         } catch (error) {
@@ -2056,7 +2056,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ actorId, trainerIds, playerIds }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, get().currentUserId);
+          applyPayload(set, data, get().currentUserId, get);
 
           return { success: true };
         } catch (error) {
@@ -2175,7 +2175,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({ conversationId, senderId, content }),
           });
           const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, senderId);
+          applyPayload(set, data, senderId, get);
 
           return { success: true };
         } catch (error) {

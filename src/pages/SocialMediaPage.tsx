@@ -2144,21 +2144,57 @@ export default function SocialMediaPage() {
                       {editableDrafts.map((draft) => {
                         const previewAssets = buildDraftAssets(draft, socialMediaCrests);
                         const previewLayers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
+                        const hashtagsLine =
+                          draft.hashtags && draft.hashtags.length > 0
+                            ? draft.hashtags.map((tag) => `#${tag}`).join(" ")
+                            : null;
+                        const isSubmitted = draft.status === "submitted";
+                        const canDownload = canManageSocial && isSubmitted;
 
                         return (
                           <div
                             key={draft.id}
-                            className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm"
+                            className={`overflow-hidden rounded-[2rem] border bg-white shadow-sm ${
+                              isSubmitted
+                                ? "border-blue-200 ring-2 ring-blue-500/10"
+                                : "border-slate-200"
+                            }`}
                           >
-                            <div className="border-b border-slate-100 bg-slate-50/70 p-3">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-900">
-                                  <Layers3 size={14} />
-                                  {previewLayers.length} Ebenen
+                            <div
+                              className={`border-b p-3 ${
+                                isSubmitted
+                                  ? "border-blue-100 bg-blue-50/70"
+                                  : "border-slate-100 bg-slate-50/70"
+                              }`}
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div
+                                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${
+                                    isSubmitted
+                                      ? "bg-white text-blue-900 shadow-sm"
+                                      : "bg-slate-900 text-white"
+                                  }`}
+                                >
+                                  {isSubmitted ? (
+                                    <>
+                                      <Inbox size={14} />
+                                      Eingereicht
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Layers3 size={14} />
+                                      Entwurf
+                                    </>
+                                  )}
                                 </div>
-                                <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white">
-                                  {draft.draftType === "story" ? "Story" : "Feed"}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                                    {draft.draftType === "story" ? "Story" : "Feed"}
+                                  </span>
+                                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                                    {previewLayers.length} Ebenen
+                                  </span>
+                                </div>
                               </div>
                             </div>
 
@@ -2170,6 +2206,36 @@ export default function SocialMediaPage() {
                                 assets={previewAssets}
                                 logoUrl={settings.logoUrl}
                               />
+
+                              {(draft.postingText || hashtagsLine) ? (
+                                <div
+                                  className={`mt-4 rounded-2xl border p-4 ${
+                                    isSubmitted
+                                      ? "border-blue-100 bg-white/80"
+                                      : "border-slate-100 bg-slate-50/70"
+                                  }`}
+                                >
+                                  <p
+                                    className={`text-xs font-semibold uppercase tracking-[0.16em] ${
+                                      isSubmitted ? "text-blue-900" : "text-slate-600"
+                                    }`}
+                                  >
+                                    Text unter dem Posting
+                                  </p>
+                                  <p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">
+                                    {draft.postingText ? draft.postingText : "— Kein Text hinterlegt —"}
+                                  </p>
+                                  {hashtagsLine ? (
+                                    <p
+                                      className={`mt-3 text-sm font-semibold ${
+                                        isSubmitted ? "text-blue-700" : "text-slate-700"
+                                      }`}
+                                    >
+                                      {hashtagsLine}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              ) : null}
 
                               <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
                                 <div className="min-w-0">
@@ -2184,40 +2250,59 @@ export default function SocialMediaPage() {
                                     Von {sellerName(draft.createdBy)}
                                   </p>
                                 </div>
-                                <div className="flex flex-wrap gap-2">
+                              </div>
+
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditDraft(draft)}
+                                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                >
+                                  <Pencil size={15} />
+                                  Bearbeiten
+                                </button>
+                                {canDownload ? (
                                   <button
                                     type="button"
-                                    onClick={() => openEditDraft(draft)}
-                                    className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                    disabled={exportingJpgId === draft.id}
+                                    onClick={() => void downloadPostingJpg(draft)}
+                                    className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
                                   >
-                                    <Pencil size={15} />
-                                    Bearbeiten
+                                    <Download size={15} />
+                                    {exportingJpgId === draft.id
+                                      ? "Rendert JPG..."
+                                      : "JPG herunterladen"}
                                   </button>
-                                  <button
-                                    type="button"
-                                    disabled={savingId === draft.id}
-                                    onClick={async () => {
-                                      const confirmed = window.confirm("Entwurf wirklich loeschen?");
-                                      if (!confirmed) {
-                                        return;
-                                      }
-                                      setError("");
-                                      setSuccess("");
-                                      setSavingId(draft.id);
-                                      const result = await deleteSocialMediaDraft(draft.id);
-                                      if (!result.success) {
-                                        setError(result.error ?? "Entwurf konnte nicht geloescht werden.");
-                                      } else {
-                                        setSuccess("Entwurf wurde geloescht.");
-                                      }
-                                      setSavingId(null);
-                                    }}
-                                    className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                                  >
-                                    <Trash2 size={15} />
-                                    Loeschen
-                                  </button>
-                                </div>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  disabled={savingId === draft.id}
+                                  onClick={async () => {
+                                    const confirmed = window.confirm(
+                                      "Posting wirklich loeschen?",
+                                    );
+                                    if (!confirmed) {
+                                      return;
+                                    }
+                                    setError("");
+                                    setSuccess("");
+                                    setSavingId(draft.id);
+                                    const result = await deleteSocialMediaDraft(draft.id);
+                                    if (!result.success) {
+                                      setError(
+                                        result.error ??
+                                          "Posting konnte nicht geloescht werden.",
+                                      );
+                                    } else {
+                                      setSuccess("Posting wurde geloescht.");
+                                    }
+                                    setSavingId(null);
+                                  }}
+                                  className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  <Trash2 size={15} />
+                                  Loeschen
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -3948,8 +4033,6 @@ export default function SocialMediaPage() {
                         .map((entry) => entry.trim())
                         .filter((entry) => entry.length > 0)
                         .slice(0, 5);
-                      const normalizedStatus: "draft" | "submitted" =
-                        !editorIsTemplate && isTrainerSocialUser ? "submitted" : "draft";
 
                       if (editorIsTemplate) {
                         if (!editorTemplateName.trim()) {
@@ -3984,7 +4067,6 @@ export default function SocialMediaPage() {
                               isTemplate: editorIsTemplate,
                               postingText: editorPostingText,
                               hashtags: normalizedHashtags,
-                              status: normalizedStatus,
                             })
                           : await updateSocialMediaDraft(editingDraftId ?? "", {
                               draftType: editorDraftType,
@@ -4005,14 +4087,13 @@ export default function SocialMediaPage() {
                               isTemplate: editorIsTemplate,
                               postingText: editorPostingText,
                               hashtags: normalizedHashtags,
-                              status: normalizedStatus,
                             });
 
                       if (!result.success) {
                         setError(
                           result.error ??
-                            (isTrainerSocialUser
-                              ? "Posting konnte nicht eingereicht werden."
+                            (editorIsTemplate
+                              ? "Vorlage konnte nicht gespeichert werden."
                               : "Entwurf konnte nicht gespeichert werden."),
                         );
                         setDraftSubmitting(false);
@@ -4025,18 +4106,14 @@ export default function SocialMediaPage() {
                             ? "Vorlage wurde gespeichert."
                             : "Vorlage wurde aktualisiert."
                           : editorMode === "create"
-                            ? isTrainerSocialUser
-                              ? "Posting wurde eingereicht."
-                              : "Entwurf wurde gespeichert."
-                            : isTrainerSocialUser
-                              ? "Posting wurde aktualisiert."
-                              : "Entwurf wurde aktualisiert.",
+                            ? "Entwurf wurde gespeichert."
+                            : "Entwurf wurde aktualisiert.",
                       );
                       setEditorOpen(false);
                       resetDraftEditor();
                       setDraftSubmitting(false);
                     }}
-                    className="rounded-2xl bg-gradient-to-r from-blue-900 to-sky-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-2xl border border-slate-300 bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {draftSubmitting
                       ? "Speichert..."
@@ -4044,12 +4121,124 @@ export default function SocialMediaPage() {
                         ? editorMode === "create"
                           ? "Vorlage speichern"
                           : "Vorlage aktualisieren"
-                        : isTrainerSocialUser
-                          ? trainerPostingLabel
-                          : editorMode === "create"
-                            ? "Entwurf speichern"
-                            : "Aenderungen speichern"}
+                        : editorMode === "create"
+                          ? "Als Entwurf speichern"
+                          : "Als Entwurf aktualisieren"}
                   </button>
+
+                  {!editorIsTemplate ? (
+                    <button
+                      type="button"
+                      disabled={draftSubmitting}
+                      onClick={async () => {
+                        const newAssets = editorAssets.filter(
+                          (asset): asset is Extract<EditorAsset, { kind: "new" }> =>
+                            asset.kind === "new",
+                        );
+                        const placeholderByRef = new Map(
+                          newAssets.map((asset, index) => [asset.ref, `__new_${index}__`]),
+                        );
+                        const optimizedNewFiles = await Promise.all(
+                          newAssets.map((asset) => optimizeImageForUpload(asset.file)),
+                        );
+                        const imageOrder = editorAssets.map((asset) =>
+                          asset.kind === "existing"
+                            ? asset.url
+                            : (placeholderByRef.get(asset.ref) ?? asset.ref),
+                        );
+                        const layersPayload = editorLayers.map((layer) => {
+                          const normalizedLayer = normalizeLayer(layer);
+                          return {
+                            ...normalizedLayer,
+                            imageRef: normalizedLayer.imageRef
+                              ? (placeholderByRef.get(normalizedLayer.imageRef) ?? normalizedLayer.imageRef)
+                              : undefined,
+                          };
+                        });
+                        const title = getFirstLayerText(layersPayload, "title");
+                        const subtitle = getFirstLayerText(layersPayload, "subtitle");
+                        const caption = getFirstLayerText(layersPayload, "caption");
+                        const callToAction = getFirstLayerText(layersPayload, "cta");
+                        const normalizedHashtags = editorHashtags
+                          .map((entry) => entry.trim())
+                          .filter((entry) => entry.length > 0)
+                          .slice(0, 5);
+
+                        if (!title) {
+                          setError("Bitte mindestens eine Titel-Ebene mit Inhalt anlegen.");
+                          return;
+                        }
+
+                        setError("");
+                        setSuccess("");
+                        setDraftSubmitting(true);
+
+                        const result =
+                          editorMode === "create"
+                            ? await addSocialMediaDraft({
+                                draftType: editorDraftType,
+                                layout: editorLayout,
+                                title,
+                                subtitle,
+                                caption,
+                                callToAction,
+                                imageFiles: optimizedNewFiles,
+                                imageOrder,
+                                layers: layersPayload,
+                                isTemplate: false,
+                                postingText: editorPostingText,
+                                hashtags: normalizedHashtags,
+                                status: "submitted",
+                              })
+                            : await updateSocialMediaDraft(editingDraftId ?? "", {
+                                draftType: editorDraftType,
+                                layout: editorLayout,
+                                title,
+                                subtitle,
+                                caption,
+                                callToAction,
+                                existingImageUrls: editorAssets
+                                  .filter(
+                                    (asset): asset is Extract<EditorAsset, { kind: "existing" }> =>
+                                      asset.kind === "existing",
+                                  )
+                                  .map((asset) => asset.url),
+                                newImageFiles: optimizedNewFiles,
+                                imageOrder,
+                                layers: layersPayload,
+                                isTemplate: false,
+                                postingText: editorPostingText,
+                                hashtags: normalizedHashtags,
+                                status: "submitted",
+                                setAdminNotified: true,
+                              });
+
+                        if (!result.success) {
+                          setError(
+                            result.error ?? "Posting konnte nicht eingereicht werden.",
+                          );
+                          setDraftSubmitting(false);
+                          return;
+                        }
+
+                        setSuccess(
+                          editorMode === "create"
+                            ? "Posting wurde eingereicht."
+                            : "Posting wurde aktualisiert und liegt erneut zur Freigabe.",
+                        );
+                        setEditorOpen(false);
+                        resetDraftEditor();
+                        setDraftSubmitting(false);
+                      }}
+                      className="rounded-2xl bg-gradient-to-r from-blue-900 to-sky-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {draftSubmitting
+                        ? "Speichert..."
+                        : editorMode === "create"
+                          ? "Posting einreichen"
+                          : "Aenderungen einreichen"}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => setEditorOpen(false)}

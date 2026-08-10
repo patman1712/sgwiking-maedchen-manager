@@ -377,7 +377,7 @@ export default function TeamDetailPage() {
         return prev;
       }
       return next;
-    };
+    });
   }, [activeSection, team]);
 
   if (!teamId || !team) {
