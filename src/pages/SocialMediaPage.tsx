@@ -6,6 +6,7 @@ import {
   ArrowUp,
   CopyPlus,
   Download,
+  Droplet,
   Eye,
   EyeOff,
   Image as ImageIcon,
@@ -241,21 +242,21 @@ function createLayer(
     },
     caption: {
       kind: "caption",
-      label: "Textkarte",
-      position: "bottomCenter",
-      style: "glass",
-      text: "Hier kommt euer Textbaustein hinein.",
+      label: "Text",
+      position: "center",
+      style: "clean",
+      text: "Dein Text hier",
       enabled: true,
       lockPosition: false,
       lockSize: false,
       fontFamily: "Inter",
-      fontSize: 16,
-      textColor: "#f8fafc",
-      textAlign: "left",
-      textEffect: "none",
+      fontSize: 20,
+      textColor: "#ffffff",
+      textAlign: "center",
+      textEffect: "shadow",
       strokeColor: "#0f172a",
       strokeWidth: 0,
-      lineHeight: 1.5,
+      lineHeight: 1.4,
       letterSpacing: 0,
     },
     cta: {
@@ -3754,8 +3755,25 @@ export default function SocialMediaPage() {
                                 <span className="mb-2 block text-sm font-medium text-slate-700">
                                   Schriftfarbe
                                 </span>
-                                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                                <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm transition hover:border-slate-300">
+                                  <label
+                                    htmlFor={`text-color-${activeLayer.id}`}
+                                    className="group flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 active:scale-[0.98]"
+                                    title="Klicken zum Oeffnen des Farbwaehlers"
+                                  >
+                                    <span
+                                      className="h-7 w-7 rounded-lg border border-slate-300 shadow-inner transition group-hover:scale-105"
+                                      style={{
+                                        backgroundColor:
+                                          activeLayer.textColor ??
+                                          getDefaultTextAppearance(activeLayer).textColor,
+                                      }}
+                                    />
+                                    <Droplet size={16} className="text-blue-700" />
+                                    <span>Farbe wählen</span>
+                                  </label>
                                   <input
+                                    id={`text-color-${activeLayer.id}`}
                                     type="color"
                                     value={
                                       activeLayer.textColor ?? getDefaultTextAppearance(activeLayer).textColor
@@ -3765,7 +3783,7 @@ export default function SocialMediaPage() {
                                         textColor: event.target.value,
                                       })
                                     }
-                                    className="h-11 w-14 cursor-pointer rounded-xl border-0 bg-transparent p-0"
+                                    className="sr-only h-0 w-0"
                                   />
                                   <input
                                     value={
@@ -3776,7 +3794,7 @@ export default function SocialMediaPage() {
                                         textColor: event.target.value,
                                       })
                                     }
-                                    className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                    className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm uppercase outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                                   />
                                 </div>
                               </label>
@@ -3785,8 +3803,25 @@ export default function SocialMediaPage() {
                                 <span className="mb-2 block text-sm font-medium text-slate-700">
                                   Konturfarbe
                                 </span>
-                                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                                <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm transition hover:border-slate-300">
+                                  <label
+                                    htmlFor={`stroke-color-${activeLayer.id}`}
+                                    className="group flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 active:scale-[0.98]"
+                                    title="Klicken zum Oeffnen des Farbwaehlers"
+                                  >
+                                    <span
+                                      className="h-7 w-7 rounded-lg border border-slate-300 shadow-inner transition group-hover:scale-105"
+                                      style={{
+                                        backgroundColor:
+                                          activeLayer.strokeColor ??
+                                          getDefaultTextAppearance(activeLayer).strokeColor,
+                                      }}
+                                    />
+                                    <Droplet size={16} className="text-slate-700" />
+                                    <span>Farbe wählen</span>
+                                  </label>
                                   <input
+                                    id={`stroke-color-${activeLayer.id}`}
                                     type="color"
                                     value={
                                       activeLayer.strokeColor ?? getDefaultTextAppearance(activeLayer).strokeColor
@@ -3796,7 +3831,7 @@ export default function SocialMediaPage() {
                                         strokeColor: event.target.value,
                                       })
                                     }
-                                    className="h-11 w-14 cursor-pointer rounded-xl border-0 bg-transparent p-0"
+                                    className="sr-only h-0 w-0"
                                   />
                                   <input
                                     value={
@@ -3807,7 +3842,7 @@ export default function SocialMediaPage() {
                                         strokeColor: event.target.value,
                                       })
                                     }
-                                    className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                    className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm uppercase outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                                   />
                                 </div>
                               </label>
