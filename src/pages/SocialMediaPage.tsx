@@ -1301,6 +1301,7 @@ export default function SocialMediaPage() {
   const [editorDraftType, setEditorDraftType] = useState<SocialMediaDraftType>("feed");
   const [editorLayout, setEditorLayout] = useState("matchday");
   const [editorTemplateName, setEditorTemplateName] = useState("");
+  const [editorTitle, setEditorTitle] = useState("");
   const [editorPostingText, setEditorPostingText] = useState("");
   const [editorHashtags, setEditorHashtags] = useState<string[]>(["", "", "", "", ""]);
   const [editorAssets, setEditorAssets] = useState<EditorAsset[]>([]);
@@ -1394,6 +1395,7 @@ export default function SocialMediaPage() {
       availableLayoutOptions[0]?.value ?? managedLayoutOptions[0]?.value ?? "matchday",
     );
     setEditorTemplateName("");
+    setEditorTitle("");
     setEditorPostingText("");
     setEditorHashtags(["", "", "", "", ""]);
     setEditorAssets([]);
@@ -1429,6 +1431,7 @@ export default function SocialMediaPage() {
     setEditorDraftType(draft.draftType);
     setEditorLayout(draft.layout);
     setEditorTemplateName(draft.title);
+    setEditorTitle(mode === "edit" && !asTemplate ? draft.title : "");
     const base = Array.from({ length: 5 }, () => "");
     for (let index = 0; index < Math.min(5, draft.hashtags?.length ?? 0); index++) {
       base[index] = draft.hashtags[index];
@@ -1561,8 +1564,11 @@ export default function SocialMediaPage() {
   };
 
   const addSharedAssetToEditor = (imageUrl: string, label?: string) => {
+    let createdRef = imageUrl;
+    let alreadyExisted = false;
     setEditorAssets((current) => {
       if (current.some((asset) => asset.ref === imageUrl)) {
+        alreadyExisted = true;
         return current;
       }
 
@@ -1576,6 +1582,11 @@ export default function SocialMediaPage() {
         },
       ];
     });
+    if (!alreadyExisted) {
+      const baseLayer = createLayer("image", { imageRef: createdRef });
+      setEditorLayers((currentLayers) => [...currentLayers, normalizeLayer(baseLayer)]);
+      setActiveLayerId(baseLayer.id);
+    }
   };
 
   const insertSnippet = (snippetText: string) => {
@@ -2934,21 +2945,23 @@ export default function SocialMediaPage() {
                         {editorIsTemplate ? "Vorlagenname" : "Titel"}
                       </span>
                       <input
-                        value={
-                          editorIsTemplate
-                            ? editorTemplateName
-                            : primaryTitleLayer?.text ?? ""
-                        }
-                        onChange={(event) => updatePrimaryTitle(event.target.value)}
+                        value={editorIsTemplate ? editorTemplateName : editorTitle}
+                        onChange={(event) => {
+                          if (editorIsTemplate) {
+                            setEditorTemplateName(event.target.value);
+                          } else {
+                            setEditorTitle(event.target.value);
+                          }
+                        }}
                         placeholder={
-                          editorIsTemplate ? "Name der Vorlage" : "Titel fuer Feed oder Story"
+                          editorIsTemplate ? "Name der Vorlage" : "Name fuer dieses Posting (nur zur Uebersicht)"
                         }
                         className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                       />
                       <p className="mt-2 text-xs text-slate-500">
                         {editorIsTemplate
                           ? "Hier kannst du die Vorlage direkt umbenennen."
-                          : "Der Titel wird aus der ersten Titel-Ebene gespeichert."}
+                          : "Der Titel dient nur der Uebersicht - Text im Bild selbst kannst du als Text-Ebene unten hinzufuegen."}
                       </p>
                     </label>
 
@@ -3032,6 +3045,22 @@ export default function SocialMediaPage() {
                                 };
                               });
                               setEditorAssets((current) => [...current, ...mapped]);
+
+                              if (mapped.length > 0) {
+                                setEditorLayers((currentLayers) => {
+                                  const layers: SocialMediaLayer[] = [];
+                                  let activeRef = "";
+                                  for (const asset of mapped) {
+                                    const baseLayer = createLayer("image", { imageRef: asset.ref });
+                                    layers.push(normalizeLayer(baseLayer));
+                                    activeRef = baseLayer.id;
+                                  }
+                                  if (layers.length > 0 && activeRef) {
+                                    setActiveLayerId(activeRef);
+                                  }
+                                  return [...currentLayers, ...layers];
+                                });
+                              }
                               event.target.value = "";
                             }}
                           />
@@ -3112,16 +3141,16 @@ export default function SocialMediaPage() {
                         onClick={() => addLayer("caption")}
                         className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                       >
-                        <SquareStack size={15} />
-                        Textkarte
+                        <Type size={15} />
+                        Text
                       </button>
                       <button
                         type="button"
                         onClick={() => addLayer("badge")}
                         className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                       >
-                        <Type size={15} />
-                        Badge
+                        <SquareStack size={15} />
+                        Badges
                       </button>
                     </div>
                   }
@@ -3222,57 +3251,59 @@ export default function SocialMediaPage() {
                         />
                       </label>
 
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <label className="block">
-                          <span className="mb-2 block text-sm font-medium text-slate-700">
-                            Ebenentyp
-                          </span>
-                          <select
-                            value={activeLayer.kind}
-                            onChange={(event) => {
-                              const kind = event.target.value as SocialMediaLayerKind;
-                              const layerDefaults = createLayer(kind);
-                              const geometryPatch =
-                                kind === "image"
-                                  ? getDefaultImageGeometry({
-                                      position: layerDefaults.position,
-                                      style: layerDefaults.style,
-                                    })
-                                  : getDefaultTextGeometry({
-                                      kind,
-                                      position: layerDefaults.position,
-                                    });
-                              updateLayer(activeLayer.id, {
-                                kind,
-                                style: layerDefaults.style,
-                                position: layerDefaults.position,
-                                fontFamily: layerDefaults.fontFamily,
-                                fontSize: layerDefaults.fontSize,
-                                textColor: layerDefaults.textColor,
-                                textAlign: layerDefaults.textAlign,
-                                textEffect: layerDefaults.textEffect,
-                                imageRef:
+                      <div className={`grid gap-4 ${activeLayer.kind === "image" || activeLayer.kind === "badge" || editorIsTemplate ? "md:grid-cols-2" : ""}`}>
+                        {(activeLayer.kind === "image" || activeLayer.kind === "badge" || editorIsTemplate) ? (
+                          <label className="block">
+                            <span className="mb-2 block text-sm font-medium text-slate-700">
+                              Ebenentyp
+                            </span>
+                            <select
+                              value={activeLayer.kind}
+                              onChange={(event) => {
+                                const kind = event.target.value as SocialMediaLayerKind;
+                                const layerDefaults = createLayer(kind);
+                                const geometryPatch =
                                   kind === "image"
-                                    ? activeLayer.imageRef ?? editorAssets[0]?.ref
-                                    : undefined,
-                                text:
-                                  kind === "image"
-                                    ? ""
-                                    : activeLayer.kind === "image"
-                                      ? layerDefaults.text
-                                      : activeLayer.text,
-                                ...geometryPatch,
-                              });
-                            }}
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                          >
-                            {layerKindOptions.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                                    ? getDefaultImageGeometry({
+                                        position: layerDefaults.position,
+                                        style: layerDefaults.style,
+                                      })
+                                    : getDefaultTextGeometry({
+                                        kind,
+                                        position: layerDefaults.position,
+                                      });
+                                updateLayer(activeLayer.id, {
+                                  kind,
+                                  style: layerDefaults.style,
+                                  position: layerDefaults.position,
+                                  fontFamily: layerDefaults.fontFamily,
+                                  fontSize: layerDefaults.fontSize,
+                                  textColor: layerDefaults.textColor,
+                                  textAlign: layerDefaults.textAlign,
+                                  textEffect: layerDefaults.textEffect,
+                                  imageRef:
+                                    kind === "image"
+                                      ? activeLayer.imageRef ?? editorAssets[0]?.ref
+                                      : undefined,
+                                  text:
+                                    kind === "image"
+                                      ? ""
+                                      : activeLayer.kind === "image"
+                                        ? layerDefaults.text
+                                        : activeLayer.text,
+                                  ...geometryPatch,
+                                });
+                              }}
+                              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                            >
+                              {layerKindOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : null}
 
                         <label className="block">
                           <span className="mb-2 block text-sm font-medium text-slate-700">
@@ -3361,24 +3392,26 @@ export default function SocialMediaPage() {
                         </div>
                       ) : null}
 
-                      <label className="block">
-                        <span className="mb-2 block text-sm font-medium text-slate-700">Stil</span>
-                        <select
-                          value={activeLayer.style}
-                          onChange={(event) =>
-                            updateLayer(activeLayer.id, {
-                              style: event.target.value as SocialMediaLayerStyle,
-                            })
-                          }
-                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                        >
-                          {styleOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      {(activeLayer.kind === "image" || activeLayer.kind === "badge" || editorIsTemplate) ? (
+                        <label className="block">
+                          <span className="mb-2 block text-sm font-medium text-slate-700">Stil</span>
+                          <select
+                            value={activeLayer.style}
+                            onChange={(event) =>
+                              updateLayer(activeLayer.id, {
+                                style: event.target.value as SocialMediaLayerStyle,
+                              })
+                            }
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                          >
+                            {styleOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
 
                       {activeLayer.kind === "image" ? (
                         <div className="space-y-4">
@@ -3830,52 +3863,54 @@ export default function SocialMediaPage() {
                               />
                             </label>
 
-                            <div className="mt-4 grid gap-4 md:grid-cols-2">
-                              <label className="block">
-                                <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
-                                  <span>Zeilenabstand</span>
-                                  <span className="font-semibold text-slate-900">
-                                    {(activeLayer.lineHeight ?? getDefaultTextAppearance(activeLayer).lineHeight).toFixed(2)}
-                                  </span>
-                                </div>
-                                <input
-                                  type="range"
-                                  min={0.8}
-                                  max={3}
-                                  step={0.05}
-                                  value={activeLayer.lineHeight ?? getDefaultTextAppearance(activeLayer).lineHeight}
-                                  onChange={(event) =>
-                                    updateLayer(activeLayer.id, {
-                                      lineHeight: Number(event.target.value),
-                                    })
-                                  }
-                                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
-                                />
-                              </label>
+                            {(activeLayer.kind === "badge" || editorIsTemplate) ? (
+                              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                <label className="block">
+                                  <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
+                                    <span>Zeilenabstand</span>
+                                    <span className="font-semibold text-slate-900">
+                                      {(activeLayer.lineHeight ?? getDefaultTextAppearance(activeLayer).lineHeight).toFixed(2)}
+                                    </span>
+                                  </div>
+                                  <input
+                                    type="range"
+                                    min={0.8}
+                                    max={3}
+                                    step={0.05}
+                                    value={activeLayer.lineHeight ?? getDefaultTextAppearance(activeLayer).lineHeight}
+                                    onChange={(event) =>
+                                      updateLayer(activeLayer.id, {
+                                        lineHeight: Number(event.target.value),
+                                      })
+                                    }
+                                    className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
+                                  />
+                                </label>
 
-                              <label className="block">
-                                <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
-                                  <span>Laufweite</span>
-                                  <span className="font-semibold text-slate-900">
-                                    {(activeLayer.letterSpacing ?? getDefaultTextAppearance(activeLayer).letterSpacing).toFixed(0)}
-                                    px
-                                  </span>
-                                </div>
-                                <input
-                                  type="range"
-                                  min={-10}
-                                  max={80}
-                                  step={0.5}
-                                  value={activeLayer.letterSpacing ?? getDefaultTextAppearance(activeLayer).letterSpacing}
-                                  onChange={(event) =>
-                                    updateLayer(activeLayer.id, {
-                                      letterSpacing: Number(event.target.value),
-                                    })
-                                  }
-                                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
-                                />
-                              </label>
-                            </div>
+                                <label className="block">
+                                  <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
+                                    <span>Laufweite</span>
+                                    <span className="font-semibold text-slate-900">
+                                      {(activeLayer.letterSpacing ?? getDefaultTextAppearance(activeLayer).letterSpacing).toFixed(0)}
+                                      px
+                                    </span>
+                                  </div>
+                                  <input
+                                    type="range"
+                                    min={-10}
+                                    max={80}
+                                    step={0.5}
+                                    value={activeLayer.letterSpacing ?? getDefaultTextAppearance(activeLayer).letterSpacing}
+                                    onChange={(event) =>
+                                      updateLayer(activeLayer.id, {
+                                        letterSpacing: Number(event.target.value),
+                                      })
+                                    }
+                                    className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
+                                  />
+                                </label>
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       )}
@@ -4025,7 +4060,7 @@ export default function SocialMediaPage() {
                       });
                       const title = editorIsTemplate
                         ? editorTemplateName.trim()
-                        : getFirstLayerText(layersPayload, "title");
+                        : editorTitle.trim();
                       const subtitle = getFirstLayerText(layersPayload, "subtitle");
                       const caption = getFirstLayerText(layersPayload, "caption");
                       const callToAction = getFirstLayerText(layersPayload, "cta");
@@ -4044,7 +4079,7 @@ export default function SocialMediaPage() {
                           return;
                         }
                       } else if (!title) {
-                        setError("Bitte mindestens eine Titel-Ebene mit Inhalt anlegen.");
+                        setError("Bitte gib einen Titel fuer das Posting ein.");
                         return;
                       }
 
@@ -4155,7 +4190,7 @@ export default function SocialMediaPage() {
                               : undefined,
                           };
                         });
-                        const title = getFirstLayerText(layersPayload, "title");
+                        const title = editorTitle.trim();
                         const subtitle = getFirstLayerText(layersPayload, "subtitle");
                         const caption = getFirstLayerText(layersPayload, "caption");
                         const callToAction = getFirstLayerText(layersPayload, "cta");
@@ -4165,7 +4200,7 @@ export default function SocialMediaPage() {
                           .slice(0, 5);
 
                         if (!title) {
-                          setError("Bitte mindestens eine Titel-Ebene mit Inhalt anlegen.");
+                          setError("Bitte gib einen Titel fuer das Posting ein.");
                           return;
                         }
 
