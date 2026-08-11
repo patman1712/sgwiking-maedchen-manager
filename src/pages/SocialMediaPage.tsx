@@ -673,10 +673,12 @@ function getTextClasses(layer: SocialMediaLayer) {
       );
     case "caption":
       return cn(
-        "whitespace-pre-wrap rounded-[1.75rem] px-4 py-4 text-sm leading-6 md:px-5",
-        layer.style === "solid"
-          ? "bg-slate-900 text-white shadow-[0_18px_50px_rgba(15,23,42,0.2)]"
-          : "border border-slate-200 bg-slate-50 text-slate-800 shadow-[0_18px_50px_rgba(15,23,42,0.08)]",
+        "whitespace-pre-wrap text-sm leading-6",
+        layer.style === "clean"
+          ? "px-0 py-0"
+          : layer.style === "solid"
+            ? "rounded-[1.75rem] px-4 py-4 md:px-5 bg-slate-900 text-white shadow-[0_18px_50px_rgba(15,23,42,0.2)]"
+            : "rounded-[1.75rem] border border-slate-200 bg-slate-50 text-slate-800 px-4 py-4 md:px-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)]",
       );
     default:
       return "text-sm text-slate-900";

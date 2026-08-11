@@ -226,7 +226,8 @@ export type SocialMediaLayerStyle =
   | "cutout"
   | "glass"
   | "solid"
-  | "pill";
+  | "pill"
+  | "clean";
 
 export type SocialMediaTextAlign = "left" | "center" | "right";
 
