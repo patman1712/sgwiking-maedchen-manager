@@ -449,18 +449,18 @@ function getTextLayerGeometry(layer: Pick<
   "kind" | "position" | "centerX" | "centerY" | "widthPercent" | "heightPercent"
 >) {
   const defaults = getDefaultTextGeometry(layer);
-  const widthPercent = sanitizePercent(layer.widthPercent, defaults.widthPercent, 18, 100);
-  const heightPercent = sanitizePercent(layer.heightPercent, defaults.heightPercent, 6, 80);
+  const widthPercent = sanitizePercent(layer.widthPercent, defaults.widthPercent, 6, 140);
+  const heightPercent = sanitizePercent(layer.heightPercent, defaults.heightPercent, 4, 120);
 
   return {
     widthPercent,
     heightPercent,
-    centerX: sanitizePercent(layer.centerX, defaults.centerX, widthPercent / 2, 100 - widthPercent / 2),
+    centerX: sanitizePercent(layer.centerX, defaults.centerX, 0, 100),
     centerY: sanitizePercent(
       layer.centerY,
       defaults.centerY,
-      heightPercent / 2,
-      100 - heightPercent / 2,
+      0,
+      100,
     ),
   };
 }
