@@ -415,8 +415,10 @@ function getDefaultTextGeometry(layer: Pick<SocialMediaLayer, "kind" | "position
     cta: { widthPercent: 44, heightPercent: 10 },
   };
 
+  const effectivePosition =
+    layer.position === "full" ? ("center" as SocialMediaLayerPosition) : layer.position;
   return {
-    ...getPlacementByPosition(layer.position),
+    ...getPlacementByPosition(effectivePosition),
     ...sizeByKind[layer.kind],
   };
 }
@@ -3338,7 +3340,10 @@ export default function SocialMediaPage() {
                             }}
                             className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            {positionOptions.map((option) => (
+                            {(activeLayer.kind === "image"
+                              ? positionOptions
+                              : positionOptions.filter((o) => o.value !== "full")
+                            ).map((option) => (
                               <option key={option.value} value={option.value}>
                                 {option.label}
                               </option>
@@ -3752,6 +3757,9 @@ export default function SocialMediaPage() {
                                   ))}
                                 </select>
                               </label>
+                            </div>
+
+                            <div className="mt-4 space-y-4">
 
                               <label className="block">
                                 <span className="mb-2 block text-sm font-medium text-slate-700">
