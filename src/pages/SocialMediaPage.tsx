@@ -14,6 +14,7 @@ import {
   Layers3,
   Pencil,
   Plus,
+  Shield,
   Sparkles,
   SquareStack,
   Trash2,
@@ -3071,6 +3072,65 @@ export default function SocialMediaPage() {
                           />
                         </label>
                       </div>
+
+                      {socialMediaCrests.length ? (
+                        <div className="mt-5 border-t border-slate-200 pt-5">
+                          <div className="mb-3 flex items-center gap-2">
+                            <div className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-blue-900 to-blue-700 text-white shadow-sm">
+                              <Shield size={16} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-slate-900">
+                                Wappen & Logos (Schnellauswahl)
+                              </p>
+                              <p className="text-xs text-slate-600">
+                                1 Klick = Direkt als PNG-Bild-Ebene im Layout einfuegen
+                              </p>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-2 xl:grid-cols-3">
+                            {socialMediaCrests.map((crest) => {
+                              const isUsed = editorAssets.some((asset) => asset.ref === crest.imageUrl);
+                              return (
+                                <button
+                                  key={crest.id}
+                                  type="button"
+                                  onClick={() => addSharedAssetToEditor(crest.imageUrl, crest.id)}
+                                  className="group overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
+                                >
+                                  <div className="flex h-24 items-center justify-center rounded-xl bg-gradient-to-br from-slate-50 via-white to-slate-100">
+                                    <img
+                                      src={crest.imageUrl}
+                                      alt={crest.name || "Wappen"}
+                                      className="max-h-full max-w-full object-contain p-2 transition duration-200 group-hover:scale-110"
+                                    />
+                                  </div>
+                                  <div className="mt-3 flex items-center justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <p className="truncate text-xs font-semibold text-slate-900">
+                                        {crest.name || "Wappen"}
+                                      </p>
+                                      <p className="truncate text-[10px] text-slate-500">
+                                        {isUsed ? "✓ Bereits im Asset-Pool" : "Klick zum Einfügen"}
+                                      </p>
+                                    </div>
+                                    <div
+                                      className={cn(
+                                        "inline-flex h-8 shrink-0 items-center justify-center rounded-xl px-2 text-[10px] font-bold transition",
+                                        isUsed
+                                          ? "bg-emerald-100 text-emerald-700"
+                                          : "bg-gradient-to-br from-blue-900 to-blue-700 text-white",
+                                      )}
+                                    >
+                                      {isUsed ? "Da" : "+ Einf."}
+                                    </div>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
 
                       {editorAssets.length ? (
                         <div className="mt-4 grid grid-cols-2 gap-3">
