@@ -1540,6 +1540,45 @@ export default function SocialMediaPage() {
   const resolveEditorAssetUrl = (ref?: string) =>
     editorAssets.find((asset) => asset.ref === ref)?.url;
 
+  const probeNaturalImageRatio = async (imageUrl: string) => {
+    return new Promise<{ ratio: number; width: number; height: number }>((resolve, reject) => {
+      const probe = new Image();
+      probe.onload = () => {
+        if (!probe.naturalWidth || !probe.naturalHeight) {
+          reject(new Error("Bild-Masse nicht lesbar."));
+          return;
+        }
+        resolve({
+          ratio: probe.naturalWidth / probe.naturalHeight,
+          width: probe.naturalWidth,
+          height: probe.naturalHeight,
+        });
+      };
+      probe.onerror = () => reject(new Error("Bild konnte nicht geladen werden."));
+      probe.src = imageUrl;
+    });
+  };
+
+  const initializeImageLayerWithNaturalRatio = async (layerId: string, imageUrl: string) => {
+    try {
+      const { ratio } = await probeNaturalImageRatio(imageUrl);
+
+      const defaultInitialWidth = ratio >= 1 ? 46 : 36;
+      const fittedHeight = clamp(Math.round(defaultInitialWidth / ratio), 12, 100);
+      const finalWidth = clamp(Math.round(fittedHeight * ratio), 12, 100);
+      const finalHeight = clamp(Math.round(finalWidth / ratio), 12, 100);
+
+      updateLayer(layerId, {
+        keepAspectRatio: true,
+        baseAspectRatio: ratio,
+        widthPercent: finalWidth,
+        heightPercent: finalHeight,
+      });
+    } catch {
+      void layerId;
+    }
+  };
+
   const lockImageLayerAspectRatio = async (
     layerId: string,
     imageRef?: string,
@@ -1557,18 +1596,7 @@ export default function SocialMediaPage() {
     }
 
     try {
-      const naturalRatio = await new Promise<number>((resolve, reject) => {
-        const probe = new Image();
-        probe.onload = () => {
-          if (!probe.naturalWidth || !probe.naturalHeight) {
-            reject(new Error("Bild-Masse nicht lesbar."));
-            return;
-          }
-          resolve(probe.naturalWidth / probe.naturalHeight);
-        };
-        probe.onerror = () => reject(new Error("Bild konnte nicht geladen werden."));
-        probe.src = rawImageUrl;
-      });
+      const { ratio: naturalRatio } = await probeNaturalImageRatio(rawImageUrl);
 
       const currentGeometry = getImageLayerGeometry(layerSnapshot);
 
@@ -1632,11 +1660,15 @@ export default function SocialMediaPage() {
 
   const addLayer = (kind: SocialMediaLayerKind) => {
     const firstAssetRef = editorAssets[0]?.ref;
+    const firstAssetUrl = editorAssets[0]?.url;
     const nextLayer = normalizeLayer(
       createLayer(kind, kind === "image" ? { imageRef: firstAssetRef } : {}),
     );
     setEditorLayers((current) => [...current, nextLayer]);
     setActiveLayerId(nextLayer.id);
+    if (kind === "image" && firstAssetUrl) {
+      void initializeImageLayerWithNaturalRatio(nextLayer.id, firstAssetUrl);
+    }
   };
 
   const removeLayer = (layerId: string) => {
@@ -1689,6 +1721,7 @@ export default function SocialMediaPage() {
       const baseLayer = createLayer("image", { imageRef: createdRef });
       setEditorLayers((currentLayers) => [...currentLayers, normalizeLayer(baseLayer)]);
       setActiveLayerId(baseLayer.id);
+      void initializeImageLayerWithNaturalRatio(baseLayer.id, imageUrl);
     }
   };
 
@@ -3153,14 +3186,21 @@ export default function SocialMediaPage() {
                                 setEditorLayers((currentLayers) => {
                                   const layers: SocialMediaLayer[] = [];
                                   let activeRef = "";
+                                  const initJobs: Array<{ layerId: string; assetUrl: string }> = [];
                                   for (const asset of mapped) {
                                     const baseLayer = createLayer("image", { imageRef: asset.ref });
                                     layers.push(normalizeLayer(baseLayer));
                                     activeRef = baseLayer.id;
+                                    initJobs.push({ layerId: baseLayer.id, assetUrl: asset.url });
                                   }
                                   if (layers.length > 0 && activeRef) {
                                     setActiveLayerId(activeRef);
                                   }
+                                  setTimeout(() => {
+                                    for (const job of initJobs) {
+                                      void initializeImageLayerWithNaturalRatio(job.layerId, job.assetUrl);
+                                    }
+                                  }, 0);
                                   return [...currentLayers, ...layers];
                                 });
                               }
