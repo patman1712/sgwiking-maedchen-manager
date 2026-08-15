@@ -248,6 +248,8 @@ export interface SocialMediaLayer {
   heightPercent?: number;
   lockPosition?: boolean;
   lockSize?: boolean;
+  keepAspectRatio?: boolean;
+  baseAspectRatio?: number;
   fontFamily?: string;
   fontSize?: number;
   textColor?: string;

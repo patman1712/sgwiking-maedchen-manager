@@ -804,8 +804,26 @@ function SocialPreview({
         return;
       }
 
-      const widthPercent = clamp(interaction.startWidthPercent + deltaXPercent * 2, 12, 100);
-      const heightPercent = clamp(interaction.startHeightPercent + deltaYPercent * 2, 12, 100);
+      const rawWidthPercent = clamp(interaction.startWidthPercent + deltaXPercent * 2, 12, 100);
+      const rawHeightPercent = clamp(interaction.startHeightPercent + deltaYPercent * 2, 12, 100);
+
+      let widthPercent = rawWidthPercent;
+      let heightPercent = rawHeightPercent;
+
+      if (layer.keepAspectRatio && typeof layer.baseAspectRatio === "number" && layer.baseAspectRatio > 0) {
+        const ratio = layer.baseAspectRatio;
+        const fromWidthHeight = Math.max(12, Math.min(100, Math.round(rawWidthPercent / ratio)));
+        const deltaFromWidth = Math.abs(rawWidthPercent - interaction.startWidthPercent);
+        const deltaFromHeight = Math.abs(rawHeightPercent - interaction.startHeightPercent);
+        if (deltaFromWidth >= deltaFromHeight) {
+          widthPercent = rawWidthPercent;
+          heightPercent = fromWidthHeight;
+        } else {
+          heightPercent = rawHeightPercent;
+          widthPercent = Math.max(12, Math.min(100, Math.round(rawHeightPercent * ratio)));
+        }
+      }
+
       const centerX = clamp(
         interaction.startCenterX,
         widthPercent / 2,
@@ -3504,32 +3522,93 @@ export default function SocialMediaPage() {
                           </label>
 
                           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                            <div className="mb-3 flex items-center justify-between gap-3">
+                            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                               <div>
                                 <p className="text-sm font-semibold text-slate-900">Bildgeometrie</p>
                                 <p className="text-xs text-slate-500">
                                   In der Vorschau frei ziehen oder hier exakt einstellen.
                                 </p>
                               </div>
-                              <button
-                                type="button"
-                                disabled={activeLayerPositionLocked || activeLayerSizeLocked}
-                                onClick={() =>
-                                  updateLayer(activeLayer.id, {
-                                    ...getDefaultImageGeometry({
-                                      position: activeLayer.position,
-                                      style: activeLayer.style,
-                                    }),
-                                  })
-                                }
-                                className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                Zuruecksetzen
-                              </button>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                  type="button"
+                                  disabled={activeLayerPositionLocked || activeLayerSizeLocked}
+                                  onClick={() => {
+                                    const ratio = activeLayer.keepAspectRatio
+                                      ? activeLayer.baseAspectRatio
+                                      : undefined;
+                                    updateLayer(activeLayer.id, {
+                                      ...getDefaultImageGeometry({
+                                        position: activeLayer.position,
+                                        style: activeLayer.style,
+                                      }),
+                                      ...(ratio ? { keepAspectRatio: true, baseAspectRatio: ratio } : {}),
+                                    });
+                                  }}
+                                  className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  Zuruecksetzen
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={activeLayerSizeLocked}
+                                  onClick={() => {
+                                    const geometry = getImageLayerGeometry(activeLayer);
+                                    const currentlyLocked = Boolean(activeLayer.keepAspectRatio);
+                                    if (currentlyLocked) {
+                                      updateLayer(activeLayer.id, {
+                                        keepAspectRatio: false,
+                                      });
+                                    } else {
+                                      const ratio =
+                                        geometry.widthPercent / Math.max(geometry.heightPercent, 0.001);
+                                      updateLayer(activeLayer.id, {
+                                        keepAspectRatio: true,
+                                        baseAspectRatio: ratio,
+                                      });
+                                    }
+                                  }}
+                                  className={
+                                    "inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 " +
+                                    (activeLayer.keepAspectRatio
+                                      ? "border-blue-200 bg-blue-600 text-white shadow-md shadow-blue-500/20 hover:bg-blue-700"
+                                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100")
+                                  }
+                                  title={
+                                    activeLayer.keepAspectRatio
+                                      ? "Seitenverhältnis entsperren – frei transformieren"
+                                      : "Seitenverhältnis sperren – Breite & Höhe im Verhältnis halten"
+                                  }
+                                >
+                                  {activeLayer.keepAspectRatio ? (
+                                    <>
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="4" y="10" width="16" height="11" rx="2.5" />
+                                        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                                      </svg>
+                                      Verhältnis gesperrt
+                                    </>
+                                  ) : (
+                                    <>
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="4" y="10" width="16" height="11" rx="2.5" />
+                                        <path d="M8 10V7a4 4 0 0 1 7.5-1.8" />
+                                        <path d="M13 4l1.8 1.8L17 4" />
+                                      </svg>
+                                      Verhältnis frei
+                                    </>
+                                  )}
+                                </button>
+                              </div>
                             </div>
 
                             {(() => {
                               const geometry = getImageLayerGeometry(activeLayer);
+                              const baseRatio =
+                                activeLayer.baseAspectRatio ??
+                                geometry.widthPercent / Math.max(geometry.heightPercent, 0.001);
+                              const ratioLocked = Boolean(activeLayer.keepAspectRatio);
+
                               const controls = [
                                 {
                                   key: "centerX",
@@ -3537,6 +3616,7 @@ export default function SocialMediaPage() {
                                   value: geometry.centerX,
                                   min: geometry.widthPercent / 2,
                                   max: 100 - geometry.widthPercent / 2,
+                                  kind: "position" as const,
                                 },
                                 {
                                   key: "centerY",
@@ -3544,20 +3624,23 @@ export default function SocialMediaPage() {
                                   value: geometry.centerY,
                                   min: geometry.heightPercent / 2,
                                   max: 100 - geometry.heightPercent / 2,
+                                  kind: "position" as const,
                                 },
                                 {
                                   key: "widthPercent",
-                                  label: "Breite",
+                                  label: ratioLocked ? "Breite (Höhe folgt automatisch)" : "Breite",
                                   value: geometry.widthPercent,
                                   min: 12,
                                   max: 100,
+                                  kind: "size" as const,
                                 },
                                 {
                                   key: "heightPercent",
-                                  label: "Hoehe",
+                                  label: ratioLocked ? "Höhe (Breite folgt automatisch)" : "Hoehe",
                                   value: geometry.heightPercent,
                                   min: 12,
                                   max: 100,
+                                  kind: "size" as const,
                                 },
                               ] as const;
 
@@ -3578,15 +3661,56 @@ export default function SocialMediaPage() {
                                         step={1}
                                         value={control.value}
                                         disabled={
-                                          (control.key === "centerX" || control.key === "centerY")
+                                          control.kind === "position"
                                             ? activeLayerPositionLocked
                                             : activeLayerSizeLocked
                                         }
-                                        onChange={(event) =>
-                                          updateLayer(activeLayer.id, {
-                                            [control.key]: Number(event.target.value),
-                                          } as Partial<SocialMediaLayer>)
-                                        }
+                                        onChange={(event) => {
+                                          const rawValue = Number(event.target.value);
+                                          if (control.kind === "position") {
+                                            updateLayer(activeLayer.id, {
+                                              [control.key]: rawValue,
+                                            } as Partial<SocialMediaLayer>);
+                                            return;
+                                          }
+                                          if (!ratioLocked) {
+                                            updateLayer(activeLayer.id, {
+                                              [control.key]: rawValue,
+                                            } as Partial<SocialMediaLayer>);
+                                            return;
+                                          }
+                                          if (control.key === "widthPercent") {
+                                            const nextWidth = rawValue;
+                                            const nextHeight = Math.max(
+                                              12,
+                                              Math.min(100, Math.round(nextWidth / baseRatio)),
+                                            );
+                                            const clampedWidth =
+                                              Math.max(
+                                                12,
+                                                Math.min(100, Math.round(nextHeight * baseRatio)),
+                                              ) ?? nextWidth;
+                                            updateLayer(activeLayer.id, {
+                                              widthPercent: clampedWidth,
+                                              heightPercent: nextHeight,
+                                            });
+                                          } else {
+                                            const nextHeight = rawValue;
+                                            const nextWidth = Math.max(
+                                              12,
+                                              Math.min(100, Math.round(nextHeight * baseRatio)),
+                                            );
+                                            const clampedHeight =
+                                              Math.max(
+                                                12,
+                                                Math.min(100, Math.round(nextWidth / baseRatio)),
+                                              ) ?? nextHeight;
+                                            updateLayer(activeLayer.id, {
+                                              widthPercent: nextWidth,
+                                              heightPercent: clampedHeight,
+                                            });
+                                          }
+                                        }}
                                         className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                                       />
                                     </label>
