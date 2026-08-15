@@ -682,8 +682,8 @@ router.delete('/:id', (req: Request, res: Response) => {
     const timestamp = now()
 
     const socialMediaDrafts = db
-      .prepare("SELECT id, image_urls, layers FROM social_media_drafts WHERE created_by = ?")
-      .all(id) as Array<{ id: string; image_urls: string | null; layers: string | null }>
+      .prepare("SELECT id, image_urls, layers_json FROM social_media_drafts WHERE created_by = ?")
+      .all(id) as Array<{ id: string; image_urls: string | null; layers_json: string | null }>
 
     const socialMediaFilesToDelete = new Set<string>()
     socialMediaDrafts.forEach((draft) => {
@@ -698,8 +698,8 @@ router.delete('/:id', (req: Request, res: Response) => {
             })
           }
         }
-        if (draft.layers) {
-          const parsed = JSON.parse(draft.layers) as unknown as Array<{ imageRef?: unknown }>
+        if (draft.layers_json) {
+          const parsed = JSON.parse(draft.layers_json) as unknown as Array<{ imageRef?: unknown }>
           if (Array.isArray(parsed)) {
             parsed.forEach((layer) => {
               if (typeof layer.imageRef === 'string' && layer.imageRef.startsWith('/uploads/social-media/')) {
