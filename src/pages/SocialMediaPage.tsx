@@ -133,7 +133,8 @@ const positionOptions: Array<{ value: SocialMediaLayerPosition; label: string }>
 ];
 
 const styleOptions: Array<{ value: SocialMediaLayerStyle; label: string }> = [
-  { value: "cover", label: "Cover" },
+  { value: "original", label: "Original (ohne Zuschneiden)" },
+  { value: "cover", label: "Cover (füllt aus)" },
   { value: "soft", label: "Soft" },
   { value: "cutout", label: "Cutout" },
   { value: "glass", label: "Glass" },
@@ -163,17 +164,18 @@ function createLayer(
     image: {
       kind: "image",
       label: "Bild",
-      position: "full",
-      style: "cover",
+      position: "center",
+      style: "original",
       imageRef: undefined,
       text: "",
       enabled: true,
       centerX: 50,
       centerY: 50,
-      widthPercent: 100,
-      heightPercent: 100,
+      widthPercent: 40,
+      heightPercent: 40,
       lockPosition: false,
       lockSize: false,
+      keepAspectRatio: true,
       fontFamily: undefined,
       fontSize: undefined,
       textColor: undefined,
@@ -472,6 +474,8 @@ function getImageStyleClasses(style: SocialMediaLayerStyle, full = false) {
   }
 
   switch (style) {
+    case "original":
+      return "rounded-[1.5rem] border-0 object-contain shadow-[0_20px_60px_rgba(15,23,42,0.16)]";
     case "soft":
       return "rounded-[1.75rem] border border-slate-200 object-cover opacity-95 shadow-[0_24px_60px_rgba(15,23,42,0.14)]";
     case "cutout":
@@ -482,6 +486,8 @@ function getImageStyleClasses(style: SocialMediaLayerStyle, full = false) {
       return "rounded-full border-4 border-white object-cover shadow-[0_16px_50px_rgba(15,23,42,0.18)]";
     case "solid":
       return "rounded-[1.25rem] border border-blue-950/20 object-cover shadow-[0_20px_40px_rgba(15,23,42,0.2)]";
+    case "clean":
+      return "rounded-[1.5rem] border-0 object-cover";
     default:
       return "rounded-[1.75rem] border border-slate-200 object-cover shadow-[0_24px_60px_rgba(15,23,42,0.18)]";
   }

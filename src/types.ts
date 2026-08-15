@@ -222,6 +222,7 @@ export type SocialMediaLayerPosition =
 
 export type SocialMediaLayerStyle =
   | "cover"
+  | "original"
   | "soft"
   | "cutout"
   | "glass"
