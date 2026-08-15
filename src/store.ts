@@ -950,10 +950,23 @@ export const useAppStore = create<AppState>()(
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ actorId }),
           });
-          const data = (await readJson(response)) as ApiStatePayload;
-          applyPayload(set, data, actorId, get);
+          const raw = (await readJson(response)) as unknown as Record<
+            string,
+            unknown
+          >;
 
-          return { success: true };
+          if (raw.success === true) {
+            applyPayload(set, raw as unknown as ApiStatePayload, actorId, get);
+            return { success: true };
+          }
+
+          return {
+            success: false,
+            error:
+              typeof raw.error === "string"
+                ? raw.error
+                : "Person konnte nicht geloescht werden.",
+          };
         } catch (error) {
           return {
             success: false,
