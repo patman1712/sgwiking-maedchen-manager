@@ -1544,12 +1544,12 @@ export default function SocialMediaPage() {
     layerId: string,
     imageRef?: string,
   ) => {
-    const layer = editorLayers.find((entry) => entry.id === layerId);
-    if (!layer) return;
+    const layerSnapshot = editorLayers.find((entry) => entry.id === layerId);
+    if (!layerSnapshot) return;
 
-    const rawImageUrl = resolveEditorAssetUrl(imageRef ?? layer.imageRef);
+    const rawImageUrl = resolveEditorAssetUrl(imageRef ?? layerSnapshot.imageRef);
     if (!rawImageUrl) {
-      const geometry = getImageLayerGeometry(layer);
+      const geometry = getImageLayerGeometry(layerSnapshot);
       const fallbackRatio =
         geometry.widthPercent / Math.max(geometry.heightPercent, 0.001);
       updateLayer(layerId, { keepAspectRatio: true, baseAspectRatio: fallbackRatio });
@@ -1570,20 +1570,29 @@ export default function SocialMediaPage() {
         probe.src = rawImageUrl;
       });
 
-      const currentGeometry = getImageLayerGeometry(layer);
-      const clampedWidth = clamp(currentGeometry.widthPercent, 12, 100);
-      const heightFromWidth = clamp(
-        Math.round(clampedWidth / naturalRatio),
+      const currentGeometry = getImageLayerGeometry(layerSnapshot);
+
+      const desiredWidth = currentGeometry.widthPercent;
+      const desiredHeight = Math.round(desiredWidth / naturalRatio);
+
+      if (desiredHeight >= 12 && desiredHeight <= 100) {
+        updateLayer(layerId, {
+          keepAspectRatio: true,
+          baseAspectRatio: naturalRatio,
+          widthPercent: desiredWidth,
+          heightPercent: desiredHeight,
+        });
+        return;
+      }
+
+      const heightAsMaster = clamp(desiredHeight, 12, 100);
+      const widthFromHeight = clamp(
+        Math.round(heightAsMaster * naturalRatio),
         12,
         100,
       );
-      const finalWidth = clamp(
-        Math.round(heightFromWidth * naturalRatio),
-        12,
-        100,
-      );
-      const finalHeight = clamp(
-        Math.round(finalWidth / naturalRatio),
+      const heightFinal = clamp(
+        Math.round(widthFromHeight / naturalRatio),
         12,
         100,
       );
@@ -1591,14 +1600,19 @@ export default function SocialMediaPage() {
       updateLayer(layerId, {
         keepAspectRatio: true,
         baseAspectRatio: naturalRatio,
-        widthPercent: finalWidth,
-        heightPercent: finalHeight,
+        widthPercent: widthFromHeight,
+        heightPercent: heightFinal,
       });
     } catch {
-      const geometry = getImageLayerGeometry(layer);
+      const geometry = getImageLayerGeometry(layerSnapshot);
       const fallbackRatio =
         geometry.widthPercent / Math.max(geometry.heightPercent, 0.001);
-      updateLayer(layerId, { keepAspectRatio: true, baseAspectRatio: fallbackRatio });
+      updateLayer(layerId, {
+        keepAspectRatio: true,
+        baseAspectRatio: fallbackRatio,
+        widthPercent: geometry.widthPercent,
+        heightPercent: geometry.heightPercent,
+      });
     }
   };
 
