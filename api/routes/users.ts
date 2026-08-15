@@ -17,7 +17,9 @@ import db, {
 
 const router = Router()
 const uploadDir = path.join(DATA_DIR, 'uploads', 'players')
+const socialMediaUploadDir = path.join(DATA_DIR, 'uploads', 'social-media')
 fs.mkdirSync(uploadDir, { recursive: true })
+fs.mkdirSync(socialMediaUploadDir, { recursive: true })
 
 const playerDocumentColumns = {
   member: 'is_member_file_url',
@@ -667,22 +669,79 @@ router.delete('/:id', (req: Request, res: Response) => {
     return
   }
 
-  if (!isAdminOrBoard(actorId)) {
-    res.status(403).json({ success: false, error: 'Personen koennen nur von Admin oder Vorstand geloescht werden.' })
-    return
-  }
+  const isSelfDelete = actorId === id
+  const canDeleteOther = isAdminOrBoard(actorId)
 
-  if (actorId === id) {
-    res.status(400).json({ success: false, error: 'Du kannst deinen eigenen Account nicht loeschen.' })
+  if (!isSelfDelete && !canDeleteOther) {
+    res.status(403).json({ success: false, error: 'Personen koennen nur von Admin oder Vorstand geloescht werden.' })
     return
   }
 
   const affectedTeamIds = getTeamIdsByUserId(id)
   const timestamp = now()
 
+  const socialMediaDrafts = db
+    .prepare("SELECT id, image_urls, layers FROM social_media_drafts WHERE created_by = ?")
+    .all(id) as Array<{ id: string; image_urls: string | null; layers: string | null }>
+
+  const socialMediaFilesToDelete = new Set<string>()
+  socialMediaDrafts.forEach((draft) => {
+    try {
+      if (draft.image_urls) {
+        const parsed = JSON.parse(draft.image_urls) as unknown
+        if (Array.isArray(parsed)) {
+          parsed.forEach((url) => {
+            if (typeof url === 'string' && url.startsWith('/uploads/social-media/')) {
+              socialMediaFilesToDelete.add(path.basename(url.split('?')[0]))
+            }
+          })
+        }
+      }
+      if (draft.layers) {
+        const parsed = JSON.parse(draft.layers) as unknown as Array<{ imageRef?: unknown }>
+        if (Array.isArray(parsed)) {
+          parsed.forEach((layer) => {
+            if (typeof layer.imageRef === 'string' && layer.imageRef.startsWith('/uploads/social-media/')) {
+              socialMediaFilesToDelete.add(path.basename(layer.imageRef.split('?')[0]))
+            }
+          })
+        }
+      }
+    } catch {
+      // ignore malformed JSON, skip
+    }
+  })
+
   db.transaction(() => {
     db.prepare('DELETE FROM users WHERE id = ?').run(id)
   })()
+
+  socialMediaFilesToDelete.forEach((filename) => {
+    try {
+      const fullPath = path.join(socialMediaUploadDir, filename)
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath)
+      }
+    } catch {
+      // ignore
+    }
+  })
+
+  if (typeof (user as Record<string, unknown>).avatar_url) {
+    const clean = String((user as Record<string, unknown>).avatar_url)
+    if (clean.startsWith('/uploads/')) {
+      try {
+        const filename = path.basename(clean.split('?')[0])
+        const folder = clean.includes('/players/') ? uploadDir : path.join(DATA_DIR, 'uploads')
+        const fullPath = path.join(folder, filename)
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath)
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
 
   if (user.role === 'player') {
     const prefix = `player-${id}-`
@@ -708,7 +767,9 @@ router.delete('/:id', (req: Request, res: Response) => {
 
   res.json({
     success: true,
-    ...getBootstrapData(actorId),
+    ...(isSelfDelete
+      ? { currentUser: null, users: [], teams: [], conversations: [], bootstrapComplete: false }
+      : getBootstrapData(actorId)),
   })
 })
 
