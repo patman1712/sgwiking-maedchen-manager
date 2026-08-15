@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { Plus, X } from "lucide-react";
+import { AlertTriangle, Plus, Trash2, X } from "lucide-react";
 import SectionCard from "@/components/SectionCard";
 import { optimizeImageForUpload } from "@/lib/image";
 import { useAppStore } from "@/store";
@@ -115,6 +115,7 @@ export default function PeopleManagementPage({
   const currentUserId = useAppStore((state) => state.currentUserId);
   const addUser = useAppStore((state) => state.addUser);
   const updateUser = useAppStore((state) => state.updateUser);
+  const deleteUser = useAppStore((state) => state.deleteUser);
   const uploadPlayerDocument = useAppStore((state) => state.uploadPlayerDocument);
   const navigate = useNavigate();
   const [form, setForm] = useState(createEmptyForm(role));
@@ -123,6 +124,9 @@ export default function PeopleManagementPage({
   const [showFormModal, setShowFormModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [confirmDeleteText, setConfirmDeleteText] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const currentUser = useMemo(
     () => users.find((user) => user.id === currentUserId) ?? null,
     [currentUserId, users],
@@ -192,6 +196,9 @@ export default function PeopleManagementPage({
     setError("");
     setForm(createEmptyForm(role));
     setDocumentFiles(createEmptyDocumentFiles());
+    setConfirmDeleteOpen(false);
+    setConfirmDeleteText("");
+    setDeleting(false);
     setShowFormModal(false);
   };
 
@@ -669,28 +676,175 @@ export default function PeopleManagementPage({
                 />
               </label>
 
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {saving
-                    ? "Wird gespeichert..."
-                    : selectedUserId
-                      ? `${config.roleLabel} speichern`
-                      : `${config.roleLabel} anlegen`}
-                </button>
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  disabled={saving}
-                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                >
-                  Abbrechen
-                </button>
+              <div className="space-y-4 pt-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:space-y-0">
+                <div>
+                  {selectedUserId &&
+                  canManageFromMenu &&
+                  currentUserId !== selectedUserId ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError("");
+                        setConfirmDeleteText("");
+                        setConfirmDeleteOpen(true);
+                      }}
+                      disabled={saving || deleting}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-300 bg-gradient-to-r from-rose-600 to-rose-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-600/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 sm:w-auto"
+                    >
+                      <Trash2 size={16} />
+                      {config.roleLabel} löschen
+                    </button>
+                  ) : null}
+                </div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+                  <button
+                    type="submit"
+                    disabled={saving || deleting}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                  >
+                    {saving
+                      ? "Wird gespeichert..."
+                      : selectedUserId
+                        ? `${config.roleLabel} speichern`
+                        : `${config.roleLabel} anlegen`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    disabled={saving || deleting}
+                    className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Abbrechen
+                  </button>
+                </div>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {confirmDeleteOpen && selectedUserId ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm"
+          onClick={() => {
+            if (!deleting) {
+              setConfirmDeleteOpen(false);
+              setConfirmDeleteText("");
+            }
+          }}
+        >
+          <div
+            className="w-full max-w-xl rounded-[2rem] border border-rose-200 bg-white p-8 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-rose-100 text-rose-700">
+                <AlertTriangle className="h-7 w-7" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-slate-900">
+                  {config.roleLabel} wirklich UNWIDERRUFLICH löschen?
+                </h2>
+                <p className="mt-2 text-sm text-slate-600">
+                  Du bist im Begriff,{" "}
+                  <strong className="text-slate-900">
+                    {form.fullName || "diese Person"}
+                  </strong>{" "}
+                  als {config.roleLabel.toLowerCase()} zu löschen.
+                </p>
+                <p className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+                  <strong>Achtung, das passiert alles unwiderruflich:</strong>
+                  <br />• Der Login-Account wird sofort <strong>ungültig</strong>.
+                  <br />• <strong>Alle persönlichen Daten</strong> (Name, E-Mail, Telefon,
+                  Notizen, Passwort) werden aus der Datenbank gelöscht.
+                  <br />• Team-Zuordnungen, Zu- / Absagen, gesendete Chat-Nachrichten und
+                  erstellte Termine werden kaskadiert entfernt.
+                  <br />• Alle Social Media Postings / Entwürfe{" "}
+                  <strong>und hochgeladenen Bilder</strong> werden vom Server gelöscht.
+                  <br />• Profilbilder und (bei Spielerinnen) alle Dokumente werden physisch
+                  von der Festplatte gelöscht.
+                  <br />• <strong>Kein „Papierkorb" – keine Wiederherstellung möglich!</strong>
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 rounded-3xl border border-dashed border-rose-300 bg-rose-50/60 p-4">
+              {(() => {
+                const fallback =
+                  config.roleLabel + " " + selectedUserId.slice(-6).toUpperCase();
+                const expected = `LÖSCHEN ${form.fullName || fallback}`;
+                return (
+                  <>
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-semibold text-rose-900">
+                        Zur Bestätigung tippe folgenden Text GENAU ein:
+                      </span>
+                      <div className="mb-3 overflow-x-auto rounded-2xl border border-rose-200 bg-white px-4 py-3 font-mono text-sm font-bold tracking-wider text-rose-900">
+                        {expected}
+                      </div>
+                      <input
+                        type="text"
+                        autoFocus
+                        disabled={deleting}
+                        value={confirmDeleteText}
+                        onChange={(event) => setConfirmDeleteText(event.target.value)}
+                        placeholder={expected}
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-rose-500 focus:ring-4 focus:ring-rose-100 disabled:bg-slate-100"
+                      />
+                    </label>
+                    {error ? (
+                      <div className="mt-4 rounded-2xl border border-rose-200 bg-white px-4 py-3 text-sm text-rose-700">
+                        {error}
+                      </div>
+                    ) : null}
+
+                    <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                      <button
+                        type="button"
+                        disabled={deleting}
+                        onClick={() => {
+                          setConfirmDeleteOpen(false);
+                          setConfirmDeleteText("");
+                          setError("");
+                        }}
+                        className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Abbrechen
+                      </button>
+                      <button
+                        type="button"
+                        disabled={deleting || confirmDeleteText.trim() !== expected}
+                        onClick={async () => {
+                          setDeleting(true);
+                          setError("");
+                          try {
+                            const result = await deleteUser(selectedUserId);
+                            if (!result.success) {
+                              setError(
+                                result.error ??
+                                  `${config.roleLabel} konnte nicht gelöscht werden. Bitte später nochmal versuchen.`,
+                              );
+                              return;
+                            }
+                            setConfirmDeleteOpen(false);
+                            setConfirmDeleteText("");
+                            resetForm();
+                          } finally {
+                            setDeleting(false);
+                          }
+                        }}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-rose-700 to-rose-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-700/25 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {deleting
+                          ? "Daten werden vom Server entfernt..."
+                          : `Ja, ${config.roleLabel} ENDGÜLTIG löschen`}
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
           </div>
         </div>
       ) : null}
