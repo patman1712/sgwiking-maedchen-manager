@@ -1537,6 +1537,71 @@ export default function SocialMediaPage() {
     );
   };
 
+  const resolveEditorAssetUrl = (ref?: string) =>
+    editorAssets.find((asset) => asset.ref === ref)?.url;
+
+  const lockImageLayerAspectRatio = async (
+    layerId: string,
+    imageRef?: string,
+  ) => {
+    const layer = editorLayers.find((entry) => entry.id === layerId);
+    if (!layer) return;
+
+    const rawImageUrl = resolveEditorAssetUrl(imageRef ?? layer.imageRef);
+    if (!rawImageUrl) {
+      const geometry = getImageLayerGeometry(layer);
+      const fallbackRatio =
+        geometry.widthPercent / Math.max(geometry.heightPercent, 0.001);
+      updateLayer(layerId, { keepAspectRatio: true, baseAspectRatio: fallbackRatio });
+      return;
+    }
+
+    try {
+      const naturalRatio = await new Promise<number>((resolve, reject) => {
+        const probe = new Image();
+        probe.onload = () => {
+          if (!probe.naturalWidth || !probe.naturalHeight) {
+            reject(new Error("Bild-Masse nicht lesbar."));
+            return;
+          }
+          resolve(probe.naturalWidth / probe.naturalHeight);
+        };
+        probe.onerror = () => reject(new Error("Bild konnte nicht geladen werden."));
+        probe.src = rawImageUrl;
+      });
+
+      const currentGeometry = getImageLayerGeometry(layer);
+      const clampedWidth = clamp(currentGeometry.widthPercent, 12, 100);
+      const heightFromWidth = clamp(
+        Math.round(clampedWidth / naturalRatio),
+        12,
+        100,
+      );
+      const finalWidth = clamp(
+        Math.round(heightFromWidth * naturalRatio),
+        12,
+        100,
+      );
+      const finalHeight = clamp(
+        Math.round(finalWidth / naturalRatio),
+        12,
+        100,
+      );
+
+      updateLayer(layerId, {
+        keepAspectRatio: true,
+        baseAspectRatio: naturalRatio,
+        widthPercent: finalWidth,
+        heightPercent: finalHeight,
+      });
+    } catch {
+      const geometry = getImageLayerGeometry(layer);
+      const fallbackRatio =
+        geometry.widthPercent / Math.max(geometry.heightPercent, 0.001);
+      updateLayer(layerId, { keepAspectRatio: true, baseAspectRatio: fallbackRatio });
+    }
+  };
+
   const moveLayer = (layerId: string, direction: -1 | 1) => {
     setEditorLayers((current) => {
       const index = current.findIndex((layer) => layer.id === layerId);
@@ -3553,20 +3618,12 @@ export default function SocialMediaPage() {
                                   type="button"
                                   disabled={activeLayerSizeLocked}
                                   onClick={() => {
-                                    const geometry = getImageLayerGeometry(activeLayer);
                                     const currentlyLocked = Boolean(activeLayer.keepAspectRatio);
                                     if (currentlyLocked) {
-                                      updateLayer(activeLayer.id, {
-                                        keepAspectRatio: false,
-                                      });
-                                    } else {
-                                      const ratio =
-                                        geometry.widthPercent / Math.max(geometry.heightPercent, 0.001);
-                                      updateLayer(activeLayer.id, {
-                                        keepAspectRatio: true,
-                                        baseAspectRatio: ratio,
-                                      });
+                                      updateLayer(activeLayer.id, { keepAspectRatio: false });
+                                      return;
                                     }
+                                    void lockImageLayerAspectRatio(activeLayer.id, activeLayer.imageRef);
                                   }}
                                   className={
                                     "inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 " +
