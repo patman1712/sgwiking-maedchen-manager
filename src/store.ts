@@ -12,6 +12,8 @@ import type {
   Message,
   PendingPlayerApplication,
   PlayerDocumentType,
+  SocialMediaAsset,
+  SocialMediaAssetFolder,
   SocialMediaCrest,
   SocialMediaLayer,
   SocialMediaDraft,

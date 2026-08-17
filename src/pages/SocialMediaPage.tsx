@@ -2802,6 +2802,126 @@ export default function SocialMediaPage() {
                   description="PNG mit transparentem Hintergrund eignet sich hier ideal fuer freigestellte Vereinswappen."
                 >
               <div className="space-y-4">
+                <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Asset-Bibliothek öffnen</p>
+                      <p className="text-xs text-slate-600">
+                        Alle Wappen, Logos und freigegebenen Bilder in Ordnern verwalten.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedAssetFolderId("__crests__");
+                        setAssetLibraryOpen(true);
+                      }}
+                      className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-br from-blue-900 to-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-95"
+                    >
+                      <FolderKanban size={16} />
+                      Asset-Bibliothek (Ordner öffnen)
+                    </button>
+                  </div>
+                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedAssetFolderId("__crests__");
+                        setAssetLibraryOpen(true);
+                      }}
+                      className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
+                    >
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-900 to-blue-700 text-white shadow-sm">
+                        <Shield size={20} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-900">Wappen & Logos</p>
+                        <p className="truncate text-xs text-slate-500">
+                          {socialMediaCrests.length} Elemente · Systemordner
+                        </p>
+                      </div>
+                    </button>
+                    {sortedAssetFolders.slice(0, 2).map((folder) => {
+                      const count = socialMediaAssets.filter(
+                        (asset) => asset.folderId === folder.id,
+                      ).length;
+                      return (
+                        <button
+                          key={folder.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedAssetFolderId(folder.id);
+                            setAssetLibraryOpen(true);
+                          }}
+                          className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
+                        >
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-sky-500 text-white shadow-sm">
+                            <Folder size={20} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-900">{folder.name}</p>
+                            <p className="truncate text-xs text-slate-500">{count} Elemente</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                    {(unassignedAssetCount > 0 || sortedAssetFolders.length >= 2) ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedAssetFolderId("__unassigned__");
+                          setAssetLibraryOpen(true);
+                        }}
+                        className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
+                      >
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-500 to-slate-400 text-white shadow-sm">
+                          <Archive size={20} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-900">Nicht zugeordnet</p>
+                          <p className="truncate text-xs text-slate-500">
+                            {unassignedAssetCount} Elemente
+                          </p>
+                        </div>
+                      </button>
+                    ) : null}
+                  </div>
+                  {canManageSocial ? (
+                    <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-slate-600">
+                          Neuer Ordner (Admin / Vorstand)
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Lege z.B. Spielpläne, Trikots, Sponsoren als Gruppe an.
+                        </p>
+                      </div>
+                      <input
+                        type="text"
+                        value={newAssetFolderName}
+                        onChange={(event) => setNewAssetFolderName(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            void handleCreateAssetFolder();
+                          }
+                        }}
+                        placeholder="z. B. Spielpläne 2026"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 md:max-w-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleCreateAssetFolder()}
+                        disabled={newAssetFolderBusy || !newAssetFolderName.trim()}
+                        className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-br from-emerald-700 to-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 disabled:opacity-50"
+                      >
+                        <FolderPlus size={16} />
+                        Ordner anlegen
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+
                 {canManageSocial ? (
                   <form
                     className="space-y-3 rounded-3xl border border-slate-200 bg-slate-50 p-4"

@@ -2115,7 +2115,7 @@ export const createSocialMediaAssetFolder = (input: { actorId: string; name: str
   if (!isAdminOrBoard(input.actorId)) throw new Error('Zugriff verweigert.')
   const name = input.name.trim()
   if (!name) throw new Error('Ordnername fehlt.')
-  const id = createId()
+  const id = createId('smaf')
   const timestamp = now()
   db.prepare(
     'INSERT INTO social_media_asset_folders (id, name, sort_order, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -2160,7 +2160,7 @@ export const createSocialMediaAsset = (input: {
 }) => {
   if (!canUseSocialMedia(input.actorId)) throw new Error('Zugriff verweigert.')
   const name = input.name.trim() || 'Asset'
-  const id = createId()
+  const id = createId('sma')
   const timestamp = now()
   db.prepare(
     'INSERT INTO social_media_assets (id, folder_id, name, image_url, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
