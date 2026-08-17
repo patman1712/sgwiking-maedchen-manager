@@ -291,6 +291,25 @@ export interface SocialMediaCrest {
   updatedAt: string;
 }
 
+export interface SocialMediaAssetFolder {
+  id: string;
+  name: string;
+  sortOrder: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SocialMediaAsset {
+  id: string;
+  folderId: string | null;
+  name: string;
+  imageUrl: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface SocialMediaTextSnippet {
   id: string;
   label: string;

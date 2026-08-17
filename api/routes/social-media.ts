@@ -2,7 +2,19 @@ import fs from 'fs'
 import path from 'path'
 import multer from 'multer'
 import { Router, type Request, type Response } from 'express'
-import db, { canUseSocialMedia, createId, DATA_DIR, getBootstrapData, getUserRowById, isAdminOrBoard, now } from '../db.js'
+import db, {
+  canUseSocialMedia,
+  createId,
+  createSocialMediaAsset,
+  createSocialMediaAssetFolder,
+  DATA_DIR,
+  deleteSocialMediaAsset,
+  deleteSocialMediaAssetFolder,
+  getBootstrapData,
+  getUserRowById,
+  isAdminOrBoard,
+  now,
+} from '../db.js'
 
 const router = Router()
 const uploadDir = path.join(DATA_DIR, 'uploads', 'social-media')
@@ -889,6 +901,156 @@ router.delete('/fonts/:id', (req: Request, res: Response) => {
   const filePath = path.join(fontUploadDir, path.basename(font.file_url))
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath)
+  }
+
+  res.json({
+    success: true,
+    ...getBootstrapData(actorId),
+  })
+})
+
+router.post('/asset-folders', (req: Request, res: Response) => {
+  const actorId = req.body?.actorId as string | undefined
+  const name = req.body?.name as string | undefined
+  const sortOrder = req.body?.sortOrder as number | undefined
+
+  if (!actorId) {
+    res.status(400).json({ success: false, error: 'Fehlender Benutzerkontext.' })
+    return
+  }
+
+  if (!canManageSocialMediaLibrary(actorId)) {
+    res.status(403).json({ success: false, error: 'Ordner koennen nur vom Admin / Vorstand angelegt werden.' })
+    return
+  }
+
+  if (!name?.trim()) {
+    res.status(400).json({ success: false, error: 'Ordnername fehlt.' })
+    return
+  }
+
+  try {
+    createSocialMediaAssetFolder({
+      actorId,
+      name: name.trim(),
+      sortOrder: typeof sortOrder === 'number' ? sortOrder : null,
+    })
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      error: (err as { message?: string })?.message ?? 'Ordner konnte nicht angelegt werden.',
+    })
+    return
+  }
+
+  res.json({
+    success: true,
+    ...getBootstrapData(actorId),
+  })
+})
+
+router.delete('/asset-folders/:folderId', (req: Request, res: Response) => {
+  const { folderId } = req.params
+  const actorId = (req.body?.actorId as string | undefined) ?? (req.query.actorId as string | undefined)
+
+  if (!actorId) {
+    res.status(400).json({ success: false, error: 'Fehlender Benutzerkontext.' })
+    return
+  }
+
+  if (!canManageSocialMediaLibrary(actorId)) {
+    res.status(403).json({ success: false, error: 'Ordner koennen nur vom Admin / Vorstand geloescht werden.' })
+    return
+  }
+
+  try {
+    deleteSocialMediaAssetFolder({ actorId, folderId })
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      error: (err as { message?: string })?.message ?? 'Ordner konnte nicht geloescht werden.',
+    })
+    return
+  }
+
+  res.json({
+    success: true,
+    ...getBootstrapData(actorId),
+  })
+})
+
+router.post('/assets', upload.array('images', 16), (req: Request, res: Response) => {
+  const actorId = req.body?.actorId as string | undefined
+  const folderIdRaw = req.body?.folderId as string | undefined
+  const folderId = folderIdRaw?.trim() || null
+  const files = req.files as Express.Multer.File[] | undefined
+
+  if (!actorId) {
+    if (files?.length) cleanupFiles(files)
+    res.status(400).json({ success: false, error: 'Fehlender Benutzerkontext.' })
+    return
+  }
+
+  if (!canUseSocialMedia(actorId)) {
+    if (files?.length) cleanupFiles(files)
+    res.status(403).json({ success: false, error: 'Zugriff verweigert.' })
+    return
+  }
+
+  if (!files?.length) {
+    res.status(400).json({ success: false, error: 'Mindestens ein Bild zum Hochladen angeben.' })
+    return
+  }
+
+  const createdAt = now()
+  for (let index = 0; index < files.length; index++) {
+    const file = files[index]
+    const overrideName =
+      (Array.isArray(req.body?.assetNames) ? req.body.assetNames[index] : undefined) ||
+      file.originalname ||
+      'Asset'
+    const name = String(overrideName).replace(/\.[^.]+$/, '').trim() || 'Asset'
+    const imageUrl = `/uploads/social-media/${file.filename}`
+    try {
+      createSocialMediaAsset({ actorId, folderId, name, imageUrl })
+    } catch (err) {
+      if (fs.existsSync(file.path)) fs.unlinkSync(file.path)
+      res.status(400).json({
+        success: false,
+        error: (err as { message?: string })?.message ?? 'Asset konnte nicht gespeichert werden.',
+      })
+      return
+    }
+  }
+
+  res.json({
+    success: true,
+    ...getBootstrapData(actorId),
+  })
+})
+
+router.delete('/assets/:assetId', (req: Request, res: Response) => {
+  const { assetId } = req.params
+  const actorId = (req.body?.actorId as string | undefined) ?? (req.query.actorId as string | undefined)
+
+  if (!actorId) {
+    res.status(400).json({ success: false, error: 'Fehlender Benutzerkontext.' })
+    return
+  }
+
+  if (!canUseSocialMedia(actorId)) {
+    res.status(403).json({ success: false, error: 'Zugriff verweigert.' })
+    return
+  }
+
+  try {
+    deleteSocialMediaAsset({ actorId, assetId })
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      error: (err as { message?: string })?.message ?? 'Asset konnte nicht geloescht werden.',
+    })
+    return
   }
 
   res.json({

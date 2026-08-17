@@ -71,6 +71,8 @@ interface ApiStatePayload {
   socialMediaDrafts: SocialMediaDraft[];
   socialMediaCrests: SocialMediaCrest[];
   socialMediaFonts: SocialMediaFont[];
+  socialMediaAssetFolders: SocialMediaAssetFolder[];
+  socialMediaAssets: SocialMediaAsset[];
   socialMediaTextSnippets: SocialMediaTextSnippet[];
   conversations: Conversation[];
   messages: Message[];
@@ -124,6 +126,8 @@ interface AppState {
   socialMediaDrafts: SocialMediaDraft[];
   socialMediaCrests: SocialMediaCrest[];
   socialMediaFonts: SocialMediaFont[];
+  socialMediaAssetFolders: SocialMediaAssetFolder[];
+  socialMediaAssets: SocialMediaAsset[];
   socialMediaTextSnippets: SocialMediaTextSnippet[];
   conversations: Conversation[];
   messages: Message[];
@@ -302,6 +306,10 @@ interface AppState {
   deleteSocialMediaCrest: (crestId: string) => Promise<ActionResult>;
   addSocialMediaFont: (input: { name: string; family: string; file: File }) => Promise<ActionResult>;
   deleteSocialMediaFont: (fontId: string) => Promise<ActionResult>;
+  addSocialMediaAssetFolder: (input: { name: string }) => Promise<ActionResult>;
+  deleteSocialMediaAssetFolder: (folderId: string) => Promise<ActionResult>;
+  uploadSocialMediaAssets: (input: { files: File[]; folderId?: string | null }) => Promise<ActionResult>;
+  deleteSocialMediaAsset: (assetId: string) => Promise<ActionResult>;
   addSocialMediaTextSnippet: (input: {
     label: string;
     content: string;
@@ -371,6 +379,8 @@ export const initialAppState = {
   socialMediaDrafts: [] as SocialMediaDraft[],
   socialMediaCrests: [] as SocialMediaCrest[],
   socialMediaFonts: [] as SocialMediaFont[],
+  socialMediaAssetFolders: [] as SocialMediaAssetFolder[],
+  socialMediaAssets: [] as SocialMediaAsset[],
   socialMediaTextSnippets: [] as SocialMediaTextSnippet[],
   conversations: [] as Conversation[],
   messages: [] as Message[],
@@ -483,6 +493,14 @@ const applyPayload = (
   const nextSocialDrafts = arrayShallowEqualsById(state.socialMediaDrafts, payload.socialMediaDrafts);
   const nextSocialCrests = arrayShallowEqualsById(state.socialMediaCrests, payload.socialMediaCrests);
   const nextSocialFonts = arrayShallowEqualsById(state.socialMediaFonts, payload.socialMediaFonts);
+  const nextSocialAssetFolders = arrayShallowEqualsById(
+    state.socialMediaAssetFolders,
+    payload.socialMediaAssetFolders ?? [],
+  );
+  const nextSocialAssets = arrayShallowEqualsById(
+    state.socialMediaAssets,
+    payload.socialMediaAssets ?? [],
+  );
   const nextSocialSnippets = arrayShallowEqualsById(
     state.socialMediaTextSnippets,
     payload.socialMediaTextSnippets,
@@ -506,6 +524,8 @@ const applyPayload = (
     socialMediaDrafts: nextSocialDrafts,
     socialMediaCrests: nextSocialCrests,
     socialMediaFonts: nextSocialFonts,
+    socialMediaAssetFolders: nextSocialAssetFolders,
+    socialMediaAssets: nextSocialAssets,
     socialMediaTextSnippets: nextSocialSnippets,
     conversations: nextConversations,
     messages: nextMessages,
@@ -1847,6 +1867,101 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Schriftart konnte nicht geloescht werden.",
+          };
+        }
+      },
+      addSocialMediaAssetFolder: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+          if (!actorId) return { success: false, error: "Bitte zuerst anmelden." };
+          const response = await fetch("/api/social-media/asset-folders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId, name: input.name }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId, get);
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Ordner konnte nicht angelegt werden.",
+          };
+        }
+      },
+      deleteSocialMediaAssetFolder: async (folderId) => {
+        try {
+          const actorId = get().currentUserId;
+          if (!actorId) return { success: false, error: "Bitte zuerst anmelden." };
+          const response = await fetch(`/api/social-media/asset-folders/${encodeURIComponent(folderId)}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId, get);
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Ordner konnte nicht geloescht werden.",
+          };
+        }
+      },
+      uploadSocialMediaAssets: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+          if (!actorId) return { success: false, error: "Bitte zuerst anmelden." };
+          if (!input.files?.length) return { success: false, error: "Keine Dateien angegeben." };
+          const body = new FormData();
+          body.set("actorId", actorId);
+          if (input.folderId) body.set("folderId", input.folderId);
+          input.files.forEach((file, idx) => {
+            body.append("images", file);
+            body.append(`assetNames[${idx}]`, file.name || `Asset-${idx + 1}`);
+          });
+          const response = await fetch("/api/social-media/assets", {
+            method: "POST",
+            body,
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId, get);
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Assets konnten nicht hochgeladen werden.",
+          };
+        }
+      },
+      deleteSocialMediaAsset: async (assetId) => {
+        try {
+          const actorId = get().currentUserId;
+          if (!actorId) return { success: false, error: "Bitte zuerst anmelden." };
+          const response = await fetch(`/api/social-media/assets/${encodeURIComponent(assetId)}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId, get);
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Asset konnte nicht geloescht werden.",
           };
         }
       },

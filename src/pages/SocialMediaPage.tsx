@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { Navigate } from "react-router-dom";
 import {
+  Archive,
   ArrowDown,
   ArrowUp,
   CopyPlus,
@@ -9,6 +10,9 @@ import {
   Droplet,
   Eye,
   EyeOff,
+  Folder,
+  FolderKanban,
+  FolderPlus,
   Image as ImageIcon,
   Inbox,
   Layers3,
@@ -19,6 +23,7 @@ import {
   SquareStack,
   Trash2,
   Type,
+  Upload,
   X,
 } from "lucide-react";
 import * as htmlToImage from "html-to-image";
@@ -1100,6 +1105,8 @@ export default function SocialMediaPage() {
   const socialMediaDrafts = useAppStore((state) => state.socialMediaDrafts);
   const socialMediaCrests = useAppStore((state) => state.socialMediaCrests);
   const socialMediaFonts = useAppStore((state) => state.socialMediaFonts);
+  const socialMediaAssetFolders = useAppStore((state) => state.socialMediaAssetFolders);
+  const socialMediaAssets = useAppStore((state) => state.socialMediaAssets);
   const socialMediaTextSnippets = useAppStore((state) => state.socialMediaTextSnippets);
   const users = useAppStore((state) => state.users);
   const currentUserId = useAppStore((state) => state.currentUserId);
@@ -1112,6 +1119,10 @@ export default function SocialMediaPage() {
   const deleteSocialMediaCrest = useAppStore((state) => state.deleteSocialMediaCrest);
   const addSocialMediaFont = useAppStore((state) => state.addSocialMediaFont);
   const deleteSocialMediaFont = useAppStore((state) => state.deleteSocialMediaFont);
+  const addSocialMediaAssetFolder = useAppStore((state) => state.addSocialMediaAssetFolder);
+  const deleteSocialMediaAssetFolder = useAppStore((state) => state.deleteSocialMediaAssetFolder);
+  const uploadSocialMediaAssets = useAppStore((state) => state.uploadSocialMediaAssets);
+  const deleteSocialMediaAsset = useAppStore((state) => state.deleteSocialMediaAsset);
   const addSocialMediaTextSnippet = useAppStore((state) => state.addSocialMediaTextSnippet);
   const updateSocialMediaTextSnippet = useAppStore((state) => state.updateSocialMediaTextSnippet);
   const deleteSocialMediaTextSnippet = useAppStore((state) => state.deleteSocialMediaTextSnippet);
@@ -1356,6 +1367,15 @@ export default function SocialMediaPage() {
   const [accessSavingId, setAccessSavingId] = useState<string | null>(null);
   const [layoutForm, setLayoutForm] = useState<SocialMediaLayoutOption[]>(managedLayoutOptions);
   const [layoutSubmitting, setLayoutSubmitting] = useState(false);
+
+  const [assetLibraryOpen, setAssetLibraryOpen] = useState(false);
+  const [
+    selectedAssetFolderId,
+    setSelectedAssetFolderId,
+  ] = useState<string | "__crests__" | "__unassigned__">("__crests__");
+  const [newAssetFolderName, setNewAssetFolderName] = useState("");
+  const [newAssetFolderBusy, setNewAssetFolderBusy] = useState(false);
+  const [assetLibraryBusy, setAssetLibraryBusy] = useState(false);
 
   const sellerName = (userId: string) =>
     users.find((user) => user.id === userId)?.fullName ?? "Unbekannt";
@@ -1728,6 +1748,103 @@ export default function SocialMediaPage() {
       setEditorLayers((currentLayers) => [...currentLayers, normalizeLayer(baseLayer)]);
       setActiveLayerId(baseLayer.id);
       void initializeImageLayerWithNaturalRatio(baseLayer.id, imageUrl);
+    }
+  };
+
+  const sortedAssetFolders = useMemo(
+    () =>
+      [...socialMediaAssetFolders].sort((a, b) => {
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+        return a.name.localeCompare(b.name, "de");
+      }),
+    [socialMediaAssetFolders],
+  );
+  const visibleLibraryAssets = useMemo(() => {
+    if (selectedAssetFolderId === "__crests__") return [];
+    if (selectedAssetFolderId === "__unassigned__") {
+      return socialMediaAssets.filter((asset) => !asset.folderId);
+    }
+    return socialMediaAssets.filter((asset) => asset.folderId === selectedAssetFolderId);
+  }, [selectedAssetFolderId, socialMediaAssets]);
+  const unassignedAssetCount = socialMediaAssets.filter((asset) => !asset.folderId).length;
+  const selectedAssetFolderName = useMemo(() => {
+    if (selectedAssetFolderId === "__crests__") return "Wappen & Logos";
+    if (selectedAssetFolderId === "__unassigned__") return "Nicht zugeordnet";
+    return sortedAssetFolders.find((f) => f.id === selectedAssetFolderId)?.name ?? "Ordner";
+  }, [selectedAssetFolderId, sortedAssetFolders]);
+
+  const handleCreateAssetFolder = async () => {
+    setError("");
+    setSuccess("");
+    const name = newAssetFolderName.trim();
+    if (!name) {
+      setError("Bitte einen Ordnernamen eingeben.");
+      return;
+    }
+    setNewAssetFolderBusy(true);
+    const result = await addSocialMediaAssetFolder({ name });
+    setNewAssetFolderBusy(false);
+    if (!result.success) {
+      setError(result.error || "Ordner konnte nicht angelegt werden.");
+      return;
+    }
+    setNewAssetFolderName("");
+    const created = [...socialMediaAssetFolders, { name, id: "pending" }];
+    const fallback = [...socialMediaAssetFolders][0]?.id;
+    void fetchData({ silent: true });
+    if (fallback) setSelectedAssetFolderId(fallback);
+  };
+  const handleDeleteAssetFolder = async () => {
+    if (selectedAssetFolderId === "__crests__" || selectedAssetFolderId === "__unassigned__") {
+      return;
+    }
+    if (!window.confirm(`Ordner "${selectedAssetFolderName}" wirklich loeschen? Assets gehen ins Verzeichnis "Nicht zugeordnet".`)) {
+      return;
+    }
+    setError("");
+    setSuccess("");
+    setAssetLibraryBusy(true);
+    const result = await deleteSocialMediaAssetFolder(selectedAssetFolderId);
+    setAssetLibraryBusy(false);
+    if (!result.success) {
+      setError(result.error || "Ordner konnte nicht geloescht werden.");
+      return;
+    }
+    setSelectedAssetFolderId("__unassigned__");
+  };
+  const handleUploadAssetsToFolder = async (files: File[]) => {
+    if (!files.length) return;
+    setError("");
+    setSuccess("");
+    setAssetLibraryBusy(true);
+    const folderId =
+      selectedAssetFolderId === "__crests__" || selectedAssetFolderId === "__unassigned__"
+        ? null
+        : selectedAssetFolderId;
+    const result = await uploadSocialMediaAssets({ files, folderId });
+    setAssetLibraryBusy(false);
+    if (!result.success) {
+      setError(result.error || "Upload fehlgeschlagen.");
+      return;
+    }
+    setSuccess("Assets erfolgreich hochgeladen.");
+  };
+  const handleDeleteAsset = async (
+    assetId: string,
+    assetName: string,
+    kind: "crest" | "asset",
+  ) => {
+    if (!window.confirm(`${assetName} wirklich aus der Bibliothek loeschen?`)) return;
+    setError("");
+    setSuccess("");
+    setAssetLibraryBusy(true);
+    const result =
+      kind === "crest"
+        ? await deleteSocialMediaCrest(assetId)
+        : await deleteSocialMediaAsset(assetId);
+    setAssetLibraryBusy(false);
+    if (!result.success) {
+      setError(result.error || "Loeschen fehlgeschlagen.");
     }
   };
 
@@ -3163,117 +3280,142 @@ export default function SocialMediaPage() {
                         <div>
                           <p className="text-sm font-semibold text-slate-900">Assets</p>
                           <p className="text-sm text-slate-600">
-                            Bilder werden hochgeladen und koennen danach in mehreren Ebenen verwendet werden.
+                            Zentrales Bibliothekssystem mit Ordnern (Wappen, Logos, Bilder). Freie Ordnerstruktur.
                           </p>
                         </div>
-                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-                          <Plus size={16} />
-                          Bilder hinzufuegen
-                          <input
-                            type="file"
-                            accept="image/png,image/jpeg,image/webp"
-                            multiple
-                            className="hidden"
-                            onChange={(event) => {
-                              const files = Array.from(event.target.files ?? []);
-                              const mapped = files.map((file, index) => {
-                                const id = `new-${Date.now()}-${index}-${file.name}`;
-                                return {
-                                  id,
-                                  ref: `local:${id}`,
-                                  kind: "new" as const,
-                                  url: URL.createObjectURL(file),
-                                  file,
-                                };
-                              });
-                              setEditorAssets((current) => [...current, ...mapped]);
-
-                              if (mapped.length > 0) {
-                                setEditorLayers((currentLayers) => {
-                                  const layers: SocialMediaLayer[] = [];
-                                  let activeRef = "";
-                                  const initJobs: Array<{ layerId: string; assetUrl: string }> = [];
-                                  for (const asset of mapped) {
-                                    const baseLayer = createLayer("image", { imageRef: asset.ref });
-                                    layers.push(normalizeLayer(baseLayer));
-                                    activeRef = baseLayer.id;
-                                    initJobs.push({ layerId: baseLayer.id, assetUrl: asset.url });
-                                  }
-                                  if (layers.length > 0 && activeRef) {
-                                    setActiveLayerId(activeRef);
-                                  }
-                                  setTimeout(() => {
-                                    for (const job of initJobs) {
-                                      void initializeImageLayerWithNaturalRatio(job.layerId, job.assetUrl);
-                                    }
-                                  }, 0);
-                                  return [...currentLayers, ...layers];
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                            <Plus size={16} />
+                            Bilder lokal hochladen
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp"
+                              multiple
+                              className="hidden"
+                              onChange={(event) => {
+                                const files = Array.from(event.target.files ?? []);
+                                const mapped = files.map((file, index) => {
+                                  const id = `new-${Date.now()}-${index}-${file.name}`;
+                                  return {
+                                    id,
+                                    ref: `local:${id}`,
+                                    kind: "new" as const,
+                                    url: URL.createObjectURL(file),
+                                    file,
+                                  };
                                 });
-                              }
-                              event.target.value = "";
+                                setEditorAssets((current) => [...current, ...mapped]);
+
+                                if (mapped.length > 0) {
+                                  setEditorLayers((currentLayers) => {
+                                    const layers: SocialMediaLayer[] = [];
+                                    let activeRef = "";
+                                    const initJobs: Array<{ layerId: string; assetUrl: string }> = [];
+                                    for (const asset of mapped) {
+                                      const baseLayer = createLayer("image", { imageRef: asset.ref });
+                                      layers.push(normalizeLayer(baseLayer));
+                                      activeRef = baseLayer.id;
+                                      initJobs.push({ layerId: baseLayer.id, assetUrl: asset.url });
+                                    }
+                                    if (layers.length > 0 && activeRef) {
+                                      setActiveLayerId(activeRef);
+                                    }
+                                    setTimeout(() => {
+                                      for (const job of initJobs) {
+                                        void initializeImageLayerWithNaturalRatio(job.layerId, job.assetUrl);
+                                      }
+                                    }, 0);
+                                    return [...currentLayers, ...layers];
+                                  });
+                                }
+                                event.target.value = "";
+                              }}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedAssetFolderId("__crests__");
+                              setAssetLibraryOpen(true);
                             }}
-                          />
-                        </label>
+                            className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-br from-blue-900 to-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-95"
+                          >
+                            <FolderKanban size={16} />
+                            Asset-Bibliothek öffnen
+                          </button>
+                        </div>
                       </div>
 
-                      {socialMediaCrests.length ? (
-                        <div className="mt-5 border-t border-slate-200 pt-5">
-                          <div className="mb-3 flex items-center gap-2">
-                            <div className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-blue-900 to-blue-700 text-white shadow-sm">
-                              <Shield size={16} />
-                            </div>
-                            <div>
-                              <p className="text-sm font-semibold text-slate-900">
-                                Wappen & Logos (Schnellauswahl)
-                              </p>
-                              <p className="text-xs text-slate-600">
-                                1 Klick = Direkt als PNG-Bild-Ebene im Layout einfuegen
-                              </p>
-                            </div>
+                      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedAssetFolderId("__crests__");
+                            setAssetLibraryOpen(true);
+                          }}
+                          className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
+                        >
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-900 to-blue-700 text-white shadow-sm">
+                            <Shield size={20} />
                           </div>
-                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-2 xl:grid-cols-3">
-                            {socialMediaCrests.map((crest) => {
-                              const isUsed = editorAssets.some((asset) => asset.ref === crest.imageUrl);
-                              return (
-                                <button
-                                  key={crest.id}
-                                  type="button"
-                                  onClick={() => addSharedAssetToEditor(crest.imageUrl, crest.id)}
-                                  className="group overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
-                                >
-                                  <div className="flex h-24 items-center justify-center rounded-xl bg-gradient-to-br from-slate-50 via-white to-slate-100">
-                                    <img
-                                      src={crest.imageUrl}
-                                      alt={crest.name || "Wappen"}
-                                      className="max-h-full max-w-full object-contain p-2 transition duration-200 group-hover:scale-110"
-                                    />
-                                  </div>
-                                  <div className="mt-3 flex items-center justify-between gap-2">
-                                    <div className="min-w-0">
-                                      <p className="truncate text-xs font-semibold text-slate-900">
-                                        {crest.name || "Wappen"}
-                                      </p>
-                                      <p className="truncate text-[10px] text-slate-500">
-                                        {isUsed ? "✓ Bereits im Asset-Pool" : "Klick zum Einfügen"}
-                                      </p>
-                                    </div>
-                                    <div
-                                      className={cn(
-                                        "inline-flex h-8 shrink-0 items-center justify-center rounded-xl px-2 text-[10px] font-bold transition",
-                                        isUsed
-                                          ? "bg-emerald-100 text-emerald-700"
-                                          : "bg-gradient-to-br from-blue-900 to-blue-700 text-white",
-                                      )}
-                                    >
-                                      {isUsed ? "Da" : "+ Einf."}
-                                    </div>
-                                  </div>
-                                </button>
-                              );
-                            })}
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-900">
+                              Wappen & Logos
+                            </p>
+                            <p className="truncate text-xs text-slate-500">
+                              {socialMediaCrests.length} Elemente · Systemordner
+                            </p>
                           </div>
-                        </div>
-                      ) : null}
+                        </button>
+                        {sortedAssetFolders.slice(0, 2).map((folder) => {
+                          const count = socialMediaAssets.filter(
+                            (asset) => asset.folderId === folder.id,
+                          ).length;
+                          return (
+                            <button
+                              key={folder.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedAssetFolderId(folder.id);
+                                setAssetLibraryOpen(true);
+                              }}
+                              className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
+                            >
+                              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-sky-500 text-white shadow-sm">
+                                <Folder size={20} />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-slate-900">
+                                  {folder.name}
+                                </p>
+                                <p className="truncate text-xs text-slate-500">{count} Elemente</p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                        {unassignedAssetCount > 0 && sortedAssetFolders.length < 2 ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedAssetFolderId("__unassigned__");
+                              setAssetLibraryOpen(true);
+                            }}
+                            className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
+                          >
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-500 to-slate-400 text-white shadow-sm">
+                              <Archive size={20} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-slate-900">
+                                Nicht zugeordnet
+                              </p>
+                              <p className="truncate text-xs text-slate-500">
+                                {unassignedAssetCount} Elemente
+                              </p>
+                            </div>
+                          </button>
+                        ) : null}
+                      </div>
 
                       {editorAssets.length ? (
                         <div className="mt-4 grid grid-cols-2 gap-3">
@@ -4649,6 +4791,423 @@ export default function SocialMediaPage() {
               alt={imageModal.alt}
               className="max-h-[82vh] max-w-[82vw] rounded-[1.5rem] object-contain"
             />
+          </div>
+        </div>
+      ) : null}
+
+      {assetLibraryOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm"
+          onClick={() => !assetLibraryBusy && setAssetLibraryOpen(false)}
+        >
+          <div
+            className={cn(
+              "flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl",
+              assetLibraryBusy && "pointer-events-none opacity-80",
+            )}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-6 py-4">
+              <div>
+                <p className="text-lg font-bold text-slate-900">Asset-Bibliothek</p>
+                <p className="text-sm text-slate-600">
+                  Ordner und Assets verwalten · 1 Klick ins Layout einfügen
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAssetLibraryOpen(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50"
+                aria-label="Schliessen"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="grid min-h-0 flex-1 grid-cols-[260px_1fr] gap-0">
+              <div className="flex min-h-0 flex-col border-r border-slate-200 bg-slate-50">
+                <div className="flex-1 overflow-y-auto p-3">
+                  <ul className="space-y-1">
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedAssetFolderId("__crests__")}
+                        className={cn(
+                          "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition",
+                          selectedAssetFolderId === "__crests__"
+                            ? "bg-gradient-to-br from-blue-900 to-blue-700 text-white shadow-sm"
+                            : "text-slate-700 hover:bg-white hover:shadow-sm",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+                            selectedAssetFolderId === "__crests__"
+                              ? "bg-white/15 text-white"
+                              : "bg-gradient-to-br from-blue-900 to-blue-700 text-white",
+                          )}
+                        >
+                          <Shield size={16} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate">Wappen & Logos</p>
+                          <p
+                            className={cn(
+                              "text-[11px]",
+                              selectedAssetFolderId === "__crests__" ? "text-white/75" : "text-slate-500",
+                            )}
+                          >
+                            {socialMediaCrests.length} Elemente · Systemordner
+                          </p>
+                        </div>
+                      </button>
+                    </li>
+                    {sortedAssetFolders.map((folder) => {
+                      const count = socialMediaAssets.filter(
+                        (asset) => asset.folderId === folder.id,
+                      ).length;
+                      return (
+                        <li key={folder.id}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAssetFolderId(folder.id)}
+                            className={cn(
+                              "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition",
+                              selectedAssetFolderId === folder.id
+                                ? "bg-gradient-to-br from-sky-700 to-sky-600 text-white shadow-sm"
+                                : "text-slate-700 hover:bg-white hover:shadow-sm",
+                            )}
+                          >
+                            <div
+                              className={cn(
+                                "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+                                selectedAssetFolderId === folder.id
+                                  ? "bg-white/15 text-white"
+                                  : "bg-gradient-to-br from-sky-600 to-sky-500 text-white",
+                              )}
+                            >
+                              <Folder size={16} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate">{folder.name}</p>
+                              <p
+                                className={cn(
+                                  "text-[11px]",
+                                  selectedAssetFolderId === folder.id ? "text-white/75" : "text-slate-500",
+                                )}
+                              >
+                                {count} Elemente
+                              </p>
+                            </div>
+                          </button>
+                        </li>
+                      );
+                    })}
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedAssetFolderId("__unassigned__")}
+                        className={cn(
+                          "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition",
+                          selectedAssetFolderId === "__unassigned__"
+                            ? "bg-slate-700 text-white shadow-sm"
+                            : "text-slate-700 hover:bg-white hover:shadow-sm",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+                            selectedAssetFolderId === "__unassigned__"
+                              ? "bg-white/15 text-white"
+                              : "bg-slate-500 text-white",
+                          )}
+                        >
+                          <Archive size={16} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate">Nicht zugeordnet</p>
+                          <p
+                            className={cn(
+                              "text-[11px]",
+                              selectedAssetFolderId === "__unassigned__" ? "text-white/75" : "text-slate-500",
+                            )}
+                          >
+                            {unassignedAssetCount} Elemente
+                          </p>
+                        </div>
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+
+                {canManageSocial ? (
+                  <div className="space-y-2 border-t border-slate-200 bg-white p-3">
+                    <label className="block text-xs font-semibold text-slate-600">
+                      Neuer Ordner (Admin / Vorstand)
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newAssetFolderName}
+                        onChange={(event) => setNewAssetFolderName(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            void handleCreateAssetFolder();
+                          }
+                        }}
+                        placeholder="z. B. Spielpläne"
+                        className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleCreateAssetFolder()}
+                        disabled={newAssetFolderBusy || !newAssetFolderName.trim()}
+                        className="inline-flex h-10 shrink-0 items-center justify-center gap-1 rounded-xl bg-gradient-to-br from-emerald-700 to-emerald-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 disabled:opacity-50"
+                        aria-label="Ordner anlegen"
+                      >
+                        <FolderPlus size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="flex min-h-0 flex-col">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-4">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">{selectedAssetFolderName}</p>
+                    <p className="text-xs text-slate-500">
+                      {selectedAssetFolderId === "__crests__"
+                        ? `${socialMediaCrests.length} gespeicherte Wappen / Logos`
+                        : `${visibleLibraryAssets.length} Assets im Ordner`}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {selectedAssetFolderId !== "__crests__" ? (
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                        <Upload size={16} />
+                        Bilder hier hochladen
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          multiple
+                          className="hidden"
+                          onChange={(event) => {
+                            const files = Array.from(event.target.files ?? []);
+                            event.target.value = "";
+                            void handleUploadAssetsToFolder(files);
+                          }}
+                        />
+                      </label>
+                    ) : null}
+                    {canManageSocial &&
+                    selectedAssetFolderId !== "__crests__" &&
+                    selectedAssetFolderId !== "__unassigned__" ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteAssetFolder()}
+                        className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-50"
+                      >
+                        <Trash2 size={16} />
+                        Ordner löschen
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+                  {selectedAssetFolderId === "__crests__" ? (
+                    socialMediaCrests.length ? (
+                      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+                        {socialMediaCrests.map((crest) => {
+                          const isUsed = editorAssets.some(
+                            (asset) => asset.ref === crest.imageUrl,
+                          );
+                          return (
+                            <div
+                              key={crest.id}
+                              className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                            >
+                              <div className="flex h-32 items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100">
+                                <img
+                                  src={crest.imageUrl}
+                                  alt={crest.name || "Wappen"}
+                                  className="max-h-full max-w-full object-contain p-3 transition duration-200 group-hover:scale-110"
+                                />
+                              </div>
+                              <div className="space-y-2 border-t border-slate-200 p-3">
+                                <div className="min-h-10">
+                                  <p className="truncate text-sm font-semibold text-slate-900">
+                                    {crest.name || "Wappen / Logo"}
+                                  </p>
+                                  <p className="truncate text-xs text-slate-500">
+                                    {isUsed ? "✓ Bereits im Asset-Pool" : "Systemordner (Wappen)"}
+                                  </p>
+                                </div>
+                                <div className="flex items-center justify-between gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      addSharedAssetToEditor(crest.imageUrl, crest.id);
+                                      setAssetLibraryOpen(false);
+                                    }}
+                                    className={cn(
+                                      "inline-flex items-center justify-center gap-1 rounded-xl px-3 py-2 text-xs font-bold transition",
+                                      isUsed
+                                        ? "bg-emerald-100 text-emerald-700"
+                                        : "bg-gradient-to-br from-blue-900 to-blue-700 text-white hover:opacity-95",
+                                    )}
+                                  >
+                                    {isUsed ? (
+                                      <>Da</>
+                                    ) : (
+                                      <>
+                                        <Plus size={14} />
+                                        Einfügen
+                                      </>
+                                    )}
+                                  </button>
+                                  {canManageSocial ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        void handleDeleteAsset(crest.id, crest.name || "Wappen", "crest")
+                                      }
+                                      className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                                      aria-label="Loeschen"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-16 text-center">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-900 to-blue-700 text-white shadow-sm">
+                          <Shield size={28} />
+                        </div>
+                        <p className="text-base font-semibold text-slate-900">
+                          Noch keine Wappen / Logos gespeichert
+                        </p>
+                        <p className="text-sm text-slate-600">
+                          Gehe in die Verwaltung (Admin / Vorstand), um Wappen & Logos hinzuzufügen.
+                        </p>
+                      </div>
+                    )
+                  ) : visibleLibraryAssets.length ? (
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+                      {visibleLibraryAssets.map((asset) => {
+                        const isUsed = editorAssets.some(
+                          (existing) => existing.ref === asset.imageUrl,
+                        );
+                        const canDeleteAsset =
+                          canManageSocial || asset.createdBy === currentUserId;
+                        return (
+                          <div
+                            key={asset.id}
+                            className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                          >
+                            <div className="h-32 overflow-hidden bg-slate-50">
+                              <img
+                                src={asset.imageUrl}
+                                alt={asset.name || "Asset"}
+                                className="h-full w-full object-cover transition duration-200 group-hover:scale-105"
+                              />
+                            </div>
+                            <div className="space-y-2 border-t border-slate-200 p-3">
+                              <div className="min-h-10">
+                                <p className="truncate text-sm font-semibold text-slate-900">
+                                  {asset.name || "Bild-Asset"}
+                                </p>
+                                <p className="truncate text-xs text-slate-500">
+                                  {isUsed
+                                    ? "✓ Bereits im Asset-Pool"
+                                    : sellerName(asset.createdBy)}
+                                </p>
+                              </div>
+                              <div className="flex items-center justify-between gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    addSharedAssetToEditor(asset.imageUrl, asset.id);
+                                    setAssetLibraryOpen(false);
+                                  }}
+                                  className={cn(
+                                    "inline-flex items-center justify-center gap-1 rounded-xl px-3 py-2 text-xs font-bold transition",
+                                    isUsed
+                                      ? "bg-emerald-100 text-emerald-700"
+                                      : "bg-gradient-to-br from-blue-900 to-blue-700 text-white hover:opacity-95",
+                                  )}
+                                >
+                                  {isUsed ? (
+                                    <>Da</>
+                                  ) : (
+                                    <>
+                                      <Plus size={14} />
+                                      Einfügen
+                                    </>
+                                  )}
+                                </button>
+                                {canDeleteAsset ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void handleDeleteAsset(
+                                        asset.id,
+                                        asset.name || "Bild-Asset",
+                                        "asset",
+                                      )
+                                    }
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                                    aria-label="Loeschen"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-16 text-center">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-500 to-slate-400 text-white shadow-sm">
+                        <Folder size={28} />
+                      </div>
+                      <p className="text-base font-semibold text-slate-900">
+                        Ordner ist noch leer
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        Lade hier Bilder hoch, um sie später in beliebigen Postings wiederzuverwenden.
+                      </p>
+                      {selectedAssetFolderId !== "__crests__" ? (
+                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-br from-blue-900 to-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-95">
+                          <Plus size={16} />
+                          Erste Bilder hochladen
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            multiple
+                            className="hidden"
+                            onChange={(event) => {
+                              const files = Array.from(event.target.files ?? []);
+                              event.target.value = "";
+                              void handleUploadAssetsToFolder(files);
+                            }}
+                          />
+                        </label>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       ) : null}

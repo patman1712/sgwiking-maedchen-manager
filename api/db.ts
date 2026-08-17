@@ -408,6 +408,28 @@ db.exec(`
     FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS social_media_asset_folders (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS social_media_assets (
+    id TEXT PRIMARY KEY,
+    folder_id TEXT DEFAULT NULL,
+    name TEXT NOT NULL,
+    image_url TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(folder_id) REFERENCES social_media_asset_folders(id) ON DELETE SET NULL,
+    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS social_media_text_snippets (
     id TEXT PRIMARY KEY,
     label TEXT NOT NULL,
@@ -1272,6 +1294,25 @@ type SocialMediaFontRow = {
   updated_at: string
 }
 
+type SocialMediaAssetFolderRow = {
+  id: string
+  name: string
+  sort_order: number
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+type SocialMediaAssetRow = {
+  id: string
+  folder_id: string | null
+  name: string
+  image_url: string
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
 export const mapTeam = (row: TeamRow) => ({
   id: row.id,
   name: row.name,
@@ -2051,6 +2092,97 @@ export const getSocialMediaFonts = (userId?: string | null) => {
   }))
 }
 
+export const getSocialMediaAssetFolders = (userId?: string | null) => {
+  if (!userId || !canUseSocialMedia(userId)) {
+    return []
+  }
+
+  const rows = db.prepare(
+    'SELECT * FROM social_media_asset_folders ORDER BY sort_order ASC, name COLLATE NOCASE ASC, created_at DESC',
+  ).all() as SocialMediaAssetFolderRow[]
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    sortOrder: row.sort_order,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }))
+}
+
+export const createSocialMediaAssetFolder = (input: { actorId: string; name: string; sortOrder?: number | null }) => {
+  if (!isAdminOrBoard(input.actorId)) throw new Error('Zugriff verweigert.')
+  const name = input.name.trim()
+  if (!name) throw new Error('Ordnername fehlt.')
+  const id = createId()
+  const timestamp = now()
+  db.prepare(
+    'INSERT INTO social_media_asset_folders (id, name, sort_order, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(id, name, input.sortOrder ?? 0, input.actorId, timestamp, timestamp)
+  return id
+}
+
+export const deleteSocialMediaAssetFolder = (input: { actorId: string; folderId: string }) => {
+  if (!isAdminOrBoard(input.actorId)) throw new Error('Zugriff verweigert.')
+  const folder = db
+    .prepare('SELECT id FROM social_media_asset_folders WHERE id = ?')
+    .get(input.folderId)
+  if (!folder) return
+  db.prepare('DELETE FROM social_media_asset_folders WHERE id = ?').run(input.folderId)
+}
+
+export const getSocialMediaAssets = (userId?: string | null) => {
+  if (!userId || !canUseSocialMedia(userId)) {
+    return []
+  }
+
+  const rows = db.prepare(
+    'SELECT * FROM social_media_assets ORDER BY updated_at DESC, created_at DESC',
+  ).all() as SocialMediaAssetRow[]
+
+  return rows.map((row) => ({
+    id: row.id,
+    folderId: row.folder_id,
+    name: row.name,
+    imageUrl: row.image_url,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }))
+}
+
+export const createSocialMediaAsset = (input: {
+  actorId: string
+  folderId?: string | null
+  name: string
+  imageUrl: string
+}) => {
+  if (!canUseSocialMedia(input.actorId)) throw new Error('Zugriff verweigert.')
+  const name = input.name.trim() || 'Asset'
+  const id = createId()
+  const timestamp = now()
+  db.prepare(
+    'INSERT INTO social_media_assets (id, folder_id, name, image_url, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  ).run(id, input.folderId ?? null, name, input.imageUrl, input.actorId, timestamp, timestamp)
+  return id
+}
+
+export const deleteSocialMediaAsset = (input: { actorId: string; assetId: string }) => {
+  if (!canUseSocialMedia(input.actorId)) throw new Error('Zugriff verweigert.')
+  const row = db
+    .prepare('SELECT * FROM social_media_assets WHERE id = ?')
+    .get(input.assetId) as SocialMediaAssetRow | undefined
+  if (!row) return
+  const canManage = isAdminOrBoard(input.actorId)
+  if (!canManage && row.created_by !== input.actorId) throw new Error('Zugriff verweigert.')
+  if (row.image_url.startsWith('/uploads/social-media/')) {
+    const fullPath = path.join(DATA_DIR, row.image_url)
+    if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath)
+  }
+  db.prepare('DELETE FROM social_media_assets WHERE id = ?').run(input.assetId)
+}
+
 export const getSetting = (key: string) => {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
     | { value: string }
@@ -2130,6 +2262,8 @@ export const getBootstrapData = (userId?: string | null) => ({
   socialMediaDrafts: getSocialMediaDrafts(userId),
   socialMediaCrests: getSocialMediaCrests(userId),
   socialMediaFonts: getSocialMediaFonts(userId),
+  socialMediaAssetFolders: getSocialMediaAssetFolders(userId),
+  socialMediaAssets: getSocialMediaAssets(userId),
   socialMediaTextSnippets: getSocialMediaTextSnippets(userId),
   conversations: getConversations(userId),
   messages: getMessages(userId),
