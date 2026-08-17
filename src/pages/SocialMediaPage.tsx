@@ -436,19 +436,14 @@ function getImageLayerGeometry(layer: Pick<
   "position" | "style" | "centerX" | "centerY" | "widthPercent" | "heightPercent"
 >) {
   const defaults = getDefaultImageGeometry(layer);
-  const widthPercent = sanitizePercent(layer.widthPercent, defaults.widthPercent, 12, 100);
-  const heightPercent = sanitizePercent(layer.heightPercent, defaults.heightPercent, 12, 100);
+  const widthPercent = sanitizePercent(layer.widthPercent, defaults.widthPercent, 2, 100);
+  const heightPercent = sanitizePercent(layer.heightPercent, defaults.heightPercent, 2, 100);
 
   return {
     widthPercent,
     heightPercent,
-    centerX: sanitizePercent(layer.centerX, defaults.centerX, widthPercent / 2, 100 - widthPercent / 2),
-    centerY: sanitizePercent(
-      layer.centerY,
-      defaults.centerY,
-      heightPercent / 2,
-      100 - heightPercent / 2,
-    ),
+    centerX: sanitizePercent(layer.centerX, defaults.centerX, 0, 100),
+    centerY: sanitizePercent(layer.centerY, defaults.centerY, 0, 100),
   };
 }
 
@@ -757,15 +752,20 @@ function SocialPreview({
       const deltaYPercent = ((event.clientY - interaction.startY) / rect.height) * 100;
 
       if (interaction.mode === "drag") {
+        const isImage = interaction.layerKind === "image";
+        const minX = isImage ? 0 : interaction.startWidthPercent / 2;
+        const maxX = isImage ? 100 : 100 - interaction.startWidthPercent / 2;
+        const minY = isImage ? 0 : interaction.startHeightPercent / 2;
+        const maxY = isImage ? 100 : 100 - interaction.startHeightPercent / 2;
         const centerX = clamp(
           interaction.startCenterX + deltaXPercent,
-          interaction.startWidthPercent / 2,
-          100 - interaction.startWidthPercent / 2,
+          minX,
+          maxX,
         );
         const centerY = clamp(
           interaction.startCenterY + deltaYPercent,
-          interaction.startHeightPercent / 2,
-          100 - interaction.startHeightPercent / 2,
+          minY,
+          maxY,
         );
 
         onUpdateLayer(interaction.layerId, { centerX, centerY });
@@ -815,15 +815,15 @@ function SocialPreview({
         return;
       }
 
-      const rawWidthPercent = clamp(interaction.startWidthPercent + deltaXPercent * 2, 12, 100);
-      const rawHeightPercent = clamp(interaction.startHeightPercent + deltaYPercent * 2, 12, 100);
+      const rawWidthPercent = clamp(interaction.startWidthPercent + deltaXPercent * 2, 2, 100);
+      const rawHeightPercent = clamp(interaction.startHeightPercent + deltaYPercent * 2, 2, 100);
 
       let widthPercent = rawWidthPercent;
       let heightPercent = rawHeightPercent;
 
       if (layer.keepAspectRatio && typeof layer.baseAspectRatio === "number" && layer.baseAspectRatio > 0) {
         const ratio = layer.baseAspectRatio;
-        const fromWidthHeight = Math.max(12, Math.min(100, Math.round(rawWidthPercent / ratio)));
+        const fromWidthHeight = Math.max(2, Math.min(100, Math.round(rawWidthPercent / ratio)));
         const deltaFromWidth = Math.abs(rawWidthPercent - interaction.startWidthPercent);
         const deltaFromHeight = Math.abs(rawHeightPercent - interaction.startHeightPercent);
         if (deltaFromWidth >= deltaFromHeight) {
@@ -831,20 +831,12 @@ function SocialPreview({
           heightPercent = fromWidthHeight;
         } else {
           heightPercent = rawHeightPercent;
-          widthPercent = Math.max(12, Math.min(100, Math.round(rawHeightPercent * ratio)));
+          widthPercent = Math.max(2, Math.min(100, Math.round(rawHeightPercent * ratio)));
         }
       }
 
-      const centerX = clamp(
-        interaction.startCenterX,
-        widthPercent / 2,
-        100 - widthPercent / 2,
-      );
-      const centerY = clamp(
-        interaction.startCenterY,
-        heightPercent / 2,
-        100 - heightPercent / 2,
-      );
+      const centerX = clamp(interaction.startCenterX, 0, 100);
+      const centerY = clamp(interaction.startCenterY, 0, 100);
 
       onUpdateLayer(interaction.layerId, {
         centerX,
@@ -886,6 +878,7 @@ function SocialPreview({
           const isSelected = activeLayerId === layer.id;
           const movable = canMoveLayer(layer, respectLayerLocks);
           const resizable = canResizeLayer(layer, respectLayerLocks);
+          const isOriginalStyle = layer.style === "original" && layer.position !== "full";
           return (
             <div
               key={layer.id}
@@ -918,9 +911,10 @@ function SocialPreview({
                 };
               }}
               className={cn(
-                "absolute overflow-hidden touch-none",
+                "absolute touch-none",
+                isOriginalStyle ? "overflow-visible" : "overflow-hidden",
                 movable ? "cursor-grab active:cursor-grabbing" : "cursor-default",
-                isSelected &&
+                isSelected && !isOriginalStyle &&
                   "ring-2 ring-sky-300 ring-offset-2 ring-offset-transparent",
               )}
               style={{
@@ -939,6 +933,8 @@ function SocialPreview({
                   className={cn(
                     "h-full w-full",
                     getImageStyleClasses(layer.style, layer.position === "full"),
+                    isSelected && isOriginalStyle &&
+                      "ring-2 ring-sky-300 ring-offset-2 ring-offset-transparent rounded-[1.5rem]",
                   )}
                 />
               ) : (
@@ -948,6 +944,8 @@ function SocialPreview({
                     layer.position === "full"
                       ? "bg-slate-100"
                       : "rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50",
+                    isSelected && isOriginalStyle &&
+                      "ring-2 ring-sky-300 ring-offset-2 ring-offset-transparent",
                   )}
                 >
                   <ImageIcon size={22} />
@@ -3993,23 +3991,23 @@ export default function SocialMediaPage() {
                                   key: "centerX",
                                   label: "Horizontal",
                                   value: geometry.centerX,
-                                  min: geometry.widthPercent / 2,
-                                  max: 100 - geometry.widthPercent / 2,
+                                  min: 0,
+                                  max: 100,
                                   kind: "position" as const,
                                 },
                                 {
                                   key: "centerY",
                                   label: "Vertikal",
                                   value: geometry.centerY,
-                                  min: geometry.heightPercent / 2,
-                                  max: 100 - geometry.heightPercent / 2,
+                                  min: 0,
+                                  max: 100,
                                   kind: "position" as const,
                                 },
                                 {
                                   key: "widthPercent",
                                   label: ratioLocked ? "Breite (Höhe folgt automatisch)" : "Breite",
                                   value: geometry.widthPercent,
-                                  min: 12,
+                                  min: 2,
                                   max: 100,
                                   kind: "size" as const,
                                 },
@@ -4017,7 +4015,7 @@ export default function SocialMediaPage() {
                                   key: "heightPercent",
                                   label: ratioLocked ? "Höhe (Breite folgt automatisch)" : "Hoehe",
                                   value: geometry.heightPercent,
-                                  min: 12,
+                                  min: 2,
                                   max: 100,
                                   kind: "size" as const,
                                 },
@@ -4061,12 +4059,12 @@ export default function SocialMediaPage() {
                                           if (control.key === "widthPercent") {
                                             const nextWidth = rawValue;
                                             const nextHeight = Math.max(
-                                              12,
+                                              2,
                                               Math.min(100, Math.round(nextWidth / baseRatio)),
                                             );
                                             const clampedWidth =
                                               Math.max(
-                                                12,
+                                                2,
                                                 Math.min(100, Math.round(nextHeight * baseRatio)),
                                               ) ?? nextWidth;
                                             updateLayer(activeLayer.id, {
@@ -4076,12 +4074,12 @@ export default function SocialMediaPage() {
                                           } else {
                                             const nextHeight = rawValue;
                                             const nextWidth = Math.max(
-                                              12,
+                                              2,
                                               Math.min(100, Math.round(nextHeight * baseRatio)),
                                             );
                                             const clampedHeight =
                                               Math.max(
-                                                12,
+                                                2,
                                                 Math.min(100, Math.round(nextWidth / baseRatio)),
                                               ) ?? nextHeight;
                                             updateLayer(activeLayer.id, {
