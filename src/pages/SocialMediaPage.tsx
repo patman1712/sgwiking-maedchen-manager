@@ -26,6 +26,7 @@ import {
   Type,
   Upload,
   X,
+  Check,
 } from "lucide-react";
 import * as htmlToImage from "html-to-image";
 import SectionCard from "@/components/SectionCard";
@@ -3320,7 +3321,7 @@ export default function SocialMediaPage() {
 
       {editorOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-start md:justify-center bg-slate-950/60 p-0 md:p-4"
           onClick={() => {
             if (!draftSubmitting) {
               setEditorOpen(false);
@@ -3328,12 +3329,12 @@ export default function SocialMediaPage() {
           }}
         >
           <div
-            className="max-h-[94vh] w-full max-w-[95rem] overflow-y-auto rounded-[2rem] bg-white p-6 shadow-2xl"
+            className="flex h-full w-full flex-col max-w-[95rem] overflow-hidden md:max-h-[94vh] md:overflow-y-auto md:rounded-[2rem] bg-white md:p-6 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-lg font-semibold text-slate-900">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 py-4 backdrop-blur md:static md:border-b-0 md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-0">
+              <div className="min-w-0">
+                <p className="truncate text-base md:text-lg font-semibold text-slate-900">
                   {editorIsTemplate
                     ? editorMode === "create"
                       ? "Neue Social-Media-Vorlage"
@@ -3346,7 +3347,7 @@ export default function SocialMediaPage() {
                         ? "Posting bearbeiten"
                         : "Entwurf bearbeiten"}
                 </p>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-0.5 line-clamp-2 text-xs md:text-sm text-slate-600">
                   {editorIsTemplate
                     ? "Diese Grundvorlage bleibt gesperrt fuer Trainer und dient als Basis fuer neue Entwuerfe."
                     : isTrainerSocialUser
@@ -3357,15 +3358,17 @@ export default function SocialMediaPage() {
               <button
                 type="button"
                 onClick={() => setEditorOpen(false)}
-                className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-50"
                 disabled={draftSubmitting}
+                aria-label="Editor schliessen"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
 
-            <div className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_0.9fr_1.3fr]">
-              <div className="space-y-4">
+            <div className="flex-1 overflow-y-auto px-4 py-4 md:px-0 md:py-0 md:mt-6">
+              <div className="grid gap-6 xl:grid-cols-[0.9fr_0.9fr_1.3fr]">
+                <div className="order-3 xl:order-1 space-y-4">
                 <SectionCard
                   title="Grundaufbau"
                   description={
@@ -3684,7 +3687,7 @@ export default function SocialMediaPage() {
                 </SectionCard>
               </div>
 
-              <div className="space-y-4">
+              <div className="order-2 xl:order-2 space-y-4">
                 <SectionCard
                   title="Layer-Inspector"
                   description={
@@ -4696,7 +4699,7 @@ export default function SocialMediaPage() {
                 </SectionCard>
               </div>
 
-              <div className="space-y-4">
+              <div className="order-1 xl:order-3 space-y-4">
                 <SectionCard
                   title="Live-Vorschau"
                   description="Die Ebenenansicht zeigt direkt, was vorne oder hinten liegt."
@@ -4983,7 +4986,7 @@ export default function SocialMediaPage() {
                   </SectionCard>
                 ) : null}
 
-                <div className="flex flex-wrap gap-3">
+                <div className="sticky bottom-0 z-20 mt-6 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:static md:mt-0 md:border-t-0 md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-0 flex flex-wrap gap-3">
                   <button
                     type="button"
                     disabled={draftSubmitting}
@@ -5239,6 +5242,7 @@ export default function SocialMediaPage() {
                 </div>
               </div>
             </div>
+            </div>
           </div>
         </div>
       ) : null}
@@ -5263,37 +5267,37 @@ export default function SocialMediaPage() {
 
       {assetLibraryOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-start md:items-center bg-slate-950/75 p-0 md:p-4 backdrop-blur-sm"
           onClick={() => !assetLibraryBusy && setAssetLibraryOpen(false)}
         >
           <div
             className={cn(
-              "flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl",
+              "flex h-full md:h-[90vh] w-full max-w-6xl flex-col overflow-hidden md:rounded-[2rem] bg-white shadow-2xl",
               assetLibraryBusy && "pointer-events-none opacity-80",
             )}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-6 py-4">
-              <div>
-                <p className="text-lg font-bold text-slate-900">Asset-Bibliothek</p>
-                <p className="text-sm text-slate-600">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-4 md:px-6 md:static">
+              <div className="min-w-0">
+                <p className="truncate text-base md:text-lg font-bold text-slate-900">Asset-Bibliothek</p>
+                <p className="mt-0.5 line-clamp-2 text-xs md:text-sm text-slate-600">
                   Ordner und Assets verwalten · 1 Klick ins Layout einfügen
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setAssetLibraryOpen(false)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50"
                 aria-label="Schliessen"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
 
-            <div className="grid min-h-0 flex-1 grid-cols-[320px_1fr] gap-0">
-              <div className="flex min-h-0 flex-col border-r border-slate-200 bg-slate-50">
-                <div className="flex-1 overflow-y-auto p-4">
-                  <ul className="space-y-2">
+            <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[320px_1fr] gap-0">
+              <div className="flex md:min-h-0 flex-row md:flex-col border-b md:border-b-0 md:border-r border-slate-200 bg-slate-50 md:bg-slate-50">
+                <div className="flex md:flex-col gap-2 overflow-x-auto md:overflow-y-auto md:flex-1 p-3 md:p-4 -mx-4 md:mx-0 px-4 md:px-0 shrink-0 md:shrink whitespace-nowrap md:whitespace-normal">
+                  <ul className="flex md:block md:space-y-2 gap-2 items-center md:items-stretch">
                     <li>
                       <button
                         type="button"
@@ -5446,10 +5450,10 @@ export default function SocialMediaPage() {
               </div>
 
               <div className="flex min-h-0 flex-col">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-4">
-                  <div>
-                    <p className="text-sm font-bold text-slate-900">{selectedAssetFolderName}</p>
-                    <p className="text-xs text-slate-500">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3 md:px-6 md:py-4">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-slate-900">{selectedAssetFolderName}</p>
+                    <p className="truncate text-xs text-slate-500">
                       {selectedAssetFolderId === "__crests__"
                         ? `${socialMediaCrests.length} gespeicherte Wappen / Logos`
                         : `${visibleLibraryAssets.length} Assets im Ordner`}
@@ -5457,9 +5461,9 @@ export default function SocialMediaPage() {
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {selectedAssetFolderId !== "__crests__" ? (
-                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                      <label className="inline-flex cursor-pointer items-center gap-2 min-h-11 rounded-xl border border-slate-200 bg-white px-3 md:px-4 py-2 text-xs md:text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
                         <Upload size={16} />
-                        {canManageSocial ? "Bilder hier hochladen" : "Bilder fuer mein Posting hochladen"}
+                        <span className="truncate">{canManageSocial ? "Hochladen" : "Bilder hochladen"}</span>
                         <input
                           type="file"
                           accept="image/png,image/jpeg,image/webp"
@@ -5479,87 +5483,91 @@ export default function SocialMediaPage() {
                       <button
                         type="button"
                         onClick={() => void handleDeleteAssetFolder()}
-                        className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-50"
+                        className="inline-flex items-center gap-2 min-h-11 rounded-xl border border-rose-200 bg-white px-3 md:px-4 py-2 text-xs md:text-sm font-semibold text-rose-700 transition hover:bg-rose-50"
                       >
                         <Trash2 size={16} />
-                        Ordner löschen
+                        <span className="truncate">Ordner loeschen</span>
                       </button>
                     ) : null}
                   </div>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+                <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 md:px-6 md:py-5">
                   {selectedAssetFolderId === "__crests__" ? (
                     socialMediaCrests.length ? (
-                      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5 md:grid-cols-3 xl:grid-cols-4">
                         {socialMediaCrests.map((crest) => {
                           const isUsed = editorAssets.some(
                             (asset) => asset.ref === crest.imageUrl,
                           );
                           return (
-                            <div
+                            <button
+                              type="button"
                               key={crest.id}
-                              className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                              onClick={() => {
+                                addSharedAssetToEditor(crest.imageUrl, crest.id);
+                                setAssetLibraryOpen(false);
+                              }}
+                              className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-blue-100 active:scale-[0.99]"
                             >
-                              <div className="flex h-32 items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100">
+                              <div className="flex min-h-36 md:h-32 items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 p-3">
                                 <img
                                   src={crest.imageUrl}
                                   alt={crest.name || "Wappen"}
-                                  className="max-h-full max-w-full object-contain p-3 transition duration-200 group-hover:scale-110"
+                                  className="max-h-full max-w-full object-contain transition duration-200 group-hover:scale-110"
                                 />
                               </div>
-                              <div className="space-y-2 border-t border-slate-200 p-3">
-                                <div className="min-h-10">
-                                  <p className="truncate text-sm font-semibold text-slate-900">
+                              <div className="mt-auto border-t border-slate-200 p-3">
+                                <div className="mb-3 min-h-[3rem]">
+                                  <p className="truncate text-sm font-bold text-slate-900">
                                     {crest.name || "Wappen / Logo"}
                                   </p>
-                                  <p className="truncate text-xs text-slate-500">
+                                  <p className="mt-1 truncate text-xs text-slate-500">
                                     {isUsed ? "✓ Bereits im Asset-Pool" : "Systemordner (Wappen)"}
                                   </p>
                                 </div>
-                                <div className="flex items-center justify-between gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      addSharedAssetToEditor(crest.imageUrl, crest.id);
-                                      setAssetLibraryOpen(false);
-                                    }}
-                                    className={cn(
-                                      "inline-flex items-center justify-center gap-1 rounded-xl px-3 py-2 text-xs font-bold transition",
-                                      isUsed
-                                        ? "bg-emerald-100 text-emerald-700"
-                                        : "bg-gradient-to-br from-blue-900 to-blue-700 text-white hover:opacity-95",
-                                    )}
-                                  >
+                                <div
+                                  className={cn(
+                                    "flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-bold transition",
+                                    isUsed
+                                      ? "bg-emerald-100 text-emerald-700"
+                                      : "bg-gradient-to-br from-blue-900 to-blue-700 text-white group-hover:opacity-95",
+                                  )}
+                                >
                                     {isUsed ? (
-                                      <>Da</>
+                                      <>
+                                        <Check size={16} />
+                                        Bereits da
+                                      </>
                                     ) : (
                                       <>
-                                        <Plus size={14} />
-                                        Einfügen
+                                        <Plus size={18} />
+                                        Hinzufuegen
                                       </>
                                     )}
-                                  </button>
-                                  {canManageSocial ? (
+                                  </div>
+                                {canManageSocial ? (
+                                  <div className="mt-2">
                                     <button
                                       type="button"
-                                      onClick={() =>
-                                        void handleDeleteAsset(crest.id, crest.name || "Wappen", "crest")
-                                      }
-                                      className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
-                                      aria-label="Loeschen"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        void handleDeleteAsset(crest.id, crest.name || "Wappen", "crest");
+                                      }}
+                                      className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-50"
                                     >
-                                      <Trash2 size={16} />
+                                      <Trash2 size={14} />
+                                      Loeschen
                                     </button>
-                                  ) : null}
-                                </div>
+                                  </div>
+                                ) : null}
                               </div>
-                            </div>
+                            </button>
                           );
                         })}
                       </div>
                     ) : (
-                      <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-16 text-center">
+                      <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-12 text-center">
                         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-900 to-blue-700 text-white shadow-sm">
                           <Shield size={28} />
                         </div>
@@ -5572,7 +5580,7 @@ export default function SocialMediaPage() {
                       </div>
                     )
                   ) : visibleLibraryAssets.length ? (
-                    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5 md:grid-cols-3 xl:grid-cols-4">
                       {visibleLibraryAssets.map((asset) => {
                         const isUsed = editorAssets.some(
                           (existing) => existing.ref === asset.imageUrl,
@@ -5580,75 +5588,79 @@ export default function SocialMediaPage() {
                         const canDeleteAsset =
                           canManageSocial || asset.createdBy === currentUserId;
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={asset.id}
-                            className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                            onClick={() => {
+                              addSharedAssetToEditor(asset.imageUrl, asset.name);
+                              setAssetLibraryOpen(false);
+                            }}
+                            className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-blue-100 active:scale-[0.99]"
                           >
-                            <div className="h-32 overflow-hidden bg-slate-50">
+                            <div className="min-h-40 md:h-32 overflow-hidden bg-slate-50">
                               <img
                                 src={asset.imageUrl}
                                 alt={asset.name || "Asset"}
                                 className="h-full w-full object-cover transition duration-200 group-hover:scale-105"
                               />
                             </div>
-                            <div className="space-y-2 border-t border-slate-200 p-3">
-                              <div className="min-h-10">
-                                <p className="truncate text-sm font-semibold text-slate-900">
+                            <div className="mt-auto space-y-2 border-t border-slate-200 p-3">
+                              <div className="mb-3 min-h-[3rem]">
+                                <p className="truncate text-sm font-bold text-slate-900">
                                   {asset.name || "Bild-Asset"}
                                 </p>
-                                <p className="truncate text-xs text-slate-500">
+                                <p className="mt-1 truncate text-xs text-slate-500">
                                   {isUsed
                                     ? "✓ Bereits im Asset-Pool"
                                     : sellerName(asset.createdBy)}
                                 </p>
                               </div>
-                              <div className="flex items-center justify-between gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    addSharedAssetToEditor(asset.imageUrl, asset.id);
-                                    setAssetLibraryOpen(false);
-                                  }}
-                                  className={cn(
-                                    "inline-flex items-center justify-center gap-1 rounded-xl px-3 py-2 text-xs font-bold transition",
-                                    isUsed
-                                      ? "bg-emerald-100 text-emerald-700"
-                                      : "bg-gradient-to-br from-blue-900 to-blue-700 text-white hover:opacity-95",
-                                  )}
-                                >
-                                  {isUsed ? (
-                                    <>Da</>
-                                  ) : (
-                                    <>
-                                      <Plus size={14} />
-                                      Einfügen
-                                    </>
-                                  )}
-                                </button>
-                                {canDeleteAsset ? (
+                              <div
+                                className={cn(
+                                  "flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-bold transition",
+                                  isUsed
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : "bg-gradient-to-br from-blue-900 to-blue-700 text-white group-hover:opacity-95",
+                                )}
+                              >
+                                {isUsed ? (
+                                  <>
+                                    <Check size={16} />
+                                    Bereits da
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus size={18} />
+                                    Hinzufuegen
+                                  </>
+                                )}
+                              </div>
+                              {canDeleteAsset ? (
+                                <div>
                                   <button
                                     type="button"
-                                    onClick={() =>
+                                    onClick={(event) => {
+                                      event.stopPropagation();
                                       void handleDeleteAsset(
                                         asset.id,
                                         asset.name || "Bild-Asset",
                                         "asset",
-                                      )
-                                    }
-                                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
-                                    aria-label="Loeschen"
+                                      );
+                                    }}
+                                    className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-50"
                                   >
-                                    <Trash2 size={16} />
+                                    <Trash2 size={14} />
+                                    Loeschen
                                   </button>
-                                ) : null}
-                              </div>
+                                </div>
+                              ) : null}
                             </div>
-                          </div>
+                          </button>
                         );
                       })}
                     </div>
                   ) : (
-                    <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-16 text-center">
+                    <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-12 text-center">
                       <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-500 to-slate-400 text-white shadow-sm">
                         <Folder size={28} />
                       </div>
