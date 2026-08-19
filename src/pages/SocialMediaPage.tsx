@@ -866,7 +866,7 @@ function SocialPreview({
       ref={previewRef}
       className={cn(
         "relative overflow-hidden rounded-[2.25rem] border border-slate-200 bg-white text-slate-900 shadow-[0_28px_90px_rgba(15,23,42,0.14)]",
-        draftType === "story" ? "aspect-[9/16]" : "aspect-[4/5]",
+        draftType === "story" ? "aspect-[9/16]" : "aspect-[3/4]",
       )}
     >
       {visibleLayers.map((layer, index) => {
@@ -1206,7 +1206,7 @@ export default function SocialMediaPage() {
     try {
       const previewAssets = buildDraftAssets(draft, socialMediaCrests);
       const previewLayers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
-      const pixelScale = draft.draftType === "story" ? 3 : 2.5;
+      const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
       const wrap = document.createElement("div");
       wrap.style.position = "fixed";
       wrap.style.left = "-100000px";
@@ -1226,7 +1226,7 @@ export default function SocialMediaPage() {
                 borderRadius: "32px",
               }}
             >
-              <div style={{ position: "relative", width: "1000px" }}>
+              <div style={{ position: "relative", width: `${exportWidthPx}px` }}>
                 <SocialPreview
                   draftType={draft.draftType}
                   layout={draft.layout}
@@ -1257,7 +1257,7 @@ export default function SocialMediaPage() {
       }
 
       const dataUrl = await htmlToImage.toJpeg(target, {
-        pixelRatio: pixelScale,
+        pixelRatio: 1,
         quality: 0.95,
         cacheBust: true,
         backgroundColor: "#ffffff",
@@ -4942,16 +4942,17 @@ export default function SocialMediaPage() {
               </button>
             </div>
 
-            <div className="grid min-h-0 flex-1 grid-cols-[260px_1fr] gap-0">
+            <div className="grid min-h-0 flex-1 grid-cols-[320px_1fr] gap-0">
               <div className="flex min-h-0 flex-col border-r border-slate-200 bg-slate-50">
-                <div className="flex-1 overflow-y-auto p-3">
-                  <ul className="space-y-1">
+                <div className="flex-1 overflow-y-auto p-4">
+                  <ul className="space-y-2">
                     <li>
                       <button
                         type="button"
                         onClick={() => setSelectedAssetFolderId("__crests__")}
+                        title="Wappen & Logos · Systemordner"
                         className={cn(
-                          "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition",
+                          "flex w-full items-start gap-3 rounded-2xl px-4 py-3.5 text-left transition",
                           selectedAssetFolderId === "__crests__"
                             ? "bg-gradient-to-br from-blue-900 to-blue-700 text-white shadow-sm"
                             : "text-slate-700 hover:bg-white hover:shadow-sm",
@@ -4959,20 +4960,20 @@ export default function SocialMediaPage() {
                       >
                         <div
                           className={cn(
-                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
                             selectedAssetFolderId === "__crests__"
                               ? "bg-white/15 text-white"
                               : "bg-gradient-to-br from-blue-900 to-blue-700 text-white",
                           )}
                         >
-                          <Shield size={16} />
+                          <Shield size={18} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate">Wappen & Logos</p>
+                          <p className="line-clamp-2 break-words text-[0.95rem] font-bold leading-tight">Wappen &amp; Logos</p>
                           <p
                             className={cn(
-                              "text-[11px]",
-                              selectedAssetFolderId === "__crests__" ? "text-white/75" : "text-slate-500",
+                              "mt-0.5 text-[11px]",
+                              selectedAssetFolderId === "__crests__" ? "text-white/80" : "text-slate-500",
                             )}
                           >
                             {socialMediaCrests.length} Elemente · Systemordner
@@ -4984,13 +4985,15 @@ export default function SocialMediaPage() {
                       const count = socialMediaAssets.filter(
                         (asset) => asset.folderId === folder.id,
                       ).length;
+                      const folderLabel = `${folder.name} · ${count} Elemente`;
                       return (
                         <li key={folder.id}>
                           <button
                             type="button"
                             onClick={() => setSelectedAssetFolderId(folder.id)}
+                            title={folderLabel}
                             className={cn(
-                              "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition",
+                              "flex w-full items-start gap-3 rounded-2xl px-4 py-3.5 text-left transition",
                               selectedAssetFolderId === folder.id
                                 ? "bg-gradient-to-br from-sky-700 to-sky-600 text-white shadow-sm"
                                 : "text-slate-700 hover:bg-white hover:shadow-sm",
@@ -4998,20 +5001,22 @@ export default function SocialMediaPage() {
                           >
                             <div
                               className={cn(
-                                "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+                                "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
                                 selectedAssetFolderId === folder.id
                                   ? "bg-white/15 text-white"
                                   : "bg-gradient-to-br from-sky-600 to-sky-500 text-white",
                               )}
                             >
-                              <Folder size={16} />
+                              <Folder size={18} />
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="truncate">{folder.name}</p>
+                              <p className="line-clamp-2 break-words text-[0.95rem] font-bold leading-tight">
+                                {folder.name}
+                              </p>
                               <p
                                 className={cn(
-                                  "text-[11px]",
-                                  selectedAssetFolderId === folder.id ? "text-white/75" : "text-slate-500",
+                                  "mt-0.5 text-[11px]",
+                                  selectedAssetFolderId === folder.id ? "text-white/80" : "text-slate-500",
                                 )}
                               >
                                 {count} Elemente
@@ -5025,8 +5030,9 @@ export default function SocialMediaPage() {
                       <button
                         type="button"
                         onClick={() => setSelectedAssetFolderId("__unassigned__")}
+                        title="Nicht zugeordnet · Assets ohne Ordner"
                         className={cn(
-                          "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition",
+                          "flex w-full items-start gap-3 rounded-2xl px-4 py-3.5 text-left transition",
                           selectedAssetFolderId === "__unassigned__"
                             ? "bg-slate-700 text-white shadow-sm"
                             : "text-slate-700 hover:bg-white hover:shadow-sm",
@@ -5034,16 +5040,16 @@ export default function SocialMediaPage() {
                       >
                         <div
                           className={cn(
-                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
                             selectedAssetFolderId === "__unassigned__"
                               ? "bg-white/15 text-white"
                               : "bg-slate-500 text-white",
                           )}
                         >
-                          <Archive size={16} />
+                          <Archive size={18} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate">Nicht zugeordnet</p>
+                          <p className="line-clamp-2 break-words text-[0.95rem] font-bold leading-tight">Nicht zugeordnet</p>
                           <p
                             className={cn(
                               "text-[11px]",
