@@ -816,6 +816,32 @@ if (!socialMediaDraftColumns.includes('is_template')) {
   db.prepare('ALTER TABLE social_media_drafts ADD COLUMN is_template INTEGER NOT NULL DEFAULT 0').run()
 }
 
+if (!socialMediaDraftColumns.includes('posting_text')) {
+  db.prepare("ALTER TABLE social_media_drafts ADD COLUMN posting_text TEXT DEFAULT ''").run()
+}
+
+if (!socialMediaDraftColumns.includes('hashtags')) {
+  db.prepare("ALTER TABLE social_media_drafts ADD COLUMN hashtags TEXT DEFAULT '[]'").run()
+}
+
+if (!socialMediaDraftColumns.includes('status')) {
+  try {
+    db.prepare(
+      "ALTER TABLE social_media_drafts ADD COLUMN status TEXT NOT NULL DEFAULT 'draft'",
+    ).run()
+  } catch {
+    try {
+      db.prepare("ALTER TABLE social_media_drafts ADD COLUMN status TEXT DEFAULT 'draft'").run()
+    } catch {
+      /* ignore, strict SQLite erlaubt teilweise kein NOT NULL bei ALTER TABLE, Default reicht uns */
+    }
+  }
+}
+
+if (!socialMediaDraftColumns.includes('admin_notification_at')) {
+  db.prepare('ALTER TABLE social_media_drafts ADD COLUMN admin_notification_at TEXT DEFAULT NULL').run()
+}
+
 const tournamentOfferColumns = (
   db.prepare('PRAGMA table_info(tournament_offers)').all() as { name: string }[]
 ).map((column) => column.name)
