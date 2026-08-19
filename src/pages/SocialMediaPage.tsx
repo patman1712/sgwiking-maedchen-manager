@@ -4717,34 +4717,42 @@ export default function SocialMediaPage() {
                       : "Reihenfolge bestimmt, was vorne oder hinten liegt. Ebene einfach per Drag & Drop auf eine andere Position ziehen. Schnellschalter direkt unter der Vorschau."
                   }
                   actions={
-                    canManageSocial ? (
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => addLayer("image")}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                        >
-                          <ImageIcon size={15} />
-                          Bild
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => addLayer("caption")}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                        >
-                          <Type size={15} />
-                          Text
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => addLayer("badge")}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                        >
-                          <SquareStack size={15} />
-                          Badges
-                        </button>
-                      </div>
-                    ) : undefined
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => addLayer("image")}
+                        disabled={editorAssets.length === 0}
+                        title={
+                          editorAssets.length === 0
+                            ? "Zuerst Asset aus der Bibliothek in dein Posting laden (Klick auf Bibliothek)."
+                            : canManageSocial
+                              ? "Bild hinzufuegen (lokal oder aus Bibliothek)"
+                              : "Bild aus der Asset-Bibliothek hinzufuegen"
+                        }
+                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <ImageIcon size={15} />
+                        {canManageSocial ? "Bild" : "Aus Bibliothek"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addLayer("caption")}
+                        title="Text-Ebene hinzufuegen"
+                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        <Type size={15} />
+                        Text
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addLayer("badge")}
+                        title="Badge / Label-Ebene hinzufuegen"
+                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        <SquareStack size={15} />
+                        Badges
+                      </button>
+                    </div>
                   }
                 >
                   <div className="space-y-3">
@@ -4858,58 +4866,41 @@ export default function SocialMediaPage() {
                                   updateLayer(layer.id, { enabled: !layer.enabled })
                                 }
                                 className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50"
+                                title={layer.enabled ? "Ebene ausblenden" : "Ebene einblenden"}
                               >
                                 {layer.enabled ? <Eye size={15} /> : <EyeOff size={15} />}
                               </button>
-                              {!canManageSocial ? (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() => moveLayer(layer.id, -1)}
-                                    disabled={index === 0}
-                                    className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                                    title="Eine Ebene nach vorne"
-                                  >
-                                    <ArrowUp size={15} />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => moveLayer(layer.id, 1)}
-                                    disabled={index === editorLayers.length - 1}
-                                    className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                                    title="Eine Ebene nach hinten"
-                                  >
-                                    <ArrowDown size={15} />
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() => moveLayer(layer.id, -1)}
-                                    disabled={index === 0}
-                                    className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                                  >
-                                    <ArrowUp size={15} />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => moveLayer(layer.id, 1)}
-                                    disabled={index === editorLayers.length - 1}
-                                    className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                                  >
-                                    <ArrowDown size={15} />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => removeLayer(layer.id)}
-                                    disabled={isLayerProtected(layer)}
-                                    className="rounded-2xl border border-rose-200 bg-rose-50 p-2 text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
-                                  >
-                                    <Trash2 size={15} />
-                                  </button>
-                                </>
-                              )}
+                              <button
+                                type="button"
+                                onClick={() => moveLayer(layer.id, -1)}
+                                disabled={index === 0}
+                                className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                title="Eine Ebene nach vorne"
+                              >
+                                <ArrowUp size={15} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveLayer(layer.id, 1)}
+                                disabled={index === editorLayers.length - 1}
+                                className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                title="Eine Ebene nach hinten"
+                              >
+                                <ArrowDown size={15} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeLayer(layer.id)}
+                                disabled={isLayerProtected(layer)}
+                                title={
+                                  isLayerProtected(layer)
+                                    ? "Vorlagen-Ebene kann nicht geloescht werden."
+                                    : "Ebene loeschen"
+                                }
+                                className="rounded-2xl border border-rose-200 bg-rose-50 p-2 text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                <Trash2 size={15} />
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -5449,7 +5440,7 @@ export default function SocialMediaPage() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    {selectedAssetFolderId !== "__crests__" ? (
+                    {canManageSocial && selectedAssetFolderId !== "__crests__" ? (
                       <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
                         <Upload size={16} />
                         Bilder hier hochladen
@@ -5649,9 +5640,11 @@ export default function SocialMediaPage() {
                         Ordner ist noch leer
                       </p>
                       <p className="text-sm text-slate-600">
-                        Lade hier Bilder hoch, um sie später in beliebigen Postings wiederzuverwenden.
+                        {canManageSocial
+                          ? "Lade hier Bilder hoch, um sie später in beliebigen Postings wiederzuverwenden."
+                          : "Dieser Ordner ist aktuell leer. Frage einen Social Media Manager, falls du hier Assets vermisst."}
                       </p>
-                      {selectedAssetFolderId !== "__crests__" ? (
+                      {canManageSocial && selectedAssetFolderId !== "__crests__" ? (
                         <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-br from-blue-900 to-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-95">
                           <Plus size={16} />
                           Erste Bilder hochladen
