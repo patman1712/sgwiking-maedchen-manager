@@ -1,5 +1,12 @@
 import { Router, type Request, type Response } from 'express'
-import db, { createId, getBootstrapData, isAdminOrBoard, now, userHasTeamRole } from '../db.js'
+import db, {
+  createId,
+  getBootstrapData,
+  isAdminOrBoard,
+  now,
+  toBerlinNormalizedIso,
+  userHasTeamRole,
+} from '../db.js'
 
 const router = Router()
 
@@ -37,6 +44,11 @@ router.post('/', (req: Request, res: Response) => {
   const team = db
     .prepare('SELECT name FROM teams WHERE id = ?')
     .get(teamId) as { name: string } | undefined
+  const normalizedKickoffAt = toBerlinNormalizedIso(kickoffAt)
+  if (!normalizedKickoffAt) {
+    res.status(400).json({ success: false, error: 'Ungueltiges Datum/Uhrzeit fuer das Spiel.' })
+    return
+  }
 
   db.prepare(`
     INSERT INTO matches (
@@ -59,7 +71,7 @@ router.post('/', (req: Request, res: Response) => {
     matchId,
     teamId,
     opponent,
-    kickoffAt,
+    normalizedKickoffAt,
     location,
     isHome === false ? 0 : 1,
     '',
@@ -123,6 +135,12 @@ router.put('/:id', (req: Request, res: Response) => {
   const nextIsHome = typeof isHome === 'boolean' ? (isHome ? 1 : 0) : current.is_home
   const homeTeamName = nextIsHome ? teamName : nextOpponent
   const awayTeamName = nextIsHome ? nextOpponent : teamName
+  const nextKickoffRaw = kickoffAt ?? current.kickoff_at
+  const normalizedKickoffAt = toBerlinNormalizedIso(nextKickoffRaw)
+  if (!normalizedKickoffAt) {
+    res.status(400).json({ success: false, error: 'Ungueltiges Datum/Uhrzeit fuer das Spiel.' })
+    return
+  }
 
   db.prepare(`
     UPDATE matches
@@ -130,7 +148,7 @@ router.put('/:id', (req: Request, res: Response) => {
     WHERE id = ?
   `).run(
     nextOpponent,
-    kickoffAt ?? current.kickoff_at,
+    normalizedKickoffAt,
     location ?? current.location,
     nextIsHome,
     homeTeamName,

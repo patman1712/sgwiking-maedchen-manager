@@ -6,9 +6,11 @@ import db, {
   createId,
   DATA_DIR,
   getBootstrapData,
+  getGermanyDstOffsetMinutes,
   getUserRowById,
   isAdminOrBoard,
   now,
+  toBerlinNormalizedIso,
   userHasTeamRole,
 } from '../db.js'
 
@@ -85,16 +87,11 @@ const normalizeFussballDeAssetUrl = (value: string | null | undefined) => {
 }
 
 const parseGermanKickoff = (value: string) => {
-  const match = value.match(/(\d{2})\.(\d{2})\.(\d{2,4}).*?(\d{2}:\d{2})/)
-
-  if (!match) {
-    return null
-  }
-
-  const [, day, month, rawYear, time] = match
-  const year = rawYear.length === 2 ? `20${rawYear}` : rawYear
-  return new Date(`${year}-${month}-${day}T${time}:00`).toISOString()
+  const cleaned = value.replace(/\s+/g, ' ').trim()
+  return toBerlinNormalizedIso(cleaned)
 }
+
+export { toBerlinNormalizedIso, getGermanyDstOffsetMinutes } from '../db.js'
 
 const getSeasonDateRange = (season: string) => {
   const match = season.match(/(\d{4})\s*\/\s*(\d{4})/)

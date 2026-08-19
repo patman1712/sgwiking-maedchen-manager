@@ -96,6 +96,102 @@ if (usersTableSql && !usersTableSql.sql.includes("'board'")) {
   db.pragma('foreign_keys = ON')
 }
 
+export const getGermanyDstOffsetMinutes = (year: number, monthOneBased: number, day: number, hour: number, minute: number) => {
+  const lastSundayOf = (y: number, mIdxZeroBased: number) => {
+    const lastDay = new Date(Date.UTC(y, mIdxZeroBased + 1, 0)).getUTCDate()
+    const date = new Date(Date.UTC(y, mIdxZeroBased, lastDay))
+    const weekday = date.getUTCDay()
+    return lastDay - weekday
+  }
+  const mIdx = monthOneBased - 1
+  const dstStart = lastSundayOf(year, 2)
+  const dstEnd = lastSundayOf(year, 9)
+  const localMinutes = hour * 60 + minute
+  const isDstStartDay = mIdx === 2 && day === dstStart
+  const isDstEndDay = mIdx === 9 && day === dstEnd
+  if (mIdx > 2 && mIdx < 9) return 120
+  if (mIdx === 2) {
+    if (day > dstStart) return 120
+    if (isDstStartDay && localMinutes >= 2 * 60) return 120
+    return 60
+  }
+  if (mIdx === 9) {
+    if (day < dstEnd) return 120
+    if (isDstEndDay && localMinutes < 2 * 60) return 120
+    return 60
+  }
+  return 60
+}
+
+export const toBerlinNormalizedIso = (value: string | null | undefined) => {
+  if (!value) return null
+  if (value.includes('Z') || /[+\-]\d{2}:\d{2}$/.test(value)) {
+    const t = new Date(value).getTime()
+    if (!Number.isFinite(t)) return null
+    return new Date(t).toISOString()
+  }
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/)
+  if (!match) {
+    const onlyDate = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (onlyDate) {
+      const [, y, m, d] = onlyDate
+      const offsetMinutes = getGermanyDstOffsetMinutes(Number(y), Number(m), Number(d), 12, 0)
+      const sign = offsetMinutes >= 0 ? '+' : '-'
+      const absMin = Math.abs(offsetMinutes)
+      const hh = String(Math.floor(absMin / 60)).padStart(2, '0')
+      const mm = String(absMin % 60).padStart(2, '0')
+      return new Date(`${y}-${m}-${d}T12:00:00${sign}${hh}:${mm}`).toISOString()
+    }
+    const fallbackGermanDate = value.match(/(\d{2})\.(\d{2})\.(\d{2,4}).*?(\d{2}):(\d{2})/)
+    if (fallbackGermanDate) {
+      const [, day, month, rawYear, timeHour, timeMinute] = fallbackGermanDate
+      const year = rawYear.length === 2 ? `20${rawYear}` : rawYear
+      const y = Number(year)
+      const mo = Number(month)
+      const d = Number(day)
+      const h = Number(timeHour)
+      const min = Number(timeMinute)
+      const offsetMinutes = getGermanyDstOffsetMinutes(y, mo, d, h, min)
+      const sign = offsetMinutes >= 0 ? '+' : '-'
+      const absMin = Math.abs(offsetMinutes)
+      const hh = String(Math.floor(absMin / 60)).padStart(2, '0')
+      const mm = String(absMin % 60).padStart(2, '0')
+      return new Date(`${year}-${month}-${day}T${timeHour}:${timeMinute}:00${sign}${hh}:${mm}`).toISOString()
+    }
+    const fallbackOnlyDateDe = value.match(/^(\d{2})\.(\d{2})\.(\d{2,4})$/)
+    if (fallbackOnlyDateDe) {
+      const [, day, month, rawYear] = fallbackOnlyDateDe
+      const year = rawYear.length === 2 ? `20${rawYear}` : rawYear
+      const y = Number(year)
+      const mo = Number(month)
+      const d = Number(day)
+      const offsetMinutes = getGermanyDstOffsetMinutes(y, mo, d, 12, 0)
+      const sign = offsetMinutes >= 0 ? '+' : '-'
+      const absMin = Math.abs(offsetMinutes)
+      const hh = String(Math.floor(absMin / 60)).padStart(2, '0')
+      const mm = String(absMin % 60).padStart(2, '0')
+      return new Date(`${year}-${month}-${day}T12:00:00${sign}${hh}:${mm}`).toISOString()
+    }
+    const t = new Date(value).getTime()
+    if (!Number.isFinite(t)) return null
+    return new Date(t).toISOString()
+  }
+  const [, yStr, mStr, dStr, hStr, minStr, secStr] = match
+  const y = Number(yStr)
+  const m = Number(mStr)
+  const d = Number(dStr)
+  const h = Number(hStr)
+  const min = Number(minStr)
+  const sec = secStr ? Number(secStr) : 0
+  const offsetMinutes = getGermanyDstOffsetMinutes(y, m, d, h, min)
+  const sign = offsetMinutes >= 0 ? '+' : '-'
+  const absMin = Math.abs(offsetMinutes)
+  const hh = String(Math.floor(absMin / 60)).padStart(2, '0')
+  const mm = String(absMin % 60).padStart(2, '0')
+  const ss = String(sec).padStart(2, '0')
+  return new Date(`${yStr}-${mStr}-${dStr}T${hStr}:${minStr}:${ss}${sign}${hh}:${mm}`).toISOString()
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
