@@ -110,6 +110,7 @@ const createEmptyForm = (role: Extract<UserRole, "trainer" | "player" | "board" 
   hasMembershipApplication: false,
   hasMedicalCertificate: false,
   hasPhotoConsentSocial: false,
+  socialMediaEnabled: role === "trainer",
 });
 
 const createEmptyDocumentFiles = (): Record<PlayerDocumentType, File | null> => ({
@@ -199,6 +200,7 @@ export default function PeopleManagementPage({
       hasMembershipApplication: user.hasMembershipApplication ?? false,
       hasMedicalCertificate: user.hasMedicalCertificate ?? false,
       hasPhotoConsentSocial: user.hasPhotoConsentSocial ?? false,
+      socialMediaEnabled: Boolean(user.socialMediaEnabled),
     });
     setDocumentFiles(createEmptyDocumentFiles());
     setShowFormModal(true);
@@ -421,6 +423,10 @@ export default function PeopleManagementPage({
                           role === "player" ? payload.hasMedicalCertificate : undefined,
                         hasPhotoConsentSocial:
                           role === "player" ? payload.hasPhotoConsentSocial : undefined,
+                        socialMediaEnabled:
+                          role !== "board"
+                            ? payload.socialMediaEnabled
+                            : undefined,
                       })
                     : await addUser({
                         fullName: payload.fullName,
@@ -443,6 +449,8 @@ export default function PeopleManagementPage({
                           role === "player" ? payload.hasMedicalCertificate : undefined,
                         hasPhotoConsentSocial:
                           role === "player" ? payload.hasPhotoConsentSocial : undefined,
+                        socialMediaEnabled:
+                          role !== "board" ? payload.socialMediaEnabled : false,
                       });
 
                   if (!result.success) {
@@ -692,6 +700,28 @@ export default function PeopleManagementPage({
                   onChange={(event) => setForm({ ...form, notes: event.target.value })}
                 />
               </label>
+
+              {role !== "board" ? (
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-300 hover:bg-blue-50/60">
+                  <input
+                    type="checkbox"
+                    checked={form.socialMediaEnabled}
+                    onChange={(event) =>
+                      setForm({ ...form, socialMediaEnabled: event.target.checked })
+                    }
+                    className="mt-0.5 h-5 w-5 cursor-pointer accent-blue-700"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900">
+                      Darf Social-Media-Postings erstellen
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Zugriff auf den Social-Media-Editor mit Auswahl von freigegebenen
+                      Vorlagen. Keine Rechte zum Anlegen von Vorlagen, Assets oder Ordnern.
+                    </p>
+                  </div>
+                </label>
+              ) : null}
 
               <div className="space-y-4 pt-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:space-y-0">
                 <div>

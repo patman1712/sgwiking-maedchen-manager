@@ -1667,7 +1667,7 @@ export const isAdminOrBoard = (userId: string) => {
   return false
 }
 
-export const canUseSocialMedia = (userId: string) => {
+export const canManageSocialMedia = (userId: string) => {
   const row = getUserRowById(userId)
   if (!row) {
     return false
@@ -1677,9 +1677,21 @@ export const canUseSocialMedia = (userId: string) => {
     row.role === 'admin' ||
     row.role === 'board' ||
     row.role === 'social' ||
-    Boolean(row.is_social_media_manager) ||
-    (row.role === 'trainer' && Boolean(row.social_media_enabled))
+    Boolean(row.is_social_media_manager)
   )
+}
+
+export const canUseSocialMedia = (userId: string) => {
+  const row = getUserRowById(userId)
+  if (!row) {
+    return false
+  }
+
+  if (canManageSocialMedia(userId)) {
+    return true
+  }
+
+  return Boolean(row.social_media_enabled)
 }
 
 const getVisibleConversationRows = (userId?: string | null) => {

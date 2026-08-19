@@ -236,12 +236,13 @@ router.post('/', (req: Request, res: Response) => {
       membership_application_file_url,
       medical_certificate_file_url,
       photo_consent_social_file_url,
+      social_media_enabled,
       must_change_password,
       privacy_accepted_at,
       is_social_media_manager,
       created_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertMember = db.prepare(`
     INSERT INTO team_members (id, team_id, user_id, membership_role, created_at)
@@ -276,6 +277,7 @@ router.post('/', (req: Request, res: Response) => {
       null,
       null,
       null,
+      Boolean(socialMediaEnabled) ? 1 : 0,
       role === 'player' || dbRoleForInsert !== role ? 0 : 1,
       null,
       useMarker ? 1 : 0,
@@ -376,7 +378,7 @@ router.put('/:id', (req: Request, res: Response) => {
   const canManagePlayerDocuments = isAdminOrBoard(actorId)
   const wantsSocialMediaAccessUpdate = typeof socialMediaEnabled === 'boolean'
 
-  if (wantsSocialMediaAccessUpdate && getUserRowById(actorId)?.role !== 'admin') {
+  if (wantsSocialMediaAccessUpdate && !isAdminOrBoard(actorId ?? '')) {
     res.status(403).json({
       success: false,
       error: 'Social-Media-Freigaben koennen nur vom Admin geaendert werden.',

@@ -1150,10 +1150,9 @@ export default function SocialMediaPage() {
     currentUser?.role === "board" ||
     currentUser?.role === "social";
   const canUseSocial =
-    canManageSocial ||
-    currentUser?.role === "social" ||
-    (currentUser?.role === "trainer" && Boolean(currentUser.socialMediaEnabled));
-  const isTrainerSocialUser = currentUser?.role === "trainer";
+    canManageSocial || Boolean(currentUser?.socialMediaEnabled);
+  const isLimitedSocialUser = canUseSocial && !canManageSocial;
+  const isTrainerSocialUser = Boolean(isLimitedSocialUser);
 
   if (!canUseSocial) {
     return <Navigate to={defaultRouteForRole(currentUser?.role)} replace />;

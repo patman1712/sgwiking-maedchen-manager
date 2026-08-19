@@ -91,7 +91,7 @@ export default function DashboardLayout() {
     currentUser?.role === "admin" ||
     currentUser?.role === "board" ||
     currentUser?.role === "social" ||
-    (currentUser?.role === "trainer" && Boolean(currentUser.socialMediaEnabled));
+    Boolean(currentUser?.socialMediaEnabled);
   const canUseTournamentBoerse =
     currentUser?.role === "admin" ||
     currentUser?.role === "board" ||
@@ -885,11 +885,15 @@ export default function DashboardLayout() {
                               { to: "/dashboard/trainers", label: "Trainer", icon: Shield },
                               { to: "/dashboard/players", label: "Spielerinnen", icon: Users },
                               { to: "/dashboard/board", label: "Vorstand", icon: Briefcase },
-                              {
-                                to: "/dashboard/social-media-manager",
-                                label: "Social Media",
-                                icon: FileUser,
-                              },
+                              ...(canViewMemberLists
+                                ? [
+                                    {
+                                      to: "/dashboard/social-media-manager" as const,
+                                      label: "Social Media",
+                                      icon: FileUser,
+                                    },
+                                  ]
+                                : []),
                             ].map((subItem) => (
                               <NavLink
                                 key={subItem.to}

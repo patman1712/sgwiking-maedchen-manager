@@ -57,6 +57,7 @@ interface UserInput {
   membershipApplicationFileUrl?: string | null;
   medicalCertificateFileUrl?: string | null;
   photoConsentSocialFileUrl?: string | null;
+  socialMediaEnabled?: boolean;
 }
 
 interface ApiStatePayload {
