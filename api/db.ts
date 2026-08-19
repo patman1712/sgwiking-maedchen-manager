@@ -97,47 +97,26 @@ if (usersTableSql && !usersTableSql.sql.includes("'board'")) {
 }
 
 const migrateUsersTableAddSocialRole = (() => {
-  const sql = db
+  const row = db
     .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'")
     .get() as { sql: string } | undefined
-  if (sql?.sql?.includes("'social'")) return
-  db.pragma('foreign_keys = OFF')
+  const originalSql = row?.sql ?? ''
+  if (!originalSql) return
+  if (originalSql.includes("'social'")) return
+
+  const updatedSql = originalSql.replace(
+    /CHECK\s*\(\s*role\s*IN\s*\(\s*'admin'\s*,\s*'trainer'\s*,\s*'player'\s*,\s*'board'\s*\)\s*\)/i,
+    "CHECK(role IN ('admin', 'trainer', 'player', 'board', 'social'))",
+  )
+  if (updatedSql === originalSql) return
+
+  db.pragma('writable_schema = 1')
   db.transaction(() => {
-    db.exec(`
-      CREATE TABLE users_new (
-        id TEXT PRIMARY KEY,
-        full_name TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL,
-        phone TEXT DEFAULT '',
-        role TEXT NOT NULL CHECK(role IN ('admin', 'trainer', 'player', 'board', 'social')),
-        notes TEXT DEFAULT '',
-        avatar_url TEXT DEFAULT NULL,
-        member_number TEXT DEFAULT '',
-        birthday TEXT DEFAULT '',
-        address TEXT DEFAULT '',
-        parent_name TEXT DEFAULT '',
-        parent_phone TEXT DEFAULT '',
-        parent_email TEXT DEFAULT '',
-        is_member INTEGER NOT NULL DEFAULT 0,
-        has_membership_application INTEGER NOT NULL DEFAULT 0,
-        has_medical_certificate INTEGER NOT NULL DEFAULT 0,
-        has_photo_consent_social INTEGER NOT NULL DEFAULT 0,
-        is_member_file_url TEXT DEFAULT NULL,
-        membership_application_file_url TEXT DEFAULT NULL,
-        medical_certificate_file_url TEXT DEFAULT NULL,
-        photo_consent_social_file_url TEXT DEFAULT NULL,
-        must_change_password INTEGER NOT NULL DEFAULT 0,
-        privacy_accepted_at TEXT DEFAULT NULL,
-        social_media_enabled INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL
-      );
-      INSERT INTO users_new SELECT * FROM users;
-      DROP TABLE users;
-      ALTER TABLE users_new RENAME TO users;
-    `)
+    db.prepare(
+      "UPDATE sqlite_master SET sql = ? WHERE type = 'table' AND name = 'users'",
+    ).run(updatedSql)
   })()
-  db.pragma('foreign_keys = ON')
+  db.pragma('writable_schema = 0')
 })()
 
 export const getGermanyDstOffsetMinutes = (year: number, monthOneBased: number, day: number, hour: number, minute: number) => {
