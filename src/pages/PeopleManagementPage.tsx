@@ -424,7 +424,7 @@ export default function PeopleManagementPage({
                         hasPhotoConsentSocial:
                           role === "player" ? payload.hasPhotoConsentSocial : undefined,
                         socialMediaEnabled:
-                          role !== "board"
+                          role !== "board" && role !== "social"
                             ? payload.socialMediaEnabled
                             : undefined,
                       })
@@ -450,7 +450,7 @@ export default function PeopleManagementPage({
                         hasPhotoConsentSocial:
                           role === "player" ? payload.hasPhotoConsentSocial : undefined,
                         socialMediaEnabled:
-                          role !== "board" ? payload.socialMediaEnabled : false,
+                          role !== "board" && role !== "social" ? payload.socialMediaEnabled : false,
                       });
 
                   if (!result.success) {
@@ -701,7 +701,7 @@ export default function PeopleManagementPage({
                 />
               </label>
 
-              {role !== "board" ? (
+              {role !== "board" && role !== "social" ? (
                 <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-300 hover:bg-blue-50/60">
                   <input
                     type="checkbox"
@@ -721,6 +721,15 @@ export default function PeopleManagementPage({
                     </p>
                   </div>
                 </label>
+              ) : role === "social" ? (
+                <div className="rounded-2xl border border-blue-200 bg-blue-50/80 p-4">
+                  <p className="text-sm font-semibold text-blue-900">
+                    Social Media Manager Rolle
+                  </p>
+                  <p className="mt-1 text-xs text-blue-800">
+                    Diese Rolle hat automatisch vollstaendigen Zugriff auf den gesamten Social-Media-Bereich inkl. Vorlagenverwaltung, Assets und Ordner – keine zusaetzliche Checkbox noetig.
+                  </p>
+                </div>
               ) : null}
 
               <div className="space-y-4 pt-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:space-y-0">
