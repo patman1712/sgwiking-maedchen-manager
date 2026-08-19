@@ -110,17 +110,31 @@ function buildDraftAssets(draft: SocialMediaDraft, crests: SocialMediaCrest[]): 
   });
 
   draft.layers.forEach((layer, index) => {
-    if (!isSharedCrestRef(layer.imageRef) || !layer.imageRef) {
+    if (!layer.imageRef) {
+      return;
+    }
+    if (assets.has(layer.imageRef)) {
       return;
     }
 
-    const crest = crests.find((entry) => entry.imageUrl === layer.imageRef);
+    if (isSharedCrestRef(layer.imageRef)) {
+      const crest = crests.find((entry) => entry.imageUrl === layer.imageRef);
+      assets.set(layer.imageRef, {
+        id: `shared-${crest?.id ?? index}-${layer.imageRef}`,
+        ref: layer.imageRef,
+        kind: "existing",
+        url: layer.imageRef,
+        fileName: crest?.name ? `${crest.name}.png` : getFileNameFromUrl(layer.imageRef, crest?.name ?? "Wappen"),
+      });
+      return;
+    }
+
     assets.set(layer.imageRef, {
-      id: `shared-${crest?.id ?? index}-${layer.imageRef}`,
+      id: `layer-${index}-${layer.imageRef}`,
       ref: layer.imageRef,
       kind: "existing",
       url: layer.imageRef,
-      fileName: crest?.name ? `${crest.name}.png` : getFileNameFromUrl(layer.imageRef, crest?.name ?? "Wappen"),
+      fileName: layer.imageFileName ?? getFileNameFromUrl(layer.imageRef),
     });
   });
 
@@ -768,22 +782,8 @@ function SocialPreview({
       const deltaYPercent = ((event.clientY - interaction.startY) / rect.height) * 100;
 
       if (interaction.mode === "drag") {
-        const isImage = interaction.layerKind === "image";
-        const minX = isImage ? 0 : interaction.startWidthPercent / 2;
-        const maxX = isImage ? 100 : 100 - interaction.startWidthPercent / 2;
-        const minY = isImage ? 0 : interaction.startHeightPercent / 2;
-        const maxY = isImage ? 100 : 100 - interaction.startHeightPercent / 2;
-        const centerX = clamp(
-          interaction.startCenterX + deltaXPercent,
-          minX,
-          maxX,
-        );
-        const centerY = clamp(
-          interaction.startCenterY + deltaYPercent,
-          minY,
-          maxY,
-        );
-
+        const centerX = interaction.startCenterX + deltaXPercent;
+        const centerY = interaction.startCenterY + deltaYPercent;
         onUpdateLayer(interaction.layerId, { centerX, centerY });
         return;
       }
@@ -809,20 +809,9 @@ function SocialPreview({
         );
         const letterSpacing = Math.round(((interaction.startLetterSpacing ?? defaults.letterSpacing) * scale) * 100) / 100;
 
-        const centerX = clamp(
-          interaction.startCenterX,
-          widthPercent / 2,
-          100 - widthPercent / 2,
-        );
-        const centerY = clamp(
-          interaction.startCenterY,
-          heightPercent / 2,
-          100 - heightPercent / 2,
-        );
-
         onUpdateLayer(interaction.layerId, {
-          centerX,
-          centerY,
+          centerX: interaction.startCenterX,
+          centerY: interaction.startCenterY,
           widthPercent,
           heightPercent,
           fontSize,
@@ -851,8 +840,8 @@ function SocialPreview({
         }
       }
 
-      const centerX = clamp(interaction.startCenterX, 0, 100);
-      const centerY = clamp(interaction.startCenterY, 0, 100);
+      const centerX = interaction.startCenterX;
+      const centerY = interaction.startCenterY;
 
       onUpdateLayer(interaction.layerId, {
         centerX,
@@ -4569,60 +4558,90 @@ export default function SocialMediaPage() {
                               ) : null}
                             </div>
                           ) : (
-                            <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-4">
                               <label className="block">
                                 <span className="mb-2 block text-sm font-medium text-slate-700">
-                                  Schriftfarbe
+                                  Schriftart
                                 </span>
-                                <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm transition hover:border-slate-300">
-                                  <label
-                                    htmlFor={`text-color-${activeLayer.id}`}
-                                    className="group flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 active:scale-[0.98]"
-                                    title="Klicken zum Oeffnen des Farbwaehlers"
-                                  >
-                                    <span
-                                      className="h-7 w-7 rounded-lg border border-slate-300 shadow-inner transition group-hover:scale-105"
+                                <select
+                                  value={
+                                    activeLayer.fontFamily ??
+                                    getDefaultTextAppearance(activeLayer).fontFamily
+                                  }
+                                  onChange={(event) =>
+                                    updateLayer(activeLayer.id, { fontFamily: event.target.value })
+                                  }
+                                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                >
+                                  {fontOptions.map((option) => (
+                                    <option key={`${option.source}-${option.value}`} value={option.value}>
+                                      {option.label}
+                                      {option.source === "uploaded" ? " (hochgeladen)" : ""}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+
+                              <div className="grid gap-4 md:grid-cols-2">
+                                <label className="block">
+                                  <span className="mb-2 block text-sm font-medium text-slate-700">
+                                    Schriftfarbe
+                                  </span>
+                                  <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-slate-300">
+                                    <label
+                                      htmlFor={`text-color-poster-${activeLayer.id}`}
+                                      className="relative inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-slate-200 shadow-inner transition hover:scale-105"
                                       style={{
                                         backgroundColor:
                                           activeLayer.textColor ??
                                           getDefaultTextAppearance(activeLayer).textColor,
                                       }}
-                                    />
-                                    <Droplet size={16} className="text-blue-700" />
-                                    <span>Farbe</span>
-                                  </label>
-                                  <input
-                                    id={`text-color-${activeLayer.id}`}
-                                    type="color"
-                                    value={
-                                      activeLayer.textColor ?? getDefaultTextAppearance(activeLayer).textColor
-                                    }
-                                    onChange={(event) =>
-                                      updateLayer(activeLayer.id, {
-                                        textColor: event.target.value,
-                                      })
-                                    }
-                                    className="sr-only h-0 w-0"
-                                  />
-                                  <input
-                                    value={
-                                      activeLayer.textColor ?? getDefaultTextAppearance(activeLayer).textColor
-                                    }
-                                    onChange={(event) =>
-                                      updateLayer(activeLayer.id, {
-                                        textColor: event.target.value,
-                                      })
-                                    }
-                                    className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm uppercase outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                                  />
-                                </div>
-                              </label>
+                                      title="Farbwaehler oeffnen"
+                                    >
+                                      <Droplet size={16} className="drop-shadow text-white mix-blend-difference" />
+                                      <input
+                                        id={`text-color-poster-${activeLayer.id}`}
+                                        type="color"
+                                        value={
+                                          activeLayer.textColor ??
+                                          getDefaultTextAppearance(activeLayer).textColor
+                                        }
+                                        onChange={(event) =>
+                                          updateLayer(activeLayer.id, {
+                                            textColor: event.target.value,
+                                          })
+                                        }
+                                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                      />
+                                    </label>
+                                    <div className="relative flex-1">
+                                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                                        #
+                                      </span>
+                                      <input
+                                        value={(
+                                          activeLayer.textColor ??
+                                          getDefaultTextAppearance(activeLayer).textColor
+                                        ).replace(/^#/, "")}
+                                        onChange={(event) => {
+                                          const raw = event.target.value.replace(/[^0-9a-fA-F]/g, "").slice(0, 6);
+                                          updateLayer(activeLayer.id, {
+                                            textColor: raw ? `#${raw.toUpperCase()}` : "#FFFFFF",
+                                          });
+                                        }}
+                                        maxLength={6}
+                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-8 pr-3 font-mono text-sm uppercase tracking-widest outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                        placeholder="FFFFFF"
+                                      />
+                                    </div>
+                                  </div>
+                                </label>
 
-                              <label className="block">
-                                <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
-                                  <span>Schriftgroesse</span>
-                                  <span className="font-semibold text-slate-900">
-                                    {Math.round(
+                                <label className="block">
+                                  <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
+                                    <span>Schriftgroesse</span>
+                                    <span className="font-semibold text-slate-900">
+                                      {Math.round(
                                       activeLayer.fontSize ?? getDefaultTextAppearance(activeLayer).fontSize,
                                     )}
                                     px
@@ -4644,6 +4663,7 @@ export default function SocialMediaPage() {
                                   className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
                                 />
                               </label>
+                              </div>
                             </div>
                           )}
                         </div>

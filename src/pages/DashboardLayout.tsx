@@ -574,7 +574,7 @@ export default function DashboardLayout() {
           sidebarOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <div className="flex h-20 items-center justify-between border-b border-white/10 px-6">
+        <div className="flex h-20 shrink-0 items-center justify-between border-b border-white/10 px-6">
           <Link to="/dashboard" className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl">
               {settings.logoUrl ? (
@@ -600,7 +600,7 @@ export default function DashboardLayout() {
           </button>
         </div>
 
-        <div className="border-b border-white/10 px-6 py-5">
+        <div className="shrink-0 border-b border-white/10 px-6 py-5">
           <p className="text-sm text-blue-100">Angemeldet als</p>
           <p className="mt-1 text-lg font-semibold">{currentUser?.fullName}</p>
           <p className="mt-1 text-sm text-blue-200">
@@ -616,7 +616,7 @@ export default function DashboardLayout() {
           </p>
         </div>
 
-        <nav className="flex-1 space-y-2 px-4 py-6">
+        <nav className="flex-1 min-h-0 space-y-2 overflow-y-auto overscroll-contain px-4 py-6 pr-2">
           {visibleMenuItems.map((item) => {
             const Icon = item.icon;
 
@@ -966,7 +966,7 @@ export default function DashboardLayout() {
           })}
         </nav>
 
-        <div className="border-t border-white/10 px-4 py-4">
+        <div className="shrink-0 border-t border-white/10 px-4 py-4">
           <button
             onClick={handleLogout}
             className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-blue-100 transition-all hover:bg-white/10 hover:text-white"
