@@ -14,6 +14,7 @@ import PlayerEditPage from "@/pages/PlayerEditPage";
 import ProfilePage from "@/pages/ProfilePage";
 import SettingsPage from "@/pages/SettingsPage";
 import SocialMediaPage from "@/pages/SocialMediaPage";
+import SocialMediaRolePage from "@/pages/SocialMediaRolePage";
 import TeamDetailPage from "@/pages/TeamDetailPage";
 import TeamsPage from "@/pages/TeamsPage";
 import TournamentBoersePage from "@/pages/TournamentBoersePage";
@@ -144,6 +145,7 @@ export default function App() {
           <Route path="board" element={<BoardPage />} />
           <Route path="board/mailbox" element={<BoardMailboxPage />} />
           <Route path="board/schluessel" element={<VorstandSchluesselPage />} />
+          <Route path="social-media-manager" element={<SocialMediaRolePage />} />
           <Route path="users" element={<Navigate to="/dashboard/trainers" replace />} />
           <Route path="messages" element={<MessagesPage />} />
           <Route path="flohmarkt" element={<FleaMarketPage />} />

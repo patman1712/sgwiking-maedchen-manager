@@ -89,14 +89,24 @@ export default function DashboardLayout() {
     currentUser?.role === "admin" || currentUser?.role === "board";
   const canUseSocialMedia =
     currentUser?.role === "admin" ||
+    currentUser?.role === "board" ||
+    currentUser?.role === "social" ||
     (currentUser?.role === "trainer" && Boolean(currentUser.socialMediaEnabled));
   const canUseTournamentBoerse =
     currentUser?.role === "admin" ||
     currentUser?.role === "board" ||
     currentUser?.role === "trainer";
+  const isSocialOnly = currentUser?.role === "social";
   const visibleMenuItems = useMemo(
     () =>
       menuItems.filter((item) => {
+        if (isSocialOnly) {
+          return (
+            item.to === "/dashboard" ||
+            item.to === "/dashboard/social-media" ||
+            item.to === "/dashboard/messages"
+          );
+        }
         if (item.to === "/dashboard/social-media") {
           return canUseSocialMedia;
         }
@@ -107,7 +117,7 @@ export default function DashboardLayout() {
 
         return true;
       }),
-    [canUseSocialMedia, canUseTournamentBoerse],
+    [canUseSocialMedia, canUseTournamentBoerse, isSocialOnly],
   );
   const keepsCollapsedTeamMenus =
     currentUser?.role === "admin" || currentUser?.role === "board";
@@ -603,7 +613,9 @@ export default function DashboardLayout() {
                 ? "Trainerin / Trainer"
                 : currentUser?.role === "board"
                   ? "Vorstand"
-                  : "Spielerin"}
+                  : currentUser?.role === "social"
+                    ? "Social Media Manager"
+                    : "Spielerin"}
           </p>
         </div>
 
@@ -876,6 +888,11 @@ export default function DashboardLayout() {
                               { to: "/dashboard/trainers", label: "Trainer", icon: Shield },
                               { to: "/dashboard/players", label: "Spielerinnen", icon: Users },
                               { to: "/dashboard/board", label: "Vorstand", icon: Briefcase },
+                              {
+                                to: "/dashboard/social-media-manager",
+                                label: "Social Media",
+                                icon: FileUser,
+                              },
                             ].map((subItem) => (
                               <NavLink
                                 key={subItem.to}

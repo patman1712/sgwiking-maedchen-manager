@@ -107,7 +107,7 @@ const rebuildTeamConversationParticipants = (teamId: string, timestamp: string) 
 
 const syncUserMemberships = (
   userId: string,
-  role: 'admin' | 'trainer' | 'player' | 'board',
+  role: 'admin' | 'trainer' | 'player' | 'board' | 'social',
   teamIds: string[],
   timestamp: string,
 ) => {
@@ -116,7 +116,7 @@ const syncUserMemberships = (
 
   db.prepare('DELETE FROM team_members WHERE user_id = ?').run(userId)
 
-  if (role !== 'board') {
+  if (role !== 'board' && role !== 'social') {
     const insertMember = db.prepare(`
       INSERT INTO team_members (id, team_id, user_id, membership_role, created_at)
       VALUES (?, ?, ?, ?, ?)
@@ -166,7 +166,7 @@ router.post('/', (req: Request, res: Response) => {
     email?: string
     password?: string
     phone?: string
-    role?: 'admin' | 'trainer' | 'player' | 'board'
+    role?: 'admin' | 'trainer' | 'player' | 'board' | 'social'
     teamIds?: string[]
     notes?: string
     memberNumber?: string
@@ -329,7 +329,7 @@ router.put('/:id', (req: Request, res: Response) => {
     password?: string
     phone?: string
     notes?: string
-    role?: 'admin' | 'trainer' | 'player' | 'board'
+    role?: 'admin' | 'trainer' | 'player' | 'board' | 'social'
     teamIds?: string[]
     memberNumber?: string | null
     birthday?: string | null

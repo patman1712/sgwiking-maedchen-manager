@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "trainer" | "player" | "board";
+export type UserRole = "admin" | "trainer" | "player" | "board" | "social";
 export type PlayerDocumentType =
   | "member"
   | "membershipApplication"

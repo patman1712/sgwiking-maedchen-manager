@@ -30,7 +30,7 @@ if (usersTableSql && !usersTableSql.sql.includes("'board'")) {
         email TEXT NOT NULL UNIQUE,
         password TEXT NOT NULL,
         phone TEXT DEFAULT '',
-        role TEXT NOT NULL CHECK(role IN ('admin', 'trainer', 'player', 'board')),
+        role TEXT NOT NULL CHECK(role IN ('admin', 'trainer', 'player', 'board', 'social')),
         notes TEXT DEFAULT '',
         avatar_url TEXT DEFAULT NULL,
         member_number TEXT DEFAULT '',
@@ -95,6 +95,50 @@ if (usersTableSql && !usersTableSql.sql.includes("'board'")) {
   })()
   db.pragma('foreign_keys = ON')
 }
+
+const migrateUsersTableAddSocialRole = (() => {
+  const sql = db
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'")
+    .get() as { sql: string } | undefined
+  if (sql?.sql?.includes("'social'")) return
+  db.pragma('foreign_keys = OFF')
+  db.transaction(() => {
+    db.exec(`
+      CREATE TABLE users_new (
+        id TEXT PRIMARY KEY,
+        full_name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        phone TEXT DEFAULT '',
+        role TEXT NOT NULL CHECK(role IN ('admin', 'trainer', 'player', 'board', 'social')),
+        notes TEXT DEFAULT '',
+        avatar_url TEXT DEFAULT NULL,
+        member_number TEXT DEFAULT '',
+        birthday TEXT DEFAULT '',
+        address TEXT DEFAULT '',
+        parent_name TEXT DEFAULT '',
+        parent_phone TEXT DEFAULT '',
+        parent_email TEXT DEFAULT '',
+        is_member INTEGER NOT NULL DEFAULT 0,
+        has_membership_application INTEGER NOT NULL DEFAULT 0,
+        has_medical_certificate INTEGER NOT NULL DEFAULT 0,
+        has_photo_consent_social INTEGER NOT NULL DEFAULT 0,
+        is_member_file_url TEXT DEFAULT NULL,
+        membership_application_file_url TEXT DEFAULT NULL,
+        medical_certificate_file_url TEXT DEFAULT NULL,
+        photo_consent_social_file_url TEXT DEFAULT NULL,
+        must_change_password INTEGER NOT NULL DEFAULT 0,
+        privacy_accepted_at TEXT DEFAULT NULL,
+        social_media_enabled INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO users_new SELECT * FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_new RENAME TO users;
+    `)
+  })()
+  db.pragma('foreign_keys = ON')
+})()
 
 export const getGermanyDstOffsetMinutes = (year: number, monthOneBased: number, day: number, hour: number, minute: number) => {
   const lastSundayOf = (y: number, mIdxZeroBased: number) => {
@@ -217,7 +261,7 @@ db.exec(`
     email TEXT NOT NULL UNIQUE,
     password TEXT NOT NULL,
     phone TEXT DEFAULT '',
-    role TEXT NOT NULL CHECK(role IN ('admin', 'trainer', 'player', 'board')),
+    role TEXT NOT NULL CHECK(role IN ('admin', 'trainer', 'player', 'board', 'social')),
     notes TEXT DEFAULT '',
     avatar_url TEXT DEFAULT NULL,
     member_number TEXT DEFAULT '',
@@ -1173,7 +1217,7 @@ type UserRow = {
   email: string
   password: string
   phone: string
-  role: 'admin' | 'trainer' | 'player' | 'board'
+  role: 'admin' | 'trainer' | 'player' | 'board' | 'social'
   notes: string
   avatar_url: string | null
   member_number: string
@@ -1528,6 +1572,7 @@ export const canUseSocialMedia = (userId: string) => {
   return (
     row.role === 'admin' ||
     row.role === 'board' ||
+    row.role === 'social' ||
     (row.role === 'trainer' && Boolean(row.social_media_enabled))
   )
 }
