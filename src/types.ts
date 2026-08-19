@@ -94,6 +94,7 @@ export interface UserProfile {
   privacyAcceptedAt?: string | null;
   requiresOnboarding?: boolean;
   socialMediaEnabled?: boolean;
+  isSocialMediaManager?: boolean;
   createdAt: string;
 }
 

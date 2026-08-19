@@ -44,6 +44,7 @@ import type {
   SocialMediaLayerStyle,
   SocialMediaTextAlign,
   SocialMediaTextEffect,
+  UserProfile,
 } from "@/types";
 
 const SHARED_CREST_PREFIX = "/uploads/social-media-crests/";
@@ -1148,9 +1149,11 @@ export default function SocialMediaPage() {
   const canManageSocial =
     currentUser?.role === "admin" ||
     currentUser?.role === "board" ||
-    currentUser?.role === "social";
+    Boolean((currentUser as UserProfile & { isSocialMediaManager?: boolean })?.isSocialMediaManager);
   const canUseSocial =
-    canManageSocial || Boolean(currentUser?.socialMediaEnabled);
+    canManageSocial ||
+    currentUser?.role === "social" ||
+    Boolean(currentUser?.socialMediaEnabled);
   const isLimitedSocialUser = canUseSocial && !canManageSocial;
   const isTrainerSocialUser = Boolean(isLimitedSocialUser);
 

@@ -165,6 +165,7 @@ router.post('/', (req: Request, res: Response) => {
     hasMedicalCertificate,
     hasPhotoConsentSocial,
     socialMediaEnabled,
+    isSocialMediaManager,
   } = req.body as {
     actorId?: string
     fullName?: string
@@ -185,6 +186,7 @@ router.post('/', (req: Request, res: Response) => {
     hasMedicalCertificate?: boolean
     hasPhotoConsentSocial?: boolean
     socialMediaEnabled?: boolean
+    isSocialMediaManager?: boolean
   }
 
   if (!fullName || !email || !password || !role) {
@@ -277,10 +279,10 @@ router.post('/', (req: Request, res: Response) => {
       null,
       null,
       null,
-      Boolean(socialMediaEnabled) ? 1 : 0,
+      role === 'social' ? 1 : (Boolean(socialMediaEnabled) ? 1 : 0),
       role === 'player' || dbRoleForInsert !== role ? 0 : 1,
       null,
-      useMarker ? 1 : 0,
+      role === 'social' ? (Boolean(isSocialMediaManager) ? 1 : 0) : (useMarker ? 1 : 0),
       timestamp,
     )
 
@@ -335,6 +337,7 @@ router.put('/:id', (req: Request, res: Response) => {
     hasMedicalCertificate,
     hasPhotoConsentSocial,
     socialMediaEnabled,
+    isSocialMediaManager,
   } = req.body as {
     actorId?: string
     fullName?: string
@@ -355,6 +358,7 @@ router.put('/:id', (req: Request, res: Response) => {
     hasMedicalCertificate?: boolean
     hasPhotoConsentSocial?: boolean
     socialMediaEnabled?: boolean
+    isSocialMediaManager?: boolean
   }
 
   const user = getUserRowById(id)
@@ -376,7 +380,7 @@ router.put('/:id', (req: Request, res: Response) => {
   const socialMarkerForUpdate = useMarkerUpdate ? (targetRole === 'social' ? 1 : 0) : 0
   const wantsMembershipUpdate = Array.isArray(teamIds)
   const canManagePlayerDocuments = isAdminOrBoard(actorId)
-  const wantsSocialMediaAccessUpdate = typeof socialMediaEnabled === 'boolean'
+  const wantsSocialMediaAccessUpdate = typeof socialMediaEnabled === 'boolean' || typeof isSocialMediaManager === 'boolean'
 
   if (wantsSocialMediaAccessUpdate && !isAdminOrBoard(actorId ?? '')) {
     res.status(403).json({
@@ -466,11 +470,23 @@ router.put('/:id', (req: Request, res: Response) => {
         : 0
       : user.has_photo_consent_social
   const nextSocialMediaEnabled =
-    typeof socialMediaEnabled === 'boolean'
-      ? socialMediaEnabled
-        ? 1
-        : 0
-      : user.social_media_enabled
+    targetRole === 'social'
+      ? 1
+      : typeof socialMediaEnabled === 'boolean'
+        ? socialMediaEnabled
+          ? 1
+          : 0
+        : user.social_media_enabled
+  const nextSocialMediaManager =
+    targetRole === 'social'
+      ? typeof isSocialMediaManager === 'boolean'
+        ? isSocialMediaManager
+          ? 1
+          : 0
+        : user.is_social_media_manager
+      : useMarkerUpdate
+        ? socialMarkerForUpdate
+        : user.is_social_media_manager
 
   const transaction = db.transaction(() => {
     if (password?.trim()) {
@@ -518,7 +534,7 @@ router.put('/:id', (req: Request, res: Response) => {
         nextSocialMediaEnabled,
         user.must_change_password,
         user.privacy_accepted_at,
-        socialMarkerForUpdate,
+        nextSocialMediaManager,
         id,
       )
     } else {
@@ -564,7 +580,7 @@ router.put('/:id', (req: Request, res: Response) => {
         nextSocialMediaEnabled,
         user.must_change_password,
         user.privacy_accepted_at,
-        socialMarkerForUpdate,
+        nextSocialMediaManager,
         id,
       )
     }

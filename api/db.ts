@@ -1603,6 +1603,7 @@ export const mapUser = (row: UserRow, includePassword = false) => {
     privacyAcceptedAt,
     requiresOnboarding: effectiveRole === 'player' && (mustChangePassword || !privacyAcceptedAt),
     socialMediaEnabled: Boolean(row.social_media_enabled),
+    isSocialMediaManager: Boolean(row.is_social_media_manager),
     createdAt: row.created_at,
   }
 
@@ -1676,7 +1677,6 @@ export const canManageSocialMedia = (userId: string) => {
   return (
     row.role === 'admin' ||
     row.role === 'board' ||
-    row.role === 'social' ||
     Boolean(row.is_social_media_manager)
   )
 }
@@ -1688,6 +1688,10 @@ export const canUseSocialMedia = (userId: string) => {
   }
 
   if (canManageSocialMedia(userId)) {
+    return true
+  }
+
+  if (row.role === 'social') {
     return true
   }
 

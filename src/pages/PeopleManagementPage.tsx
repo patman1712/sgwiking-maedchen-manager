@@ -4,7 +4,7 @@ import { AlertTriangle, Plus, Trash2, X } from "lucide-react";
 import SectionCard from "@/components/SectionCard";
 import { optimizeImageForUpload } from "@/lib/image";
 import { useAppStore } from "@/store";
-import type { PlayerDocumentType, UserRole } from "@/types";
+import type { PlayerDocumentType, UserProfile, UserRole } from "@/types";
 
 interface PeopleManagementPageProps {
   role: Extract<UserRole, "trainer" | "player" | "board" | "social">;
@@ -110,7 +110,8 @@ const createEmptyForm = (role: Extract<UserRole, "trainer" | "player" | "board" 
   hasMembershipApplication: false,
   hasMedicalCertificate: false,
   hasPhotoConsentSocial: false,
-  socialMediaEnabled: role === "trainer",
+  socialMediaEnabled: role === "social" ? true : role === "trainer",
+  isSocialMediaManager: role === "social" ? true : false,
 });
 
 const createEmptyDocumentFiles = (): Record<PlayerDocumentType, File | null> => ({
@@ -201,6 +202,12 @@ export default function PeopleManagementPage({
       hasMedicalCertificate: user.hasMedicalCertificate ?? false,
       hasPhotoConsentSocial: user.hasPhotoConsentSocial ?? false,
       socialMediaEnabled: Boolean(user.socialMediaEnabled),
+      isSocialMediaManager: Boolean(
+        user.role === "admin" ||
+          user.role === "board" ||
+          (user.role === "social" && Boolean((user as UserProfile & { isSocialMediaManager?: boolean }).isSocialMediaManager)) ||
+          Boolean((user as UserProfile & { isSocialMediaManager?: boolean }).isSocialMediaManager),
+      ),
     });
     setDocumentFiles(createEmptyDocumentFiles());
     setShowFormModal(true);
@@ -424,9 +431,13 @@ export default function PeopleManagementPage({
                         hasPhotoConsentSocial:
                           role === "player" ? payload.hasPhotoConsentSocial : undefined,
                         socialMediaEnabled:
-                          role !== "board" && role !== "social"
-                            ? payload.socialMediaEnabled
-                            : undefined,
+                          role === "social"
+                            ? true
+                            : role !== "board"
+                              ? payload.socialMediaEnabled
+                              : undefined,
+                        isSocialMediaManager:
+                          role === "social" ? payload.isSocialMediaManager : undefined,
                       })
                     : await addUser({
                         fullName: payload.fullName,
@@ -450,7 +461,13 @@ export default function PeopleManagementPage({
                         hasPhotoConsentSocial:
                           role === "player" ? payload.hasPhotoConsentSocial : undefined,
                         socialMediaEnabled:
-                          role !== "board" && role !== "social" ? payload.socialMediaEnabled : false,
+                          role === "social"
+                            ? true
+                            : role !== "board"
+                              ? payload.socialMediaEnabled
+                              : false,
+                        isSocialMediaManager:
+                          role === "social" ? payload.isSocialMediaManager : undefined,
                       });
 
                   if (!result.success) {
@@ -701,35 +718,78 @@ export default function PeopleManagementPage({
                 />
               </label>
 
-              {role !== "board" && role !== "social" ? (
-                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-300 hover:bg-blue-50/60">
-                  <input
-                    type="checkbox"
-                    checked={form.socialMediaEnabled}
-                    onChange={(event) =>
-                      setForm({ ...form, socialMediaEnabled: event.target.checked })
-                    }
-                    className="mt-0.5 h-5 w-5 cursor-pointer accent-blue-700"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-900">
-                      Darf Social-Media-Postings erstellen
-                    </p>
-                    <p className="mt-1 text-xs text-slate-600">
-                      Zugriff auf den Social-Media-Editor mit Auswahl von freigegebenen
-                      Vorlagen. Keine Rechte zum Anlegen von Vorlagen, Assets oder Ordnern.
-                    </p>
+              {role !== "board" ? (
+                role === "social" ? (
+                  <div className="space-y-4">
+                    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-300 hover:bg-blue-50/60">
+                      <input
+                        type="checkbox"
+                        checked={form.isSocialMediaManager}
+                        onChange={(event) =>
+                          setForm({ ...form, isSocialMediaManager: event.target.checked })
+                        }
+                        className="mt-0.5 h-5 w-5 cursor-pointer accent-blue-700"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-900">
+                          Ist Social Media Manager (Vollzugriff)
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          Kompletter Zugriff auf Vorlagenverwaltung, Assets, Ordner, Schriftarten und Wappen. Wenn deaktiviert: kann nur aus freigegebenen Vorlagen Postings erstellen und zur Freigabe einreichen.
+                        </p>
+                      </div>
+                    </label>
+
+                    <div
+                      className={
+                        "rounded-2xl border p-4 " +
+                        (form.isSocialMediaManager
+                          ? "border-blue-200 bg-blue-50/80"
+                          : "border-emerald-200 bg-emerald-50/80")
+                      }
+                    >
+                      {form.isSocialMediaManager ? (
+                        <>
+                          <p className="text-sm font-semibold text-blue-900">
+                            Zugriffsstufe: Manager
+                          </p>
+                          <p className="mt-1 text-xs text-blue-800">
+                            Bearbeitet Vorlagen, Assets, Ordner, Schriftarten, Wappen und kann eingereichte Postings freigeben.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm font-semibold text-emerald-900">
+                            Zugriffsstufe: Poster
+                          </p>
+                          <p className="mt-1 text-xs text-emerald-800">
+                            Sehen nur freigegebene Vorlagen, können daraus Postings erstellen und zur Freigabe einreichen. Keine Verwaltungsfunktionen.
+                          </p>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </label>
-              ) : role === "social" ? (
-                <div className="rounded-2xl border border-blue-200 bg-blue-50/80 p-4">
-                  <p className="text-sm font-semibold text-blue-900">
-                    Social Media Manager Rolle
-                  </p>
-                  <p className="mt-1 text-xs text-blue-800">
-                    Diese Rolle hat automatisch vollstaendigen Zugriff auf den gesamten Social-Media-Bereich inkl. Vorlagenverwaltung, Assets und Ordner – keine zusaetzliche Checkbox noetig.
-                  </p>
-                </div>
+                ) : (
+                  <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-300 hover:bg-blue-50/60">
+                    <input
+                      type="checkbox"
+                      checked={form.socialMediaEnabled}
+                      onChange={(event) =>
+                        setForm({ ...form, socialMediaEnabled: event.target.checked })
+                      }
+                      className="mt-0.5 h-5 w-5 cursor-pointer accent-blue-700"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-900">
+                        Darf Social-Media-Postings erstellen
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Zugriff auf den Social-Media-Editor mit Auswahl von freigegebenen
+                        Vorlagen. Keine Rechte zum Anlegen von Vorlagen, Assets oder Ordnern.
+                      </p>
+                    </div>
+                  </label>
+                )
               ) : null}
 
               <div className="space-y-4 pt-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:space-y-0">

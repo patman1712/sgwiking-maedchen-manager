@@ -58,6 +58,7 @@ interface UserInput {
   medicalCertificateFileUrl?: string | null;
   photoConsentSocialFileUrl?: string | null;
   socialMediaEnabled?: boolean;
+  isSocialMediaManager?: boolean;
 }
 
 interface ApiStatePayload {
@@ -113,6 +114,7 @@ interface UserUpdateInput {
   medicalCertificateFileUrl?: string | null;
   photoConsentSocialFileUrl?: string | null;
   socialMediaEnabled?: boolean;
+  isSocialMediaManager?: boolean;
 }
 
 interface AppState {
