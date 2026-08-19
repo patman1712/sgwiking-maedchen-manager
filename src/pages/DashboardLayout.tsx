@@ -4,6 +4,7 @@ import {
   Bell,
   Briefcase,
   ChevronDown,
+  FileUser,
   KeyRound,
   LayoutDashboard,
   LogOut,
@@ -236,19 +237,85 @@ export default function DashboardLayout() {
   }, [relevantRescheduleNotifications, rescheduleNotificationsSeenAt]);
 
   const unseenBoardMailboxCount = useMemo(() => {
-    if (currentUser?.role !== "admin" && currentUser?.role !== "board") {
-      return 0;
+    if (!currentUser) return 0;
+
+    if (currentUser.role === "admin" || currentUser.role === "board") {
+      const openPlayerApplications = pendingPlayerApplications.filter(
+        (entry) => entry.status === "pending",
+      ).length;
+      const openReschedules = matchRescheduleRequests.filter(
+        (entry) => entry.status === "pending" || entry.status === "in_progress",
+      ).length;
+      return openPlayerApplications + openReschedules;
     }
 
-    const openPlayerApplications = pendingPlayerApplications.filter(
-      (entry) => entry.status === "pending",
-    ).length;
-    const openReschedules = matchRescheduleRequests.filter(
-      (entry) => entry.status === "pending",
-    ).length;
+    if (currentUser.role === "trainer") {
+      const openReschedules = matchRescheduleRequests.filter(
+        (entry) =>
+          currentUser.teamIds.includes(entry.teamId) &&
+          (entry.status === "pending" || entry.status === "in_progress"),
+      ).length;
+      return openReschedules;
+    }
 
-    return openPlayerApplications + openReschedules;
+    return 0;
   }, [currentUser, matchRescheduleRequests, pendingPlayerApplications]);
+
+  const boardMailboxNotifications = useMemo(() => {
+    if (!currentUser) return [];
+    const items: Array<{
+      id: string;
+      title: string;
+      content: string;
+      href: string;
+      createdAt: string;
+    }> = [];
+
+    if (currentUser.role === "admin" || currentUser.role === "board") {
+      pendingPlayerApplications
+        .filter((entry) => entry.status === "pending")
+        .forEach((entry) => {
+          items.push({
+            id: `mailbox-player-${entry.id}`,
+            title: "Neue Spielerin-Anmeldung",
+            content: `${entry.fullName}${entry.teamId ? ` (${teamNameById[entry.teamId] ?? ""})` : ""} wartet auf Freigabe`,
+            href: "/dashboard/board/mailbox",
+            createdAt: entry.requestedAt ?? entry.reviewedAt ?? new Date().toISOString(),
+          });
+        });
+      matchRescheduleRequests
+        .filter((entry) => entry.status === "pending" || entry.status === "in_progress")
+        .forEach((entry) => {
+          items.push({
+            id: `mailbox-reschedule-${entry.id}`,
+            title: entry.status === "in_progress" ? "Spielverlegung in Bearbeitung" : "Spielverlegungsanfrage offen",
+            content: `${teamNameById[entry.teamId] ?? "Mannschaft"}: ${entry.matchLabel}`,
+            href: "/dashboard/board/mailbox",
+            createdAt: entry.requestedAt ?? entry.updatedAt ?? new Date().toISOString(),
+          });
+        });
+    } else if (currentUser.role === "trainer") {
+      matchRescheduleRequests
+        .filter(
+          (entry) =>
+            currentUser.teamIds.includes(entry.teamId) &&
+            (entry.status === "pending" || entry.status === "in_progress"),
+        )
+        .forEach((entry) => {
+          items.push({
+            id: `mailbox-reschedule-${entry.id}`,
+            title: entry.status === "in_progress" ? "Spielverlegung in Bearbeitung" : "Spielverlegungsanfrage offen",
+            content: `${teamNameById[entry.teamId] ?? "Mannschaft"}: ${entry.matchLabel}`,
+            href: "/dashboard/board/mailbox",
+            createdAt: entry.requestedAt ?? entry.updatedAt ?? new Date().toISOString(),
+          });
+        });
+    }
+
+    return items.sort(
+      (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+    );
+  }, [currentUser, matchRescheduleRequests, pendingPlayerApplications, teamNameById]);
 
   const unseenTournamentNotificationCount = useMemo(() => {
     if (!tournamentNotificationsSeenAt) {
@@ -264,13 +331,15 @@ export default function DashboardLayout() {
   const unreadHint =
     notificationCount +
     unseenTournamentNotificationCount +
-    unseenRescheduleNotificationCount;
+    unseenRescheduleNotificationCount +
+    unseenBoardMailboxCount;
 
   const notificationItems = useMemo(
     () =>
       [
         ...relevantRescheduleNotifications,
         ...relevantTournamentNotifications,
+        ...boardMailboxNotifications,
         ...messageNotifications.map((entry) => ({
           ...entry,
           id: `message-${entry.id}`,
@@ -280,7 +349,12 @@ export default function DashboardLayout() {
           (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
         )
         .slice(0, 10),
-    [messageNotifications, relevantRescheduleNotifications, relevantTournamentNotifications],
+    [
+      boardMailboxNotifications,
+      messageNotifications,
+      relevantRescheduleNotifications,
+      relevantTournamentNotifications,
+    ],
   );
 
   useEffect(() => {
