@@ -241,6 +241,7 @@ export interface SocialMediaLayer {
   position: SocialMediaLayerPosition;
   style: SocialMediaLayerStyle;
   imageRef?: string;
+  imageFileName?: string;
   text?: string;
   enabled: boolean;
   centerX?: number;

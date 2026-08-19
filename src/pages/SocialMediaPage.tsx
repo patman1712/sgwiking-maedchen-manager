@@ -54,6 +54,7 @@ type EditorAsset =
       ref: string;
       kind: "existing";
       url: string;
+      fileName: string;
     }
   | {
       id: string;
@@ -61,6 +62,7 @@ type EditorAsset =
       kind: "new";
       url: string;
       file: File;
+      fileName: string;
     };
 
 type FontOption = {
@@ -83,6 +85,16 @@ function isSharedCrestRef(ref?: string) {
   return Boolean(ref?.startsWith(SHARED_CREST_PREFIX));
 }
 
+function getFileNameFromUrl(url: string, fallback = "Bild") {
+  try {
+    const pathname = new URL(url, window.location.origin).pathname;
+    const lastSegment = pathname.split("/").pop() ?? fallback;
+    return decodeURIComponent(lastSegment) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function buildDraftAssets(draft: SocialMediaDraft, crests: SocialMediaCrest[]): EditorAsset[] {
   const assets = new Map<string, EditorAsset>();
 
@@ -92,6 +104,7 @@ function buildDraftAssets(draft: SocialMediaDraft, crests: SocialMediaCrest[]): 
       ref: url,
       kind: "existing",
       url,
+      fileName: getFileNameFromUrl(url),
     });
   });
 
@@ -106,6 +119,7 @@ function buildDraftAssets(draft: SocialMediaDraft, crests: SocialMediaCrest[]): 
       ref: layer.imageRef,
       kind: "existing",
       url: layer.imageRef,
+      fileName: crest?.name ? `${crest.name}.png` : getFileNameFromUrl(layer.imageRef, crest?.name ?? "Wappen"),
     });
   });
 
@@ -1691,9 +1705,16 @@ export default function SocialMediaPage() {
   const addLayer = (kind: SocialMediaLayerKind) => {
     const firstAssetRef = editorAssets[0]?.ref;
     const firstAssetUrl = editorAssets[0]?.url;
-    const nextLayer = normalizeLayer(
-      createLayer(kind, kind === "image" ? { imageRef: firstAssetRef } : {}),
-    );
+    const firstAssetFileName = editorAssets[0]?.fileName;
+    const overrides: Partial<SocialMediaLayer> = {};
+    if (kind === "image") {
+      overrides.imageRef = firstAssetRef;
+      if (firstAssetFileName) {
+        overrides.imageFileName = firstAssetFileName;
+        overrides.label = firstAssetFileName;
+      }
+    }
+    const nextLayer = normalizeLayer(createLayer(kind, overrides));
     setEditorLayers((current) => [...current, nextLayer]);
     setActiveLayerId(nextLayer.id);
     if (kind === "image" && firstAssetUrl) {
@@ -1731,6 +1752,7 @@ export default function SocialMediaPage() {
   const addSharedAssetToEditor = (imageUrl: string, label?: string) => {
     let createdRef = imageUrl;
     let alreadyExisted = false;
+    const fileName = label ?? getFileNameFromUrl(imageUrl);
     setEditorAssets((current) => {
       if (current.some((asset) => asset.ref === imageUrl)) {
         alreadyExisted = true;
@@ -1744,11 +1766,16 @@ export default function SocialMediaPage() {
           ref: imageUrl,
           kind: "existing",
           url: imageUrl,
+          fileName,
         },
       ];
     });
     if (!alreadyExisted) {
-      const baseLayer = createLayer("image", { imageRef: createdRef });
+      const baseLayer = createLayer("image", {
+        imageRef: createdRef,
+        imageFileName: fileName,
+        label: fileName,
+      });
       setEditorLayers((currentLayers) => [...currentLayers, normalizeLayer(baseLayer)]);
       setActiveLayerId(baseLayer.id);
       void initializeImageLayerWithNaturalRatio(baseLayer.id, imageUrl);
@@ -3283,7 +3310,7 @@ export default function SocialMediaPage() {
               </button>
             </div>
 
-            <div className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_0.8fr_1.1fr]">
+            <div className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_0.9fr_1.3fr]">
               <div className="space-y-4">
                 <SectionCard
                   title="Grundaufbau"
@@ -3426,6 +3453,7 @@ export default function SocialMediaPage() {
                                     kind: "new" as const,
                                     url: URL.createObjectURL(file),
                                     file,
+                                    fileName: file.name,
                                   };
                                 });
                                 setEditorAssets((current) => [...current, ...mapped]);
@@ -3436,7 +3464,11 @@ export default function SocialMediaPage() {
                                     let activeRef = "";
                                     const initJobs: Array<{ layerId: string; assetUrl: string }> = [];
                                     for (const asset of mapped) {
-                                      const baseLayer = createLayer("image", { imageRef: asset.ref });
+                                      const baseLayer = createLayer("image", {
+                                        imageRef: asset.ref,
+                                        imageFileName: asset.fileName,
+                                        label: asset.fileName,
+                                      });
                                       layers.push(normalizeLayer(baseLayer));
                                       activeRef = baseLayer.id;
                                       initJobs.push({ layerId: baseLayer.id, assetUrl: asset.url });
@@ -3594,115 +3626,6 @@ export default function SocialMediaPage() {
                         </div>
                       )}
                     </div>
-                  </div>
-                </SectionCard>
-
-                <SectionCard
-                  title="Ebenen"
-                  description="Reihenfolge bestimmt, was vorne oder hinten liegt."
-                  actions={
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => addLayer("image")}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                      >
-                        <ImageIcon size={15} />
-                        Bild
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => addLayer("caption")}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                      >
-                        <Type size={15} />
-                        Text
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => addLayer("badge")}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                      >
-                        <SquareStack size={15} />
-                        Badges
-                      </button>
-                    </div>
-                  }
-                >
-                  <div className="space-y-3">
-                    {editorLayers.map((layer, index) => (
-                      <div
-                        key={layer.id}
-                        className={cn(
-                          "rounded-2xl border p-3 transition",
-                          activeLayer?.id === layer.id
-                            ? "border-blue-300 bg-blue-50/70"
-                            : "border-slate-200 bg-slate-50",
-                        )}
-                      >
-                        <div className="flex flex-wrap items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => setActiveLayerId(layer.id)}
-                            className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                          >
-                            <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-blue-900 shadow-sm">
-                              {layer.kind === "image" ? (
-                                <ImageIcon size={16} />
-                              ) : layer.kind === "caption" ? (
-                                <SquareStack size={16} />
-                              ) : (
-                                <Type size={16} />
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-slate-900">
-                                {layer.label}
-                              </p>
-                              <p className="truncate text-xs text-slate-500">
-                                {layer.kind === "image"
-                                  ? layer.imageRef || "Kein Bild zugewiesen"
-                                  : resolveLayerText(layer) || "Ohne Text"}
-                              </p>
-                            </div>
-                          </button>
-
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => updateLayer(layer.id, { enabled: !layer.enabled })}
-                              className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50"
-                            >
-                              {layer.enabled ? <Eye size={15} /> : <EyeOff size={15} />}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveLayer(layer.id, -1)}
-                              disabled={index === 0}
-                              className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                              <ArrowUp size={15} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveLayer(layer.id, 1)}
-                              disabled={index === editorLayers.length - 1}
-                              className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                              <ArrowDown size={15} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => removeLayer(layer.id)}
-                              disabled={isLayerProtected(layer)}
-                              className="rounded-2xl border border-rose-200 bg-rose-50 p-2 text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 </SectionCard>
               </div>
@@ -4581,6 +4504,134 @@ export default function SocialMediaPage() {
                       ? "Im Vorlagenmodus legst du fest, welche Elemente spaeter fuer Nutzer fest bleiben."
                       : "Freie Bild-Layer lassen sich direkt in der Vorschau ziehen. Fixierte Elemente bleiben an ihrer Position und Groesse gesperrt."}
                   </p>
+                </SectionCard>
+
+                <SectionCard
+                  title="Ebenen"
+                  description="Reihenfolge bestimmt, was vorne oder hinten liegt. Schnellschalter direkt unter der Vorschau."
+                  actions={
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => addLayer("image")}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        <ImageIcon size={15} />
+                        Bild
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addLayer("caption")}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        <Type size={15} />
+                        Text
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addLayer("badge")}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        <SquareStack size={15} />
+                        Badges
+                      </button>
+                    </div>
+                  }
+                >
+                  <div className="space-y-3">
+                    {editorLayers.map((layer, index) => {
+                      let subtitle = "";
+                      let displayLabel = layer.label;
+                      if (layer.kind === "image") {
+                        const asset = editorAssets.find((entry) => entry.ref === layer.imageRef);
+                        const resolvedFileName =
+                          layer.imageFileName ??
+                          asset?.fileName ??
+                          (layer.imageRef ? getFileNameFromUrl(layer.imageRef, "Bild") : "Bild");
+                        displayLabel =
+                          !layer.label || layer.label === "Bild" ? resolvedFileName : layer.label;
+                        subtitle = resolvedFileName;
+                      } else {
+                        subtitle = resolveLayerText(layer) || "Ohne Text";
+                      }
+                      return (
+                        <div
+                          key={layer.id}
+                          className={cn(
+                            "rounded-2xl border p-3 transition",
+                            activeLayer?.id === layer.id
+                              ? "border-blue-300 bg-blue-50/70"
+                              : "border-slate-200 bg-slate-50",
+                          )}
+                        >
+                          <div className="flex flex-wrap items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setActiveLayerId(layer.id)}
+                              className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                            >
+                              <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-blue-900 shadow-sm">
+                                {layer.kind === "image" ? (
+                                  <ImageIcon size={16} />
+                                ) : layer.kind === "caption" ? (
+                                  <SquareStack size={16} />
+                                ) : (
+                                  <Type size={16} />
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-slate-900">
+                                  {displayLabel}
+                                </p>
+                                <p
+                                  className="truncate text-xs text-slate-500"
+                                  title={subtitle}
+                                >
+                                  {subtitle}
+                                </p>
+                              </div>
+                            </button>
+
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateLayer(layer.id, { enabled: !layer.enabled })
+                                }
+                                className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50"
+                              >
+                                {layer.enabled ? <Eye size={15} /> : <EyeOff size={15} />}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveLayer(layer.id, -1)}
+                                disabled={index === 0}
+                                className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                <ArrowUp size={15} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveLayer(layer.id, 1)}
+                                disabled={index === editorLayers.length - 1}
+                                className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                <ArrowDown size={15} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeLayer(layer.id)}
+                                disabled={isLayerProtected(layer)}
+                                className="rounded-2xl border border-rose-200 bg-rose-50 p-2 text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </SectionCard>
 
                 {!editorIsTemplate ? (
