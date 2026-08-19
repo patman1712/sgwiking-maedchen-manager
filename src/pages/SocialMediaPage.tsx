@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { Navigate } from "react-router-dom";
+import { defaultRouteForRole } from "@/lib/utils";
 import {
   Archive,
   ArrowDown,
@@ -1130,13 +1131,18 @@ export default function SocialMediaPage() {
     () => users.find((user) => user.id === currentUserId) ?? null,
     [currentUserId, users],
   );
-  const canManageSocial = currentUser?.role === "admin" || currentUser?.role === "board";
+  const canManageSocial =
+    currentUser?.role === "admin" ||
+    currentUser?.role === "board" ||
+    currentUser?.role === "social";
   const canUseSocial =
-    canManageSocial || (currentUser?.role === "trainer" && Boolean(currentUser.socialMediaEnabled));
+    canManageSocial ||
+    currentUser?.role === "social" ||
+    (currentUser?.role === "trainer" && Boolean(currentUser.socialMediaEnabled));
   const isTrainerSocialUser = currentUser?.role === "trainer";
 
   if (!canUseSocial) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={defaultRouteForRole(currentUser?.role)} replace />;
   }
 
   const drafts = useMemo(

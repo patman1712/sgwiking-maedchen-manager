@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Lock, Mail, ShieldCheck } from "lucide-react";
 import { useAppStore } from "@/store";
+import { defaultRouteForRole } from "@/lib/utils";
 
 const demoAccounts = [
   {
@@ -32,9 +33,14 @@ export default function Login() {
   const [error, setError] = useState("");
   const users = useAppStore((state) => state.users);
   const settings = useAppStore((state) => state.settings);
+  const currentUserId = useAppStore((state) => state.currentUserId);
   const fetchData = useAppStore((state) => state.fetchData);
   const login = useAppStore((state) => state.login);
   const navigate = useNavigate();
+  const currentUser = useMemo(
+    () => users.find((user) => user.id === currentUserId) ?? null,
+    [currentUserId, users],
+  );
 
   const accountCount = useMemo(() => users.length, [users.length]);
 
@@ -51,7 +57,11 @@ export default function Login() {
       return;
     }
 
-    navigate("/dashboard");
+    await fetchData();
+    const storeState = useAppStore.getState();
+    const userAfterLogin =
+      storeState.users.find((u) => u.id === storeState.currentUserId) ?? null;
+    navigate(defaultRouteForRole(userAfterLogin?.role), { replace: true });
   };
 
   return (

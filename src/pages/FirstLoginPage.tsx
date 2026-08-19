@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import SectionCard from "@/components/SectionCard";
 import { useAppStore } from "@/store";
+import { defaultRouteForRole } from "@/lib/utils";
 
 export default function FirstLoginPage() {
   const users = useAppStore((state) => state.users);
@@ -27,7 +28,7 @@ export default function FirstLoginPage() {
   }
 
   if (currentUser && !currentUser.requiresOnboarding) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={defaultRouteForRole(currentUser.role)} replace />;
   }
 
   return (
@@ -87,7 +88,7 @@ export default function FirstLoginPage() {
               return;
             }
 
-            navigate("/dashboard", { replace: true });
+            navigate(defaultRouteForRole(currentUser?.role), { replace: true });
           }}
         >
           <label className="block">

@@ -101,11 +101,7 @@ export default function DashboardLayout() {
     () =>
       menuItems.filter((item) => {
         if (isSocialOnly) {
-          return (
-            item.to === "/dashboard" ||
-            item.to === "/dashboard/social-media" ||
-            item.to === "/dashboard/messages"
-          );
+          return item.to === "/dashboard/social-media";
         }
         if (item.to === "/dashboard/social-media") {
           return canUseSocialMedia;
@@ -338,11 +334,12 @@ export default function DashboardLayout() {
     ).length;
   }, [relevantTournamentNotifications, tournamentNotificationsSeenAt]);
 
-  const unreadHint =
-    notificationCount +
-    unseenTournamentNotificationCount +
-    unseenRescheduleNotificationCount +
-    unseenBoardMailboxCount;
+  const unreadHint = isSocialOnly
+    ? 0
+    : notificationCount +
+      unseenTournamentNotificationCount +
+      unseenRescheduleNotificationCount +
+      unseenBoardMailboxCount;
 
   const notificationItems = useMemo(
     () =>
@@ -989,67 +986,69 @@ export default function DashboardLayout() {
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={openNotificationCenter}
-                  className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-white/15 hover:shadow-md"
-                >
-                  <Bell size={18} />
-                  {unreadHint > 0 ? (
-                    <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-200 px-1 text-[11px] font-semibold text-blue-950">
-                      {unreadHint}
-                    </span>
-                  ) : null}
-                </button>
-                {notificationCenterOpen ? (
-                  <div className="absolute right-0 top-[calc(100%+0.75rem)] z-30 w-[22rem] max-w-[calc(100vw-2rem)] rounded-3xl border border-slate-200 bg-white p-3 shadow-2xl">
-                    <div className="flex items-center justify-between gap-3 px-2 py-1">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">Benachrichtigungen</p>
-                        <p className="text-xs text-slate-500">
-                          Turniere und neue Nachrichten auf einen Blick
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setNotificationCenterOpen(false)}
-                        className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-
-                    <div className="mt-2 max-h-96 space-y-2 overflow-y-auto">
-                      {notificationItems.length ? (
-                        notificationItems.map((notification) => (
-                          <button
-                            key={notification.id}
-                            type="button"
-                            onClick={() => {
-                              setNotificationCenterOpen(false);
-                              navigate(notification.href);
-                            }}
-                            className="block w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-blue-200 hover:bg-blue-50"
-                          >
-                            <p className="text-sm font-semibold text-slate-900">
-                              {notification.title}
-                            </p>
-                            <p className="mt-1 text-sm text-slate-600">{notification.content}</p>
-                            <p className="mt-2 text-xs text-slate-500">
-                              {new Date(notification.createdAt).toLocaleString("de-DE")}
-                            </p>
-                          </button>
-                        ))
-                      ) : (
-                        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                          Aktuell gibt es keine neuen Benachrichtigungen.
+              {!isSocialOnly ? (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={openNotificationCenter}
+                    className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-white/15 hover:shadow-md"
+                  >
+                    <Bell size={18} />
+                    {unreadHint > 0 ? (
+                      <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-200 px-1 text-[11px] font-semibold text-blue-950">
+                        {unreadHint}
+                      </span>
+                    ) : null}
+                  </button>
+                  {notificationCenterOpen ? (
+                    <div className="absolute right-0 top-[calc(100%+0.75rem)] z-30 w-[22rem] max-w-[calc(100vw-2rem)] rounded-3xl border border-slate-200 bg-white p-3 shadow-2xl">
+                      <div className="flex items-center justify-between gap-3 px-2 py-1">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">Benachrichtigungen</p>
+                          <p className="text-xs text-slate-500">
+                            Turniere und neue Nachrichten auf einen Blick
+                          </p>
                         </div>
-                      )}
+                        <button
+                          type="button"
+                          onClick={() => setNotificationCenterOpen(false)}
+                          className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+
+                      <div className="mt-2 max-h-96 space-y-2 overflow-y-auto">
+                        {notificationItems.length ? (
+                          notificationItems.map((notification) => (
+                            <button
+                              key={notification.id}
+                              type="button"
+                              onClick={() => {
+                                setNotificationCenterOpen(false);
+                                navigate(notification.href);
+                              }}
+                              className="block w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-blue-200 hover:bg-blue-50"
+                            >
+                              <p className="text-sm font-semibold text-slate-900">
+                                {notification.title}
+                              </p>
+                              <p className="mt-1 text-sm text-slate-600">{notification.content}</p>
+                              <p className="mt-2 text-xs text-slate-500">
+                                {new Date(notification.createdAt).toLocaleString("de-DE")}
+                              </p>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                            Aktuell gibt es keine neuen Benachrichtigungen.
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ) : null}
-              </div>
+                  ) : null}
+                </div>
+              ) : null}
               <div className="relative">
                 <button
                   type="button"

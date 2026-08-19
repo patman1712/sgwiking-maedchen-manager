@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { BrowserRouter as Router, Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import BoardPage from "@/pages/BoardPage";
@@ -21,6 +21,30 @@ import TournamentBoersePage from "@/pages/TournamentBoersePage";
 import TrainersPage from "@/pages/TrainersPage";
 import VorstandSchluesselPage from "@/pages/VorstandSchluesselPage";
 import { useAppStore } from "@/store";
+import { defaultRouteForRole } from "@/lib/utils";
+
+const RootRedirect = () => {
+  const users = useAppStore((state) => state.users);
+  const currentUserId = useAppStore((state) => state.currentUserId);
+  const user = useMemo(
+    () => users.find((u) => u.id === currentUserId) ?? null,
+    [users, currentUserId],
+  );
+  return <Navigate to={defaultRouteForRole(user?.role)} replace />;
+};
+
+const DashboardIndexRedirect = () => {
+  const users = useAppStore((state) => state.users);
+  const currentUserId = useAppStore((state) => state.currentUserId);
+  const user = useMemo(
+    () => users.find((u) => u.id === currentUserId) ?? null,
+    [users, currentUserId],
+  );
+  if (user?.role === "social") {
+    return <Navigate to="/dashboard/social-media" replace />;
+  }
+  return <DashboardHome />;
+};
 
 const ensureHeadLink = (rel: string) => {
   let link = document.head.querySelector(`link[rel="${rel}"]`) as HTMLLinkElement | null;
@@ -117,7 +141,7 @@ export default function App() {
     <Router>
       <AppHead />
       <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<RootRedirect />} />
         <Route path="/login" element={<Login />} />
         <Route
           path="/onboarding"
@@ -135,7 +159,7 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<DashboardHome />} />
+          <Route index element={<DashboardIndexRedirect />} />
           <Route path="teams" element={<TeamsPage />} />
           <Route path="teams/:teamId" element={<TeamDetailPage />} />
           <Route path="teams/:teamId/:section" element={<TeamDetailPage />} />
@@ -154,7 +178,7 @@ export default function App() {
           <Route path="profile" element={<ProfilePage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<RootRedirect />} />
       </Routes>
     </Router>
   );

@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useAppStore } from "@/store";
+import { defaultRouteForRole } from "@/lib/utils";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -13,7 +14,10 @@ export default function ProtectedRoute({
 }: ProtectedRouteProps) {
   const currentUserId = useAppStore((state) => state.currentUserId);
   const users = useAppStore((state) => state.users);
-  const currentUser = users.find((user) => user.id === currentUserId) ?? null;
+  const currentUser = useMemo(
+    () => users.find((user) => user.id === currentUserId) ?? null,
+    [users, currentUserId],
+  );
 
   if (!currentUserId) {
     return <Navigate to="/login" replace />;
@@ -24,7 +28,7 @@ export default function ProtectedRoute({
   }
 
   if (!currentUser?.requiresOnboarding && allowPendingOnboarding) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={defaultRouteForRole(currentUser?.role)} replace />;
   }
 
   return <>{children}</>;
