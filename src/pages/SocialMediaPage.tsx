@@ -3500,10 +3500,9 @@ export default function SocialMediaPage() {
                           </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                          {!isTrainerSocialUser ? (
-                            <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-                              <Plus size={16} />
-                              Bilder lokal hochladen
+                          <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                            <Plus size={16} />
+                            Bilder lokal hochladen
                               <input
                                 type="file"
                                 accept="image/png,image/jpeg,image/webp"
@@ -3554,7 +3553,6 @@ export default function SocialMediaPage() {
                                 }}
                               />
                             </label>
-                          ) : null}
                           <button
                             type="button"
                             onClick={() => {
@@ -4724,15 +4722,13 @@ export default function SocialMediaPage() {
                         disabled={editorAssets.length === 0}
                         title={
                           editorAssets.length === 0
-                            ? "Zuerst Asset aus der Bibliothek in dein Posting laden (Klick auf Bibliothek)."
-                            : canManageSocial
-                              ? "Bild hinzufuegen (lokal oder aus Bibliothek)"
-                              : "Bild aus der Asset-Bibliothek hinzufuegen"
+                            ? "Zuerst unten ein Bild lokal hochladen (Assets -> Bilder lokal hochladen) oder aus Bibliothek laden."
+                            : "Bild-Ebene aus bereits geladenen Assets hinzufuegen"
                         }
                         className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         <ImageIcon size={15} />
-                        {canManageSocial ? "Bild" : "Aus Bibliothek"}
+                        Bild
                       </button>
                       <button
                         type="button"
@@ -5440,10 +5436,10 @@ export default function SocialMediaPage() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    {canManageSocial && selectedAssetFolderId !== "__crests__" ? (
+                    {selectedAssetFolderId !== "__crests__" ? (
                       <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
                         <Upload size={16} />
-                        Bilder hier hochladen
+                        {canManageSocial ? "Bilder hier hochladen" : "Bilder fuer mein Posting hochladen"}
                         <input
                           type="file"
                           accept="image/png,image/jpeg,image/webp"
@@ -5642,12 +5638,12 @@ export default function SocialMediaPage() {
                       <p className="text-sm text-slate-600">
                         {canManageSocial
                           ? "Lade hier Bilder hoch, um sie später in beliebigen Postings wiederzuverwenden."
-                          : "Dieser Ordner ist aktuell leer. Frage einen Social Media Manager, falls du hier Assets vermisst."}
+                          : "Lade hier Bilder fuer dein aktuelles Posting hoch. Ordner werden nicht veraendert."}
                       </p>
-                      {canManageSocial && selectedAssetFolderId !== "__crests__" ? (
+                      {selectedAssetFolderId !== "__crests__" ? (
                         <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-br from-blue-900 to-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-95">
                           <Plus size={16} />
-                          Erste Bilder hochladen
+                          {canManageSocial ? "Erste Bilder hochladen" : "Eigene Bilder hochladen"}
                           <input
                             type="file"
                             accept="image/png,image/jpeg,image/webp"
