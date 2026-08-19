@@ -6,13 +6,18 @@ import { Router, type Request, type Response } from 'express'
 import db, {
   canEditPlayer,
   canManagePlayerFromMenu,
+  canUseLegacySocialMarkerColumn,
   createId,
   DATA_DIR,
   getBootstrapData,
   getTeamIdsByUserId,
   getUserRowById,
   isAdminOrBoard,
+  LEGACY_SOCIAL_ROLE_STORAGE,
   now,
+  refreshUsersRoleConstraintCapabilities,
+  userHasTeamRole,
+  usersRoleConstraintAllowsSocial,
 } from '../db.js'
 
 const router = Router()
@@ -204,6 +209,9 @@ router.post('/', (req: Request, res: Response) => {
 
   const userId = createId('user')
   const timestamp = now()
+  const useLegacySocial = role === 'social' && !usersRoleConstraintAllowsSocial()
+  const dbRoleForInsert = useLegacySocial ? LEGACY_SOCIAL_ROLE_STORAGE : role
+  const useMarker = useLegacySocial && canUseLegacySocialMarkerColumn()
   const insertUser = db.prepare(`
     INSERT INTO users (
       id,
@@ -230,9 +238,10 @@ router.post('/', (req: Request, res: Response) => {
       photo_consent_social_file_url,
       must_change_password,
       privacy_accepted_at,
+      is_social_media_manager,
       created_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertMember = db.prepare(`
     INSERT INTO team_members (id, team_id, user_id, membership_role, created_at)
@@ -250,7 +259,7 @@ router.post('/', (req: Request, res: Response) => {
       normalizedEmail,
       bcrypt.hashSync(password, 10),
       phone ?? '',
-      role,
+      dbRoleForInsert,
       notes ?? '',
       null,
       memberNumber ?? '',
@@ -267,12 +276,13 @@ router.post('/', (req: Request, res: Response) => {
       null,
       null,
       null,
-      role === 'player' ? 1 : 0,
+      role === 'player' || dbRoleForInsert !== role ? 0 : 1,
       null,
+      useMarker ? 1 : 0,
       timestamp,
     )
 
-    ;(role === 'board' ? [] : teamIds ?? []).forEach((teamId) => {
+    ;(role === 'board' || role === 'social' ? [] : teamIds ?? []).forEach((teamId) => {
       insertMember.run(
         createId('member'),
         teamId,
@@ -292,6 +302,7 @@ router.post('/', (req: Request, res: Response) => {
   })
 
   transaction()
+  refreshUsersRoleConstraintCapabilities()
 
   res.json({
     success: true,
@@ -357,6 +368,10 @@ router.put('/:id', (req: Request, res: Response) => {
 
   const isSelfUpdate = actorId === id
   const targetRole = role ?? user.role
+  const useLegacySocialUpdate = targetRole === 'social' && !usersRoleConstraintAllowsSocial()
+  const dbRoleForUpdate = useLegacySocialUpdate ? LEGACY_SOCIAL_ROLE_STORAGE : targetRole
+  const useMarkerUpdate = canUseLegacySocialMarkerColumn()
+  const socialMarkerForUpdate = useMarkerUpdate ? (targetRole === 'social' ? 1 : 0) : 0
   const wantsMembershipUpdate = Array.isArray(teamIds)
   const canManagePlayerDocuments = isAdminOrBoard(actorId)
   const wantsSocialMediaAccessUpdate = typeof socialMediaEnabled === 'boolean'
@@ -478,7 +493,8 @@ router.put('/:id', (req: Request, res: Response) => {
           has_photo_consent_social = ?,
           social_media_enabled = ?,
           must_change_password = ?,
-          privacy_accepted_at = ?
+          privacy_accepted_at = ?,
+          is_social_media_manager = ?
         WHERE id = ?
       `).run(
         fullName,
@@ -486,7 +502,7 @@ router.put('/:id', (req: Request, res: Response) => {
         bcrypt.hashSync(password.trim(), 10),
         phone ?? '',
         notes ?? '',
-        targetRole,
+        dbRoleForUpdate,
         nextMemberNumber,
         nextBirthday,
         nextAddress,
@@ -500,6 +516,7 @@ router.put('/:id', (req: Request, res: Response) => {
         nextSocialMediaEnabled,
         user.must_change_password,
         user.privacy_accepted_at,
+        socialMarkerForUpdate,
         id,
       )
     } else {
@@ -523,14 +540,15 @@ router.put('/:id', (req: Request, res: Response) => {
           has_photo_consent_social = ?,
           social_media_enabled = ?,
           must_change_password = ?,
-          privacy_accepted_at = ?
+          privacy_accepted_at = ?,
+          is_social_media_manager = ?
         WHERE id = ?
       `).run(
         fullName,
         normalizedEmail,
         phone ?? '',
         notes ?? '',
-        targetRole,
+        dbRoleForUpdate,
         nextMemberNumber,
         nextBirthday,
         nextAddress,
@@ -544,6 +562,7 @@ router.put('/:id', (req: Request, res: Response) => {
         nextSocialMediaEnabled,
         user.must_change_password,
         user.privacy_accepted_at,
+        socialMarkerForUpdate,
         id,
       )
     }
@@ -554,6 +573,7 @@ router.put('/:id', (req: Request, res: Response) => {
   })
 
   transaction()
+  refreshUsersRoleConstraintCapabilities()
 
   res.json({
     success: true,

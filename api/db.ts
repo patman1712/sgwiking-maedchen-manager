@@ -16,108 +16,192 @@ const db = new Database(dbPath)
 db.pragma('journal_mode = WAL')
 db.pragma('foreign_keys = ON')
 
+const detectUsersRoleConstraintIncludesSocial = () => {
+  try {
+    const row = db
+      .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'")
+      .get() as { sql: string } | undefined
+    return Boolean(row?.sql?.includes("'social'"))
+  } catch {
+    return false
+  }
+}
+let usersRoleConstraintSupportsSocial = detectUsersRoleConstraintIncludesSocial()
+
+const detectSocialMediaManagerColumnExists = () => {
+  try {
+    const cols = db.prepare("PRAGMA table_info(users)").all() as { name: string }[]
+    return cols.some((c) => c.name === 'is_social_media_manager')
+  } catch {
+    return false
+  }
+}
+let hasSocialMediaManagerColumn = detectSocialMediaManagerColumnExists()
+
+export const refreshUsersRoleConstraintCapabilities = () => {
+  usersRoleConstraintSupportsSocial = detectUsersRoleConstraintIncludesSocial()
+  hasSocialMediaManagerColumn = detectSocialMediaManagerColumnExists()
+}
+export const usersRoleConstraintAllowsSocial = () => usersRoleConstraintSupportsSocial
+export const LEGACY_SOCIAL_ROLE_STORAGE = 'board' as const
+export const canUseLegacySocialMarkerColumn = () => hasSocialMediaManagerColumn
+
 const usersTableSql = db.prepare(
   "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'",
 ).get() as { sql: string } | undefined
 
 if (usersTableSql && !usersTableSql.sql.includes("'board'")) {
-  db.pragma('foreign_keys = OFF')
-  db.transaction(() => {
-    db.exec(`
-      CREATE TABLE users_new (
-        id TEXT PRIMARY KEY,
-        full_name TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL,
-        phone TEXT DEFAULT '',
-        role TEXT NOT NULL CHECK(role IN ('admin', 'trainer', 'player', 'board', 'social')),
-        notes TEXT DEFAULT '',
-        avatar_url TEXT DEFAULT NULL,
-        member_number TEXT DEFAULT '',
-        birthday TEXT DEFAULT '',
-        address TEXT DEFAULT '',
-        parent_name TEXT DEFAULT '',
-        parent_phone TEXT DEFAULT '',
-        parent_email TEXT DEFAULT '',
-        is_member INTEGER NOT NULL DEFAULT 0,
-        has_membership_application INTEGER NOT NULL DEFAULT 0,
-        has_medical_certificate INTEGER NOT NULL DEFAULT 0,
-        has_photo_consent_social INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL
-      );
+  try {
+    db.pragma('foreign_keys = OFF')
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE users_new (
+          id TEXT PRIMARY KEY,
+          full_name TEXT NOT NULL,
+          email TEXT NOT NULL UNIQUE,
+          password TEXT NOT NULL,
+          phone TEXT DEFAULT '',
+          role TEXT NOT NULL CHECK(role IN ('admin', 'trainer', 'player', 'board', 'social')),
+          notes TEXT DEFAULT '',
+          avatar_url TEXT DEFAULT NULL,
+          member_number TEXT DEFAULT '',
+          birthday TEXT DEFAULT '',
+          address TEXT DEFAULT '',
+          parent_name TEXT DEFAULT '',
+          parent_phone TEXT DEFAULT '',
+          parent_email TEXT DEFAULT '',
+          is_member INTEGER NOT NULL DEFAULT 0,
+          has_membership_application INTEGER NOT NULL DEFAULT 0,
+          has_medical_certificate INTEGER NOT NULL DEFAULT 0,
+          has_photo_consent_social INTEGER NOT NULL DEFAULT 0,
+          is_social_media_manager INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        );
 
-      INSERT INTO users_new (
-        id,
-        full_name,
-        email,
-        password,
-        phone,
-        role,
-        notes,
-        avatar_url,
-        member_number,
-        birthday,
-        address,
-        parent_name,
-        parent_phone,
-        parent_email,
-        is_member,
-        has_membership_application,
-        has_medical_certificate,
-        has_photo_consent_social,
-        created_at
-      )
-      SELECT
-        id,
-        full_name,
-        email,
-        password,
-        phone,
-        role,
-        notes,
-        NULL,
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        0,
-        0,
-        0,
-        0,
-        created_at
-      FROM users;
+        INSERT INTO users_new (
+          id,
+          full_name,
+          email,
+          password,
+          phone,
+          role,
+          notes,
+          avatar_url,
+          member_number,
+          birthday,
+          address,
+          parent_name,
+          parent_phone,
+          parent_email,
+          is_member,
+          has_membership_application,
+          has_medical_certificate,
+          has_photo_consent_social,
+          0,
+          created_at
+        )
+        SELECT
+          id,
+          full_name,
+          email,
+          password,
+          phone,
+          role,
+          notes,
+          NULL,
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          0,
+          0,
+          0,
+          0,
+          created_at
+        FROM users;
 
-      DROP TABLE users;
-      ALTER TABLE users_new RENAME TO users;
-    `)
-  })()
-  db.pragma('foreign_keys = ON')
+        DROP TABLE users;
+        ALTER TABLE users_new RENAME TO users;
+      `)
+    })()
+    db.pragma('foreign_keys = ON')
+  } catch (err) {
+    console.warn('[db] users-table-board-migration konnte nicht durchgefuehrt werden (Restriktion). Server startet trotzdem.', (err as Error)?.message ?? String(err))
+    try { db.pragma('foreign_keys = ON') } catch { /* ignore */ }
+  }
 }
 
 const migrateUsersTableAddSocialRole = (() => {
-  const row = db
-    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'")
-    .get() as { sql: string } | undefined
-  const originalSql = row?.sql ?? ''
-  if (!originalSql) return
-  if (originalSql.includes("'social'")) return
+  try {
+    const row = db
+      .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'")
+      .get() as { sql: string } | undefined
+    const originalSql = row?.sql ?? ''
+    if (!originalSql) return
+    if (originalSql.includes("'social'")) return
 
-  const updatedSql = originalSql.replace(
-    /CHECK\s*\(\s*role\s*IN\s*\(\s*'admin'\s*,\s*'trainer'\s*,\s*'player'\s*,\s*'board'\s*\)\s*\)/i,
-    "CHECK(role IN ('admin', 'trainer', 'player', 'board', 'social'))",
-  )
-  if (updatedSql === originalSql) return
+    const existingCols = db
+      .pragma('table_info(users)') as Array<{ cid: number; name: string; type: string; notnull: number; dflt_value: unknown; pk: number }>
+    const colList = existingCols.map((c) => `"${c.name}"`).join(', ')
+    const hasSocialManagerCol = existingCols.some((c) => c.name === 'is_social_media_manager')
 
-  db.pragma('writable_schema = 1')
-  db.transaction(() => {
-    db.prepare(
-      "UPDATE sqlite_master SET sql = ? WHERE type = 'table' AND name = 'users'",
-    ).run(updatedSql)
-  })()
-  db.pragma('writable_schema = 0')
+    db.pragma('foreign_keys = OFF')
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE users_new (
+          id TEXT PRIMARY KEY,
+          full_name TEXT NOT NULL,
+          email TEXT NOT NULL UNIQUE,
+          password TEXT NOT NULL,
+          phone TEXT DEFAULT '',
+          role TEXT NOT NULL CHECK(role IN ('admin', 'trainer', 'player', 'board', 'social')),
+          notes TEXT DEFAULT '',
+          avatar_url TEXT DEFAULT NULL,
+          member_number TEXT DEFAULT '',
+          birthday TEXT DEFAULT '',
+          address TEXT DEFAULT '',
+          parent_name TEXT DEFAULT '',
+          parent_phone TEXT DEFAULT '',
+          parent_email TEXT DEFAULT '',
+          is_member INTEGER NOT NULL DEFAULT 0,
+          has_membership_application INTEGER NOT NULL DEFAULT 0,
+          has_medical_certificate INTEGER NOT NULL DEFAULT 0,
+          has_photo_consent_social INTEGER NOT NULL DEFAULT 0,
+          is_member_file_url TEXT DEFAULT NULL,
+          membership_application_file_url TEXT DEFAULT NULL,
+          medical_certificate_file_url TEXT DEFAULT NULL,
+          photo_consent_social_file_url TEXT DEFAULT NULL,
+          must_change_password INTEGER NOT NULL DEFAULT 0,
+          privacy_accepted_at TEXT DEFAULT NULL,
+          social_media_enabled INTEGER NOT NULL DEFAULT 0,
+          is_social_media_manager INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        );
+        INSERT INTO users_new (${colList}${hasSocialManagerCol ? '' : ''}) SELECT ${colList}${hasSocialManagerCol ? '' : ''} FROM users;
+        DROP TABLE users;
+        ALTER TABLE users_new RENAME TO users;
+      `)
+    })()
+    db.pragma('foreign_keys = ON')
+  } catch (err) {
+    console.warn('[db] migrateUsersTableAddSocialRole konnte nicht automatisch durchgefuehrt werden. Server startet trotzdem.', (err as Error)?.message ?? String(err))
+    try { db.pragma('foreign_keys = ON') } catch { /* ignore */ }
+  }
 })()
+
+try {
+  const currentUserCols = (
+    db.prepare("PRAGMA table_info(users)").all() as { name: string }[]
+  ).map((column) => column.name)
+  if (!currentUserCols.includes('is_social_media_manager')) {
+    db.prepare('ALTER TABLE users ADD COLUMN is_social_media_manager INTEGER NOT NULL DEFAULT 0').run()
+    console.log('[db] Legacy-Spalte is_social_media_manager erfolgreich hinzugefuegt (Sichere Social-Rollen-Erkennung).')
+  }
+} catch (err) {
+  console.warn('[db] Konnte is_social_media_manager Spalte nicht hinzufuegen (optional).', (err as Error)?.message ?? String(err))
+}
 
 export const getGermanyDstOffsetMinutes = (year: number, monthOneBased: number, day: number, hour: number, minute: number) => {
   const lastSundayOf = (y: number, mIdxZeroBased: number) => {
@@ -260,6 +344,7 @@ db.exec(`
     must_change_password INTEGER NOT NULL DEFAULT 0,
     privacy_accepted_at TEXT DEFAULT NULL,
     social_media_enabled INTEGER NOT NULL DEFAULT 0,
+    is_social_media_manager INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   );
 
@@ -1216,6 +1301,7 @@ type UserRow = {
   must_change_password: number
   privacy_accepted_at: string | null
   social_media_enabled: number
+  is_social_media_manager?: number
   created_at: string
 }
 
@@ -1455,12 +1541,21 @@ export const getTeamIdsByUserId = (userId: string) =>
 export const mapUser = (row: UserRow, includePassword = false) => {
   const mustChangePassword = Boolean(row.must_change_password)
   const privacyAcceptedAt = row.privacy_accepted_at || null
+  const hasLegacySocialMarker = Boolean(row.is_social_media_manager)
+  let effectiveRole: 'admin' | 'trainer' | 'player' | 'board' | 'social' = row.role
+  if (row.role !== 'social') {
+    if (hasLegacySocialMarker) {
+      effectiveRole = 'social'
+    } else if (!usersRoleConstraintSupportsSocial && row.role === LEGACY_SOCIAL_ROLE_STORAGE) {
+      effectiveRole = row.role
+    }
+  }
   const base = {
     id: row.id,
     fullName: row.full_name,
     email: row.email,
     phone: row.phone,
-    role: row.role,
+    role: effectiveRole,
     teamIds: getTeamIdsByUserId(row.id),
     notes: row.notes,
     avatarUrl: row.avatar_url,
@@ -1480,7 +1575,7 @@ export const mapUser = (row: UserRow, includePassword = false) => {
     photoConsentSocialFileUrl: row.photo_consent_social_file_url || null,
     mustChangePassword,
     privacyAcceptedAt,
-    requiresOnboarding: row.role === 'player' && (mustChangePassword || !privacyAcceptedAt),
+    requiresOnboarding: effectiveRole === 'player' && (mustChangePassword || !privacyAcceptedAt),
     socialMediaEnabled: Boolean(row.social_media_enabled),
     createdAt: row.created_at,
   }
@@ -1539,7 +1634,11 @@ export const userHasTeamRole = (
 
 export const isAdminOrBoard = (userId: string) => {
   const row = getUserRowById(userId)
-  return row?.role === 'admin' || row?.role === 'board'
+  if (!row) return false
+  if (row.role === 'admin') return true
+  if (row.role === 'board') return !Boolean(row.is_social_media_manager)
+  if (row.role === 'social') return false
+  return false
 }
 
 export const canUseSocialMedia = (userId: string) => {
@@ -1552,6 +1651,7 @@ export const canUseSocialMedia = (userId: string) => {
     row.role === 'admin' ||
     row.role === 'board' ||
     row.role === 'social' ||
+    Boolean(row.is_social_media_manager) ||
     (row.role === 'trainer' && Boolean(row.social_media_enabled))
   )
 }
