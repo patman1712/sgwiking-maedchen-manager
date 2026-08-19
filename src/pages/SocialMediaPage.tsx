@@ -1973,7 +1973,11 @@ export default function SocialMediaPage() {
     <div className="space-y-6">
       <SectionCard
         title="Social Media"
-        description="Feed- und Story-Entwuerfe mit Ebenen, sauberem Vereinsstil und deutlich flexiblerer Vorschau."
+        description={
+          isTrainerSocialUser
+            ? "Postings aus freigegebenen Vorlagen erstellen und direkt zur Freigabe einreichen."
+            : "Feed- und Story-Entwurfe mit Ebenen, sauberem Vereinsstil und deutlich flexiblerer Vorschau."
+        }
         actions={
           <div className="flex flex-wrap gap-2">
             {canManageSocial ? (
@@ -2007,42 +2011,86 @@ export default function SocialMediaPage() {
           </div>
         }
       >
-        <div className="rounded-[2rem] border border-blue-100 bg-[linear-gradient(135deg,rgba(219,234,254,0.8),rgba(255,255,255,0.95))] p-5 shadow-sm">
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-3xl border border-white/70 bg-white/80 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
-                Editor
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-slate-900">
-                Ebenen statt starrem Layout
-              </p>
-              <p className="mt-2 text-sm text-slate-600">
-                Bilder koennen jetzt vor oder hinter Textkarten liegen, und jede Ebene hat eigene Position und Stil.
-              </p>
+        <div
+          className={
+            isTrainerSocialUser
+              ? "rounded-[2rem] border border-emerald-100 bg-[linear-gradient(135deg,rgba(236,253,245,0.8),rgba(255,255,255,0.95))] p-5 shadow-sm"
+              : "rounded-[2rem] border border-blue-100 bg-[linear-gradient(135deg,rgba(219,234,254,0.8),rgba(255,255,255,0.95))] p-5 shadow-sm"
+          }
+        >
+          {isTrainerSocialUser ? (
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-3xl border border-white/70 bg-white/80 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
+                  1 · Vorlage
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">
+                  Aus Vorlage starten
+                </p>
+                <p className="mt-2 text-sm text-slate-600">
+                  Waehle eine freigegebene Vorlage fuer Feed oder Story aus.
+                </p>
+              </div>
+              <div className="rounded-3xl border border-white/70 bg-white/80 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
+                  2 · Inhalte
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">
+                  Texte & Bilder anpassen
+                </p>
+                <p className="mt-2 text-sm text-slate-600">
+                  Beschriftung und Fotos auf das kommende Spiel anpassen.
+                </p>
+              </div>
+              <div className="rounded-3xl border border-white/70 bg-white/80 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
+                  3 · Freigabe
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">
+                  Posting einreichen
+                </p>
+                <p className="mt-2 text-sm text-slate-600">
+                  Sende das fertige Posting zur Freigabe an Vorstand und Admin.
+                </p>
+              </div>
             </div>
-            <div className="rounded-3xl border border-white/70 bg-white/80 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
-                Design
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-slate-900">
-                Moderneres Grunddesign
-              </p>
-              <p className="mt-2 text-sm text-slate-600">
-                Die Vorschau ist jetzt hochwertiger, klarer gebrandet und wirkt deutlich mehr wie ein fertiger Social-Post.
-              </p>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-3xl border border-white/70 bg-white/80 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
+                  Editor
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">
+                  Ebenen statt starrem Layout
+                </p>
+                <p className="mt-2 text-sm text-slate-600">
+                  Bilder koennen jetzt vor oder hinter Textkarten liegen, und jede Ebene hat eigene Position und Stil.
+                </p>
+              </div>
+              <div className="rounded-3xl border border-white/70 bg-white/80 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
+                  Design
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">
+                  Moderneres Grunddesign
+                </p>
+                <p className="mt-2 text-sm text-slate-600">
+                  Die Vorschau ist jetzt hochwertiger, klarer gebrandet und wirkt deutlich mehr wie ein fertiger Social-Post.
+                </p>
+              </div>
+              <div className="rounded-3xl border border-white/70 bg-white/80 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
+                  Schnellstart
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">
+                  Textbausteine inklusive
+                </p>
+                <p className="mt-2 text-sm text-slate-600">
+                  Bausteine koennen direkt in die aktive Textebene uebernommen werden, ohne die Gestaltung zu verlieren.
+                </p>
+              </div>
             </div>
-            <div className="rounded-3xl border border-white/70 bg-white/80 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
-                Schnellstart
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-slate-900">
-                Textbausteine inklusive
-              </p>
-              <p className="mt-2 text-sm text-slate-600">
-                Bausteine koennen direkt in die aktive Textebene uebernommen werden, ohne die Gestaltung zu verlieren.
-              </p>
-            </div>
-          </div>
+          )}
         </div>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
@@ -3434,59 +3482,61 @@ export default function SocialMediaPage() {
                           </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-                            <Plus size={16} />
-                            Bilder lokal hochladen
-                            <input
-                              type="file"
-                              accept="image/png,image/jpeg,image/webp"
-                              multiple
-                              className="hidden"
-                              onChange={(event) => {
-                                const files = Array.from(event.target.files ?? []);
-                                const mapped = files.map((file, index) => {
-                                  const id = `new-${Date.now()}-${index}-${file.name}`;
-                                  return {
-                                    id,
-                                    ref: `local:${id}`,
-                                    kind: "new" as const,
-                                    url: URL.createObjectURL(file),
-                                    file,
-                                    fileName: file.name,
-                                  };
-                                });
-                                setEditorAssets((current) => [...current, ...mapped]);
-
-                                if (mapped.length > 0) {
-                                  setEditorLayers((currentLayers) => {
-                                    const layers: SocialMediaLayer[] = [];
-                                    let activeRef = "";
-                                    const initJobs: Array<{ layerId: string; assetUrl: string }> = [];
-                                    for (const asset of mapped) {
-                                      const baseLayer = createLayer("image", {
-                                        imageRef: asset.ref,
-                                        imageFileName: asset.fileName,
-                                        label: asset.fileName,
-                                      });
-                                      layers.push(normalizeLayer(baseLayer));
-                                      activeRef = baseLayer.id;
-                                      initJobs.push({ layerId: baseLayer.id, assetUrl: asset.url });
-                                    }
-                                    if (layers.length > 0 && activeRef) {
-                                      setActiveLayerId(activeRef);
-                                    }
-                                    setTimeout(() => {
-                                      for (const job of initJobs) {
-                                        void initializeImageLayerWithNaturalRatio(job.layerId, job.assetUrl);
-                                      }
-                                    }, 0);
-                                    return [...currentLayers, ...layers];
+                          {!isTrainerSocialUser ? (
+                            <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                              <Plus size={16} />
+                              Bilder lokal hochladen
+                              <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp"
+                                multiple
+                                className="hidden"
+                                onChange={(event) => {
+                                  const files = Array.from(event.target.files ?? []);
+                                  const mapped = files.map((file, index) => {
+                                    const id = `new-${Date.now()}-${index}-${file.name}`;
+                                    return {
+                                      id,
+                                      ref: `local:${id}`,
+                                      kind: "new" as const,
+                                      url: URL.createObjectURL(file),
+                                      file,
+                                      fileName: file.name,
+                                    };
                                   });
-                                }
-                                event.target.value = "";
-                              }}
-                            />
-                          </label>
+                                  setEditorAssets((current) => [...current, ...mapped]);
+
+                                  if (mapped.length > 0) {
+                                    setEditorLayers((currentLayers) => {
+                                      const layers: SocialMediaLayer[] = [];
+                                      let activeRef = "";
+                                      const initJobs: Array<{ layerId: string; assetUrl: string }> = [];
+                                      for (const asset of mapped) {
+                                        const baseLayer = createLayer("image", {
+                                          imageRef: asset.ref,
+                                          imageFileName: asset.fileName,
+                                          label: asset.fileName,
+                                        });
+                                        layers.push(normalizeLayer(baseLayer));
+                                        activeRef = baseLayer.id;
+                                        initJobs.push({ layerId: baseLayer.id, assetUrl: asset.url });
+                                      }
+                                      if (layers.length > 0 && activeRef) {
+                                        setActiveLayerId(activeRef);
+                                      }
+                                      setTimeout(() => {
+                                        for (const job of initJobs) {
+                                          void initializeImageLayerWithNaturalRatio(job.layerId, job.assetUrl);
+                                        }
+                                      }, 0);
+                                      return [...currentLayers, ...layers];
+                                    });
+                                  }
+                                  event.target.value = "";
+                                }}
+                              />
+                            </label>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => {
@@ -3632,7 +3682,11 @@ export default function SocialMediaPage() {
               <div className="space-y-4">
                 <SectionCard
                   title="Layer-Inspector"
-                  description="Eigenschaften der aktuell ausgewaehlten Ebene."
+                  description={
+                    isTrainerSocialUser
+                      ? "Inhalte der aktuell ausgewaehlten Ebene. Layout und Design sind durch die Vorlage vorgegeben."
+                      : "Eigenschaften der aktuell ausgewaehlten Ebene."
+                  }
                 >
                   {activeLayer ? (
                     <div className="space-y-4">
@@ -3647,101 +3701,103 @@ export default function SocialMediaPage() {
                         />
                       </label>
 
-                      <div className={`grid gap-4 ${activeLayer.kind === "image" || activeLayer.kind === "badge" || editorIsTemplate ? "md:grid-cols-2" : ""}`}>
-                        {(activeLayer.kind === "image" || activeLayer.kind === "badge" || editorIsTemplate) ? (
+                      {!isTrainerSocialUser ? (
+                        <div className={`grid gap-4 ${activeLayer.kind === "image" || activeLayer.kind === "badge" || editorIsTemplate ? "md:grid-cols-2" : ""}`}>
+                          {(activeLayer.kind === "image" || activeLayer.kind === "badge" || editorIsTemplate) ? (
+                            <label className="block">
+                              <span className="mb-2 block text-sm font-medium text-slate-700">
+                                Ebenentyp
+                              </span>
+                              <select
+                                value={activeLayer.kind}
+                                onChange={(event) => {
+                                  const kind = event.target.value as SocialMediaLayerKind;
+                                  const layerDefaults = createLayer(kind);
+                                  const geometryPatch =
+                                    kind === "image"
+                                      ? getDefaultImageGeometry({
+                                          position: layerDefaults.position,
+                                          style: layerDefaults.style,
+                                        })
+                                      : getDefaultTextGeometry({
+                                          kind,
+                                          position: layerDefaults.position,
+                                        });
+                                  updateLayer(activeLayer.id, {
+                                    kind,
+                                    style: layerDefaults.style,
+                                    position: layerDefaults.position,
+                                    fontFamily: layerDefaults.fontFamily,
+                                    fontSize: layerDefaults.fontSize,
+                                    textColor: layerDefaults.textColor,
+                                    textAlign: layerDefaults.textAlign,
+                                    textEffect: layerDefaults.textEffect,
+                                    imageRef:
+                                      kind === "image"
+                                        ? activeLayer.imageRef ?? editorAssets[0]?.ref
+                                        : undefined,
+                                    text:
+                                      kind === "image"
+                                        ? ""
+                                        : activeLayer.kind === "image"
+                                          ? layerDefaults.text
+                                          : activeLayer.text,
+                                    ...geometryPatch,
+                                  });
+                                }}
+                                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                              >
+                                {layerKindOptions.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          ) : null}
+
                           <label className="block">
                             <span className="mb-2 block text-sm font-medium text-slate-700">
-                              Ebenentyp
+                              Position
                             </span>
                             <select
-                              value={activeLayer.kind}
+                              value={activeLayer.position}
+                              disabled={activeLayerPositionLocked}
                               onChange={(event) => {
-                                const kind = event.target.value as SocialMediaLayerKind;
-                                const layerDefaults = createLayer(kind);
-                                const geometryPatch =
-                                  kind === "image"
-                                    ? getDefaultImageGeometry({
-                                        position: layerDefaults.position,
-                                        style: layerDefaults.style,
-                                      })
-                                    : getDefaultTextGeometry({
-                                        kind,
-                                        position: layerDefaults.position,
-                                      });
+                                const position = event.target.value as SocialMediaLayerPosition;
+                                if (activeLayer.kind === "image") {
+                                  updateLayer(activeLayer.id, {
+                                    position,
+                                    ...getDefaultImageGeometry({
+                                      position,
+                                      style: activeLayer.style,
+                                    }),
+                                  });
+                                  return;
+                                }
+
                                 updateLayer(activeLayer.id, {
-                                  kind,
-                                  style: layerDefaults.style,
-                                  position: layerDefaults.position,
-                                  fontFamily: layerDefaults.fontFamily,
-                                  fontSize: layerDefaults.fontSize,
-                                  textColor: layerDefaults.textColor,
-                                  textAlign: layerDefaults.textAlign,
-                                  textEffect: layerDefaults.textEffect,
-                                  imageRef:
-                                    kind === "image"
-                                      ? activeLayer.imageRef ?? editorAssets[0]?.ref
-                                      : undefined,
-                                  text:
-                                    kind === "image"
-                                      ? ""
-                                      : activeLayer.kind === "image"
-                                        ? layerDefaults.text
-                                        : activeLayer.text,
-                                  ...geometryPatch,
+                                  position,
+                                  ...getDefaultTextGeometry({
+                                    kind: activeLayer.kind,
+                                    position,
+                                  }),
                                 });
                               }}
-                              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                              {layerKindOptions.map((option) => (
+                              {(activeLayer.kind === "image"
+                                ? positionOptions
+                                : positionOptions.filter((o) => o.value !== "full")
+                              ).map((option) => (
                                 <option key={option.value} value={option.value}>
                                   {option.label}
                                 </option>
                               ))}
                             </select>
                           </label>
-                        ) : null}
-
-                        <label className="block">
-                          <span className="mb-2 block text-sm font-medium text-slate-700">
-                            Position
-                          </span>
-                          <select
-                            value={activeLayer.position}
-                            disabled={activeLayerPositionLocked}
-                            onChange={(event) => {
-                              const position = event.target.value as SocialMediaLayerPosition;
-                              if (activeLayer.kind === "image") {
-                                updateLayer(activeLayer.id, {
-                                  position,
-                                  ...getDefaultImageGeometry({
-                                    position,
-                                    style: activeLayer.style,
-                                  }),
-                                });
-                                return;
-                              }
-
-                              updateLayer(activeLayer.id, {
-                                position,
-                                ...getDefaultTextGeometry({
-                                  kind: activeLayer.kind,
-                                  position,
-                                }),
-                              });
-                            }}
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {(activeLayer.kind === "image"
-                              ? positionOptions
-                              : positionOptions.filter((o) => o.value !== "full")
-                            ).map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
+                        </div>
+                      ) : null}
 
                       {editorIsTemplate ? (
                         <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-4">
@@ -3784,14 +3840,16 @@ export default function SocialMediaPage() {
                           </div>
                         </div>
                       ) : activeLayerPositionLocked || activeLayerSizeLocked ? (
-                        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                          Diese Vorlage enthaelt feste Elemente.
-                          {activeLayerPositionLocked ? " Position ist gesperrt." : ""}
-                          {activeLayerSizeLocked ? " Groesse ist gesperrt." : ""}
+                        <div className="rounded-3xl border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-900">
+                          <p className="font-semibold">Durch Vorlage festgelegt</p>
+                          <p className="mt-1 text-xs text-emerald-800">
+                            {activeLayerPositionLocked ? " Position ist gesperrt." : ""}
+                            {activeLayerSizeLocked ? " Groesse ist gesperrt." : ""}
+                          </p>
                         </div>
                       ) : null}
 
-                      {(activeLayer.kind === "image" || activeLayer.kind === "badge" || editorIsTemplate) ? (
+                      {!isTrainerSocialUser && (activeLayer.kind === "image" || activeLayer.kind === "badge" || editorIsTemplate) ? (
                         <label className="block">
                           <span className="mb-2 block text-sm font-medium text-slate-700">Stil</span>
                           <select
@@ -3834,196 +3892,198 @@ export default function SocialMediaPage() {
                             </select>
                           </label>
 
-                          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                              <div>
-                                <p className="text-sm font-semibold text-slate-900">Bildgeometrie</p>
-                                <p className="text-xs text-slate-500">
-                                  In der Vorschau frei ziehen oder hier exakt einstellen.
-                                </p>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <button
-                                  type="button"
-                                  disabled={activeLayerPositionLocked || activeLayerSizeLocked}
-                                  onClick={() => {
-                                    const ratio = activeLayer.keepAspectRatio
-                                      ? activeLayer.baseAspectRatio
-                                      : undefined;
-                                    updateLayer(activeLayer.id, {
-                                      ...getDefaultImageGeometry({
-                                        position: activeLayer.position,
-                                        style: activeLayer.style,
-                                      }),
-                                      ...(ratio ? { keepAspectRatio: true, baseAspectRatio: ratio } : {}),
-                                    });
-                                  }}
-                                  className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  Zuruecksetzen
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={activeLayerSizeLocked}
-                                  onClick={() => {
-                                    const currentlyLocked = Boolean(activeLayer.keepAspectRatio);
-                                    if (currentlyLocked) {
-                                      updateLayer(activeLayer.id, { keepAspectRatio: false });
-                                      return;
+                          {!isTrainerSocialUser ? (
+                            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-900">Bildgeometrie</p>
+                                  <p className="text-xs text-slate-500">
+                                    In der Vorschau frei ziehen oder hier exakt einstellen.
+                                  </p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={activeLayerPositionLocked || activeLayerSizeLocked}
+                                    onClick={() => {
+                                      const ratio = activeLayer.keepAspectRatio
+                                        ? activeLayer.baseAspectRatio
+                                        : undefined;
+                                      updateLayer(activeLayer.id, {
+                                        ...getDefaultImageGeometry({
+                                          position: activeLayer.position,
+                                          style: activeLayer.style,
+                                        }),
+                                        ...(ratio ? { keepAspectRatio: true, baseAspectRatio: ratio } : {}),
+                                      });
+                                    }}
+                                    className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    Zuruecksetzen
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={activeLayerSizeLocked}
+                                    onClick={() => {
+                                      const currentlyLocked = Boolean(activeLayer.keepAspectRatio);
+                                      if (currentlyLocked) {
+                                        updateLayer(activeLayer.id, { keepAspectRatio: false });
+                                        return;
+                                      }
+                                      void lockImageLayerAspectRatio(activeLayer.id, activeLayer.imageRef);
+                                    }}
+                                    className={
+                                      "inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 " +
+                                      (activeLayer.keepAspectRatio
+                                        ? "border-blue-200 bg-blue-600 text-white shadow-md shadow-blue-500/20 hover:bg-blue-700"
+                                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100")
                                     }
-                                    void lockImageLayerAspectRatio(activeLayer.id, activeLayer.imageRef);
-                                  }}
-                                  className={
-                                    "inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 " +
-                                    (activeLayer.keepAspectRatio
-                                      ? "border-blue-200 bg-blue-600 text-white shadow-md shadow-blue-500/20 hover:bg-blue-700"
-                                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100")
-                                  }
-                                  title={
-                                    activeLayer.keepAspectRatio
-                                      ? "Seitenverhältnis entsperren – frei transformieren"
-                                      : "Seitenverhältnis sperren – Breite & Höhe im Verhältnis halten"
-                                  }
-                                >
-                                  {activeLayer.keepAspectRatio ? (
-                                    <>
-                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <rect x="4" y="10" width="16" height="11" rx="2.5" />
-                                        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-                                      </svg>
-                                      Verhältnis gesperrt
-                                    </>
-                                  ) : (
-                                    <>
-                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <rect x="4" y="10" width="16" height="11" rx="2.5" />
-                                        <path d="M8 10V7a4 4 0 0 1 7.5-1.8" />
-                                        <path d="M13 4l1.8 1.8L17 4" />
-                                      </svg>
-                                      Verhältnis frei
-                                    </>
-                                  )}
-                                </button>
+                                    title={
+                                      activeLayer.keepAspectRatio
+                                        ? "Seitenverhältnis entsperren – frei transformieren"
+                                        : "Seitenverhältnis sperren – Breite & Höhe im Verhältnis halten"
+                                    }
+                                  >
+                                    {activeLayer.keepAspectRatio ? (
+                                      <>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                          <rect x="4" y="10" width="16" height="11" rx="2.5" />
+                                          <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                                        </svg>
+                                        Verhältnis gesperrt
+                                      </>
+                                    ) : (
+                                      <>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                          <rect x="4" y="10" width="16" height="11" rx="2.5" />
+                                          <path d="M8 10V7a4 4 0 0 1 7.5-1.8" />
+                                          <path d="M13 4l1.8 1.8L17 4" />
+                                        </svg>
+                                        Verhältnis frei
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
                               </div>
-                            </div>
 
-                            {(() => {
-                              const geometry = getImageLayerGeometry(activeLayer);
-                              const baseRatio =
-                                activeLayer.baseAspectRatio ??
-                                geometry.widthPercent / Math.max(geometry.heightPercent, 0.001);
-                              const ratioLocked = Boolean(activeLayer.keepAspectRatio);
+                              {(() => {
+                                const geometry = getImageLayerGeometry(activeLayer);
+                                const baseRatio =
+                                  activeLayer.baseAspectRatio ??
+                                  geometry.widthPercent / Math.max(geometry.heightPercent, 0.001);
+                                const ratioLocked = Boolean(activeLayer.keepAspectRatio);
 
-                              const controls = [
-                                {
-                                  key: "centerX",
-                                  label: "Horizontal",
-                                  value: geometry.centerX,
-                                  min: 0,
-                                  max: 100,
-                                  kind: "position" as const,
-                                },
-                                {
-                                  key: "centerY",
-                                  label: "Vertikal",
-                                  value: geometry.centerY,
-                                  min: 0,
-                                  max: 100,
-                                  kind: "position" as const,
-                                },
-                                {
-                                  key: "widthPercent",
-                                  label: ratioLocked ? "Breite (Höhe folgt automatisch)" : "Breite",
-                                  value: geometry.widthPercent,
-                                  min: 2,
-                                  max: 100,
-                                  kind: "size" as const,
-                                },
-                                {
-                                  key: "heightPercent",
-                                  label: ratioLocked ? "Höhe (Breite folgt automatisch)" : "Hoehe",
-                                  value: geometry.heightPercent,
-                                  min: 2,
-                                  max: 100,
-                                  kind: "size" as const,
-                                },
-                              ] as const;
+                                const controls = [
+                                  {
+                                    key: "centerX",
+                                    label: "Horizontal",
+                                    value: geometry.centerX,
+                                    min: 0,
+                                    max: 100,
+                                    kind: "position" as const,
+                                  },
+                                  {
+                                    key: "centerY",
+                                    label: "Vertikal",
+                                    value: geometry.centerY,
+                                    min: 0,
+                                    max: 100,
+                                    kind: "position" as const,
+                                  },
+                                  {
+                                    key: "widthPercent",
+                                    label: ratioLocked ? "Breite (Höhe folgt automatisch)" : "Breite",
+                                    value: geometry.widthPercent,
+                                    min: 2,
+                                    max: 100,
+                                    kind: "size" as const,
+                                  },
+                                  {
+                                    key: "heightPercent",
+                                    label: ratioLocked ? "Höhe (Breite folgt automatisch)" : "Hoehe",
+                                    value: geometry.heightPercent,
+                                    min: 2,
+                                    max: 100,
+                                    kind: "size" as const,
+                                  },
+                                ] as const;
 
-                              return (
-                                <div className="space-y-3">
-                                  {controls.map((control) => (
-                                    <label key={control.key} className="block">
-                                      <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
-                                        <span>{control.label}</span>
-                                        <span className="font-semibold text-slate-900">
-                                          {Math.round(control.value)}%
-                                        </span>
-                                      </div>
-                                      <input
-                                        type="range"
-                                        min={control.min}
-                                        max={control.max}
-                                        step={1}
-                                        value={control.value}
-                                        disabled={
-                                          control.kind === "position"
-                                            ? activeLayerPositionLocked
-                                            : activeLayerSizeLocked
-                                        }
-                                        onChange={(event) => {
-                                          const rawValue = Number(event.target.value);
-                                          if (control.kind === "position") {
-                                            updateLayer(activeLayer.id, {
-                                              [control.key]: rawValue,
-                                            } as Partial<SocialMediaLayer>);
-                                            return;
+                                return (
+                                  <div className="space-y-3">
+                                    {controls.map((control) => (
+                                      <label key={control.key} className="block">
+                                        <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
+                                          <span>{control.label}</span>
+                                          <span className="font-semibold text-slate-900">
+                                            {Math.round(control.value)}%
+                                          </span>
+                                        </div>
+                                        <input
+                                          type="range"
+                                          min={control.min}
+                                          max={control.max}
+                                          step={1}
+                                          value={control.value}
+                                          disabled={
+                                            control.kind === "position"
+                                              ? activeLayerPositionLocked
+                                              : activeLayerSizeLocked
                                           }
-                                          if (!ratioLocked) {
-                                            updateLayer(activeLayer.id, {
-                                              [control.key]: rawValue,
-                                            } as Partial<SocialMediaLayer>);
-                                            return;
-                                          }
-                                          if (control.key === "widthPercent") {
-                                            const nextWidth = rawValue;
-                                            const nextHeight = Math.max(
-                                              2,
-                                              Math.min(100, Math.round(nextWidth / baseRatio)),
-                                            );
-                                            const clampedWidth =
-                                              Math.max(
-                                                2,
-                                                Math.min(100, Math.round(nextHeight * baseRatio)),
-                                              ) ?? nextWidth;
-                                            updateLayer(activeLayer.id, {
-                                              widthPercent: clampedWidth,
-                                              heightPercent: nextHeight,
-                                            });
-                                          } else {
-                                            const nextHeight = rawValue;
-                                            const nextWidth = Math.max(
-                                              2,
-                                              Math.min(100, Math.round(nextHeight * baseRatio)),
-                                            );
-                                            const clampedHeight =
-                                              Math.max(
+                                          onChange={(event) => {
+                                            const rawValue = Number(event.target.value);
+                                            if (control.kind === "position") {
+                                              updateLayer(activeLayer.id, {
+                                                [control.key]: rawValue,
+                                              } as Partial<SocialMediaLayer>);
+                                              return;
+                                            }
+                                            if (!ratioLocked) {
+                                              updateLayer(activeLayer.id, {
+                                                [control.key]: rawValue,
+                                              } as Partial<SocialMediaLayer>);
+                                              return;
+                                            }
+                                            if (control.key === "widthPercent") {
+                                              const nextWidth = rawValue;
+                                              const nextHeight = Math.max(
                                                 2,
                                                 Math.min(100, Math.round(nextWidth / baseRatio)),
-                                              ) ?? nextHeight;
-                                            updateLayer(activeLayer.id, {
-                                              widthPercent: nextWidth,
-                                              heightPercent: clampedHeight,
-                                            });
-                                          }
-                                        }}
-                                        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                                      />
-                                    </label>
-                                  ))}
-                                </div>
-                              );
-                            })()}
-                          </div>
+                                              );
+                                              const clampedWidth =
+                                                Math.max(
+                                                  2,
+                                                  Math.min(100, Math.round(nextHeight * baseRatio)),
+                                                ) ?? nextWidth;
+                                              updateLayer(activeLayer.id, {
+                                                widthPercent: clampedWidth,
+                                                heightPercent: nextHeight,
+                                              });
+                                            } else {
+                                              const nextHeight = rawValue;
+                                              const nextWidth = Math.max(
+                                                2,
+                                                Math.min(100, Math.round(nextHeight * baseRatio)),
+                                              );
+                                              const clampedHeight =
+                                                Math.max(
+                                                  2,
+                                                  Math.min(100, Math.round(nextWidth / baseRatio)),
+                                                ) ?? nextHeight;
+                                              updateLayer(activeLayer.id, {
+                                                widthPercent: nextWidth,
+                                                heightPercent: clampedHeight,
+                                              });
+                                            }
+                                          }}
+                                          className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                        />
+                                      </label>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          ) : null}
                         </div>
                       ) : (
                         <div className="space-y-4">
@@ -4039,217 +4099,418 @@ export default function SocialMediaPage() {
                             />
                           </label>
 
-                          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                            <div className="mb-3 flex items-center justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-semibold text-slate-900">Textfeld</p>
+                          {!isTrainerSocialUser ? (
+                            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                              <div className="mb-3 flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-900">Textfeld</p>
+                                  <p className="text-xs text-slate-500">
+                                    In der Vorschau frei ziehen oder hier exakt ausrichten.
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={activeLayerPositionLocked || activeLayerSizeLocked}
+                                  onClick={() =>
+                                    updateLayer(activeLayer.id, {
+                                      ...getDefaultTextGeometry({
+                                        kind: activeLayer.kind,
+                                        position: activeLayer.position,
+                                      }),
+                                      ...getDefaultTextAppearance(activeLayer),
+                                    })
+                                  }
+                                  className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  Zuruecksetzen
+                                </button>
+                              </div>
+
+                              {(() => {
+                                const geometry = getTextLayerGeometry(activeLayer);
+                                const baseDefaults = getDefaultTextGeometry(activeLayer);
+                                const appearance = getDefaultTextAppearance(activeLayer);
+                                const baseScaleWidth = baseDefaults.widthPercent;
+                                const baseScaleHeight = baseDefaults.heightPercent;
+                                const currentScale = geometry.widthPercent / baseScaleWidth;
+
+                                const handleResizeProportional = (newWidthPercent: number) => {
+                                  const scale = clamp(newWidthPercent / baseScaleWidth, 0.25, 6);
+                                  const ratio = scale / Math.max(currentScale, 0.0001);
+                                  const widthPercent = clamp(baseScaleWidth * scale, 18, 100);
+                                  const heightPercent = clamp(baseScaleHeight * scale, 6, 80);
+                                  const fontSize = clamp(
+                                    Math.round(
+                                      (activeLayer.fontSize ?? appearance.fontSize) * ratio,
+                                    ),
+                                    10,
+                                    480,
+                                  );
+                                  const letterSpacing = Math.round(
+                                    ((activeLayer.letterSpacing ?? appearance.letterSpacing) * ratio) *
+                                      100,
+                                  ) / 100;
+                                  updateLayer(activeLayer.id, {
+                                    widthPercent,
+                                    heightPercent,
+                                    fontSize,
+                                    letterSpacing,
+                                  });
+                                };
+
+                                const controls = [
+                                  {
+                                    key: "centerX",
+                                    label: "Horizontal",
+                                    value: geometry.centerX,
+                                    min: geometry.widthPercent / 2,
+                                    max: 100 - geometry.widthPercent / 2,
+                                    kind: "position" as const,
+                                  },
+                                  {
+                                    key: "centerY",
+                                    label: "Vertikal",
+                                    value: geometry.centerY,
+                                    min: geometry.heightPercent / 2,
+                                    max: 100 - geometry.heightPercent / 2,
+                                    kind: "position" as const,
+                                  },
+                                  {
+                                    key: "widthPercent",
+                                    label: "Skalierung (Groesse)",
+                                    value: geometry.widthPercent,
+                                    min: 18,
+                                    max: 100,
+                                    kind: "size" as const,
+                                  },
+                                ] as const;
+
+                                return (
+                                  <div className="space-y-3">
+                                    {controls.map((control) => (
+                                      <label key={control.key} className="block">
+                                        <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
+                                          <span>{control.label}</span>
+                                          <span className="font-semibold text-slate-900">
+                                            {control.kind === "size"
+                                              ? `x${(geometry.widthPercent / baseScaleWidth).toFixed(2)}`
+                                              : `${Math.round(control.value)}%`}
+                                          </span>
+                                        </div>
+                                        <input
+                                          type="range"
+                                          min={control.min}
+                                          max={control.max}
+                                          step={1}
+                                          value={control.value}
+                                          disabled={
+                                            control.kind === "position"
+                                              ? activeLayerPositionLocked
+                                              : activeLayerSizeLocked
+                                          }
+                                          onChange={(event) => {
+                                            const value = Number(event.target.value);
+                                            if (control.kind === "size") {
+                                              handleResizeProportional(value);
+                                            } else {
+                                              updateLayer(activeLayer.id, {
+                                                [control.key]: value,
+                                              } as Partial<SocialMediaLayer>);
+                                            }
+                                          }}
+                                          className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                        />
+                                      </label>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          ) : null}
+
+                          {!isTrainerSocialUser ? (
+                            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                              <div className="mb-3">
+                                <p className="text-sm font-semibold text-slate-900">Schrift</p>
                                 <p className="text-xs text-slate-500">
-                                  In der Vorschau frei ziehen oder hier exakt ausrichten.
+                                  Schriftart, Groesse und Farbe fuer diese Textebene.
                                 </p>
                               </div>
-                              <button
-                                type="button"
-                                disabled={activeLayerPositionLocked || activeLayerSizeLocked}
-                                onClick={() =>
-                                  updateLayer(activeLayer.id, {
-                                    ...getDefaultTextGeometry({
-                                      kind: activeLayer.kind,
-                                      position: activeLayer.position,
-                                    }),
-                                    ...getDefaultTextAppearance(activeLayer),
-                                  })
-                                }
-                                className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                Zuruecksetzen
-                              </button>
-                            </div>
 
-                            {(() => {
-                              const geometry = getTextLayerGeometry(activeLayer);
-                              const baseDefaults = getDefaultTextGeometry(activeLayer);
-                              const appearance = getDefaultTextAppearance(activeLayer);
-                              const baseScaleWidth = baseDefaults.widthPercent;
-                              const baseScaleHeight = baseDefaults.heightPercent;
-                              const currentScale = geometry.widthPercent / baseScaleWidth;
+                              <div className="grid gap-4 md:grid-cols-2">
+                                <label className="block">
+                                  <span className="mb-2 block text-sm font-medium text-slate-700">
+                                    Ausrichtung
+                                  </span>
+                                  <select
+                                    value={
+                                      activeLayer.textAlign ?? getDefaultTextAppearance(activeLayer).textAlign
+                                    }
+                                    onChange={(event) =>
+                                      updateLayer(activeLayer.id, {
+                                        textAlign: event.target.value as SocialMediaTextAlign,
+                                      })
+                                    }
+                                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                  >
+                                    <option value="left">Links</option>
+                                    <option value="center">Mittig</option>
+                                    <option value="right">Rechts</option>
+                                  </select>
+                                </label>
 
-                              const handleResizeProportional = (newWidthPercent: number) => {
-                                const scale = clamp(newWidthPercent / baseScaleWidth, 0.25, 6);
-                                const ratio = scale / Math.max(currentScale, 0.0001);
-                                const widthPercent = clamp(baseScaleWidth * scale, 18, 100);
-                                const heightPercent = clamp(baseScaleHeight * scale, 6, 80);
-                                const fontSize = clamp(
-                                  Math.round(
-                                    (activeLayer.fontSize ?? appearance.fontSize) * ratio,
-                                  ),
-                                  10,
-                                  480,
-                                );
-                                const letterSpacing = Math.round(
-                                  ((activeLayer.letterSpacing ?? appearance.letterSpacing) * ratio) *
-                                    100,
-                                ) / 100;
-                                updateLayer(activeLayer.id, {
-                                  widthPercent,
-                                  heightPercent,
-                                  fontSize,
-                                  letterSpacing,
-                                });
-                              };
+                                <label className="block">
+                                  <span className="mb-2 block text-sm font-medium text-slate-700">
+                                    Effekt
+                                  </span>
+                                  <select
+                                    value={
+                                      activeLayer.textEffect ?? getDefaultTextAppearance(activeLayer).textEffect
+                                    }
+                                    onChange={(event) =>
+                                      updateLayer(activeLayer.id, {
+                                        textEffect: event.target.value as SocialMediaTextEffect,
+                                      })
+                                    }
+                                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                  >
+                                    <option value="none">Kein Effekt</option>
+                                    <option value="shadow">Schatten</option>
+                                    <option value="outline">Kontur</option>
+                                  </select>
+                                </label>
+                              </div>
 
-                              const controls = [
-                                {
-                                  key: "centerX",
-                                  label: "Horizontal",
-                                  value: geometry.centerX,
-                                  min: geometry.widthPercent / 2,
-                                  max: 100 - geometry.widthPercent / 2,
-                                  kind: "position" as const,
-                                },
-                                {
-                                  key: "centerY",
-                                  label: "Vertikal",
-                                  value: geometry.centerY,
-                                  min: geometry.heightPercent / 2,
-                                  max: 100 - geometry.heightPercent / 2,
-                                  kind: "position" as const,
-                                },
-                                {
-                                  key: "widthPercent",
-                                  label: "Skalierung (Groesse)",
-                                  value: geometry.widthPercent,
-                                  min: 18,
-                                  max: 100,
-                                  kind: "size" as const,
-                                },
-                              ] as const;
+                              <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">
+                                Schatten verbessert die Lesbarkeit auf Fotos. Kontur eignet sich gut fuer helle oder unruhige Bildbereiche.
+                              </div>
 
-                              return (
-                                <div className="space-y-3">
-                                  {controls.map((control) => (
-                                    <label key={control.key} className="block">
-                                      <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
-                                        <span>{control.label}</span>
-                                        <span className="font-semibold text-slate-900">
-                                          {control.kind === "size"
-                                            ? `x${(geometry.widthPercent / baseScaleWidth).toFixed(2)}`
-                                            : `${Math.round(control.value)}%`}
-                                        </span>
-                                      </div>
-                                      <input
-                                        type="range"
-                                        min={control.min}
-                                        max={control.max}
-                                        step={1}
-                                        value={control.value}
-                                        disabled={
-                                          control.kind === "position"
-                                            ? activeLayerPositionLocked
-                                            : activeLayerSizeLocked
-                                        }
-                                        onChange={(event) => {
-                                          const value = Number(event.target.value);
-                                          if (control.kind === "size") {
-                                            handleResizeProportional(value);
-                                          } else {
-                                            updateLayer(activeLayer.id, {
-                                              [control.key]: value,
-                                            } as Partial<SocialMediaLayer>);
-                                          }
+                              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                <label className="block">
+                                  <span className="mb-2 block text-sm font-medium text-slate-700">
+                                    Schriftart
+                                  </span>
+                                  <select
+                                    value={
+                                      activeLayer.fontFamily ?? getDefaultTextAppearance(activeLayer).fontFamily
+                                    }
+                                    onChange={(event) =>
+                                      updateLayer(activeLayer.id, {
+                                        fontFamily: event.target.value,
+                                      })
+                                    }
+                                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                  >
+                                    {fontOptions.map((option) => (
+                                      <option key={`${option.source}-${option.value}`} value={option.value}>
+                                        {option.label}
+                                        {option.source === "uploaded" ? " (hochgeladen)" : ""}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                              </div>
+
+                              <div className="mt-4 space-y-4">
+
+                                <label className="block">
+                                  <span className="mb-2 block text-sm font-medium text-slate-700">
+                                    Schriftfarbe
+                                  </span>
+                                  <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm transition hover:border-slate-300">
+                                    <label
+                                      htmlFor={`text-color-${activeLayer.id}`}
+                                      className="group flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 active:scale-[0.98]"
+                                      title="Klicken zum Oeffnen des Farbwaehlers"
+                                    >
+                                      <span
+                                        className="h-7 w-7 rounded-lg border border-slate-300 shadow-inner transition group-hover:scale-105"
+                                        style={{
+                                          backgroundColor:
+                                            activeLayer.textColor ??
+                                            getDefaultTextAppearance(activeLayer).textColor,
                                         }}
-                                        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                                       />
+                                      <Droplet size={16} className="text-blue-700" />
+                                      <span>Farbe wählen</span>
                                     </label>
-                                  ))}
+                                    <input
+                                      id={`text-color-${activeLayer.id}`}
+                                      type="color"
+                                      value={
+                                        activeLayer.textColor ?? getDefaultTextAppearance(activeLayer).textColor
+                                      }
+                                      onChange={(event) =>
+                                        updateLayer(activeLayer.id, {
+                                          textColor: event.target.value,
+                                        })
+                                      }
+                                      className="sr-only h-0 w-0"
+                                    />
+                                    <input
+                                      value={
+                                        activeLayer.textColor ?? getDefaultTextAppearance(activeLayer).textColor
+                                      }
+                                      onChange={(event) =>
+                                        updateLayer(activeLayer.id, {
+                                          textColor: event.target.value,
+                                        })
+                                      }
+                                      className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm uppercase outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                    />
+                                  </div>
+                                </label>
+
+                                <label className="block">
+                                  <span className="mb-2 block text-sm font-medium text-slate-700">
+                                    Konturfarbe
+                                  </span>
+                                  <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm transition hover:border-slate-300">
+                                    <label
+                                      htmlFor={`stroke-color-${activeLayer.id}`}
+                                      className="group flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 active:scale-[0.98]"
+                                      title="Klicken zum Oeffnen des Farbwaehlers"
+                                    >
+                                      <span
+                                        className="h-7 w-7 rounded-lg border border-slate-300 shadow-inner transition group-hover:scale-105"
+                                        style={{
+                                          backgroundColor:
+                                            activeLayer.strokeColor ??
+                                            getDefaultTextAppearance(activeLayer).strokeColor,
+                                        }}
+                                      />
+                                      <Droplet size={16} className="text-slate-700" />
+                                      <span>Farbe wählen</span>
+                                    </label>
+                                    <input
+                                      id={`stroke-color-${activeLayer.id}`}
+                                      type="color"
+                                      value={
+                                        activeLayer.strokeColor ?? getDefaultTextAppearance(activeLayer).strokeColor
+                                      }
+                                      onChange={(event) =>
+                                        updateLayer(activeLayer.id, {
+                                          strokeColor: event.target.value,
+                                        })
+                                      }
+                                      className="sr-only h-0 w-0"
+                                    />
+                                    <input
+                                      value={
+                                        activeLayer.strokeColor ?? getDefaultTextAppearance(activeLayer).strokeColor
+                                      }
+                                      onChange={(event) =>
+                                        updateLayer(activeLayer.id, {
+                                          strokeColor: event.target.value,
+                                        })
+                                      }
+                                      className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm uppercase outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                    />
+                                  </div>
+                                </label>
+
+                                <label className="block">
+                                  <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
+                                    <span>Konturstärke</span>
+                                    <span className="font-semibold text-slate-900">
+                                      {(activeLayer.strokeWidth ?? getDefaultTextAppearance(activeLayer).strokeWidth).toFixed(1)}
+                                      px
+                                    </span>
+                                  </div>
+                                  <input
+                                    type="range"
+                                    min={0}
+                                    max={10}
+                                    step={0.1}
+                                    value={activeLayer.strokeWidth ?? getDefaultTextAppearance(activeLayer).strokeWidth}
+                                    onChange={(event) =>
+                                      updateLayer(activeLayer.id, {
+                                        strokeWidth: Number(event.target.value),
+                                      })
+                                    }
+                                    className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
+                                  />
+                                </label>
+                              </div>
+
+                              <label className="mt-4 block">
+                                <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
+                                  <span>Schriftgroesse</span>
+                                  <span className="font-semibold text-slate-900">
+                                    {Math.round(
+                                      activeLayer.fontSize ?? getDefaultTextAppearance(activeLayer).fontSize,
+                                    )}
+                                    px
+                                  </span>
                                 </div>
-                              );
-                            })()}
-                          </div>
+                                <input
+                                  type="range"
+                                  min={10}
+                                  max={480}
+                                  step={1}
+                                  value={
+                                    activeLayer.fontSize ?? getDefaultTextAppearance(activeLayer).fontSize
+                                  }
+                                  onChange={(event) =>
+                                    updateLayer(activeLayer.id, {
+                                      fontSize: Number(event.target.value),
+                                    })
+                                  }
+                                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
+                                />
+                              </label>
 
-                          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                            <div className="mb-3">
-                              <p className="text-sm font-semibold text-slate-900">Schrift</p>
-                              <p className="text-xs text-slate-500">
-                                Schriftart, Groesse und Farbe fuer diese Textebene.
-                              </p>
+                              {(activeLayer.kind === "badge" || editorIsTemplate) ? (
+                                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                  <label className="block">
+                                    <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
+                                      <span>Zeilenabstand</span>
+                                      <span className="font-semibold text-slate-900">
+                                        {(activeLayer.lineHeight ?? getDefaultTextAppearance(activeLayer).lineHeight).toFixed(2)}
+                                      </span>
+                                    </div>
+                                    <input
+                                      type="range"
+                                      min={0.8}
+                                      max={3}
+                                      step={0.05}
+                                      value={activeLayer.lineHeight ?? getDefaultTextAppearance(activeLayer).lineHeight}
+                                      onChange={(event) =>
+                                        updateLayer(activeLayer.id, {
+                                          lineHeight: Number(event.target.value),
+                                        })
+                                      }
+                                      className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
+                                    />
+                                  </label>
+
+                                  <label className="block">
+                                    <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
+                                      <span>Laufweite</span>
+                                      <span className="font-semibold text-slate-900">
+                                        {(activeLayer.letterSpacing ?? getDefaultTextAppearance(activeLayer).letterSpacing).toFixed(0)}
+                                        px
+                                      </span>
+                                    </div>
+                                    <input
+                                      type="range"
+                                      min={-10}
+                                      max={80}
+                                      step={0.5}
+                                      value={activeLayer.letterSpacing ?? getDefaultTextAppearance(activeLayer).letterSpacing}
+                                      onChange={(event) =>
+                                        updateLayer(activeLayer.id, {
+                                          letterSpacing: Number(event.target.value),
+                                        })
+                                      }
+                                      className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
+                                    />
+                                  </label>
+                                </div>
+                              ) : null}
                             </div>
-
+                          ) : (
                             <div className="grid gap-4 md:grid-cols-2">
-                              <label className="block">
-                                <span className="mb-2 block text-sm font-medium text-slate-700">
-                                  Ausrichtung
-                                </span>
-                                <select
-                                  value={
-                                    activeLayer.textAlign ?? getDefaultTextAppearance(activeLayer).textAlign
-                                  }
-                                  onChange={(event) =>
-                                    updateLayer(activeLayer.id, {
-                                      textAlign: event.target.value as SocialMediaTextAlign,
-                                    })
-                                  }
-                                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                                >
-                                  <option value="left">Links</option>
-                                  <option value="center">Mittig</option>
-                                  <option value="right">Rechts</option>
-                                </select>
-                              </label>
-
-                              <label className="block">
-                                <span className="mb-2 block text-sm font-medium text-slate-700">
-                                  Effekt
-                                </span>
-                                <select
-                                  value={
-                                    activeLayer.textEffect ?? getDefaultTextAppearance(activeLayer).textEffect
-                                  }
-                                  onChange={(event) =>
-                                    updateLayer(activeLayer.id, {
-                                      textEffect: event.target.value as SocialMediaTextEffect,
-                                    })
-                                  }
-                                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                                >
-                                  <option value="none">Kein Effekt</option>
-                                  <option value="shadow">Schatten</option>
-                                  <option value="outline">Kontur</option>
-                                </select>
-                              </label>
-                            </div>
-
-                            <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">
-                              Schatten verbessert die Lesbarkeit auf Fotos. Kontur eignet sich gut fuer helle oder unruhige Bildbereiche.
-                            </div>
-
-                            <div className="mt-4 grid gap-4 md:grid-cols-2">
-                              <label className="block">
-                                <span className="mb-2 block text-sm font-medium text-slate-700">
-                                  Schriftart
-                                </span>
-                                <select
-                                  value={
-                                    activeLayer.fontFamily ?? getDefaultTextAppearance(activeLayer).fontFamily
-                                  }
-                                  onChange={(event) =>
-                                    updateLayer(activeLayer.id, {
-                                      fontFamily: event.target.value,
-                                    })
-                                  }
-                                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                                >
-                                  {fontOptions.map((option) => (
-                                    <option key={`${option.source}-${option.value}`} value={option.value}>
-                                      {option.label}
-                                      {option.source === "uploaded" ? " (hochgeladen)" : ""}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-                            </div>
-
-                            <div className="mt-4 space-y-4">
-
                               <label className="block">
                                 <span className="mb-2 block text-sm font-medium text-slate-700">
                                   Schriftfarbe
@@ -4269,7 +4530,7 @@ export default function SocialMediaPage() {
                                       }}
                                     />
                                     <Droplet size={16} className="text-blue-700" />
-                                    <span>Farbe wählen</span>
+                                    <span>Farbe</span>
                                   </label>
                                   <input
                                     id={`text-color-${activeLayer.id}`}
@@ -4299,153 +4560,33 @@ export default function SocialMediaPage() {
                               </label>
 
                               <label className="block">
-                                <span className="mb-2 block text-sm font-medium text-slate-700">
-                                  Konturfarbe
-                                </span>
-                                <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm transition hover:border-slate-300">
-                                  <label
-                                    htmlFor={`stroke-color-${activeLayer.id}`}
-                                    className="group flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 active:scale-[0.98]"
-                                    title="Klicken zum Oeffnen des Farbwaehlers"
-                                  >
-                                    <span
-                                      className="h-7 w-7 rounded-lg border border-slate-300 shadow-inner transition group-hover:scale-105"
-                                      style={{
-                                        backgroundColor:
-                                          activeLayer.strokeColor ??
-                                          getDefaultTextAppearance(activeLayer).strokeColor,
-                                      }}
-                                    />
-                                    <Droplet size={16} className="text-slate-700" />
-                                    <span>Farbe wählen</span>
-                                  </label>
-                                  <input
-                                    id={`stroke-color-${activeLayer.id}`}
-                                    type="color"
-                                    value={
-                                      activeLayer.strokeColor ?? getDefaultTextAppearance(activeLayer).strokeColor
-                                    }
-                                    onChange={(event) =>
-                                      updateLayer(activeLayer.id, {
-                                        strokeColor: event.target.value,
-                                      })
-                                    }
-                                    className="sr-only h-0 w-0"
-                                  />
-                                  <input
-                                    value={
-                                      activeLayer.strokeColor ?? getDefaultTextAppearance(activeLayer).strokeColor
-                                    }
-                                    onChange={(event) =>
-                                      updateLayer(activeLayer.id, {
-                                        strokeColor: event.target.value,
-                                      })
-                                    }
-                                    className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm uppercase outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                                  />
-                                </div>
-                              </label>
-
-                              <label className="block">
                                 <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
-                                  <span>Konturstärke</span>
+                                  <span>Schriftgroesse</span>
                                   <span className="font-semibold text-slate-900">
-                                    {(activeLayer.strokeWidth ?? getDefaultTextAppearance(activeLayer).strokeWidth).toFixed(1)}
+                                    {Math.round(
+                                      activeLayer.fontSize ?? getDefaultTextAppearance(activeLayer).fontSize,
+                                    )}
                                     px
                                   </span>
                                 </div>
                                 <input
                                   type="range"
-                                  min={0}
-                                  max={10}
-                                  step={0.1}
-                                  value={activeLayer.strokeWidth ?? getDefaultTextAppearance(activeLayer).strokeWidth}
+                                  min={10}
+                                  max={240}
+                                  step={1}
+                                  value={
+                                    activeLayer.fontSize ?? getDefaultTextAppearance(activeLayer).fontSize
+                                  }
                                   onChange={(event) =>
                                     updateLayer(activeLayer.id, {
-                                      strokeWidth: Number(event.target.value),
+                                      fontSize: Number(event.target.value),
                                     })
                                   }
                                   className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
                                 />
                               </label>
                             </div>
-
-                            <label className="mt-4 block">
-                              <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
-                                <span>Schriftgroesse</span>
-                                <span className="font-semibold text-slate-900">
-                                  {Math.round(
-                                    activeLayer.fontSize ?? getDefaultTextAppearance(activeLayer).fontSize,
-                                  )}
-                                  px
-                                </span>
-                              </div>
-                              <input
-                                type="range"
-                                min={10}
-                                max={480}
-                                step={1}
-                                value={
-                                  activeLayer.fontSize ?? getDefaultTextAppearance(activeLayer).fontSize
-                                }
-                                onChange={(event) =>
-                                  updateLayer(activeLayer.id, {
-                                    fontSize: Number(event.target.value),
-                                  })
-                                }
-                                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
-                              />
-                            </label>
-
-                            {(activeLayer.kind === "badge" || editorIsTemplate) ? (
-                              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                                <label className="block">
-                                  <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
-                                    <span>Zeilenabstand</span>
-                                    <span className="font-semibold text-slate-900">
-                                      {(activeLayer.lineHeight ?? getDefaultTextAppearance(activeLayer).lineHeight).toFixed(2)}
-                                    </span>
-                                  </div>
-                                  <input
-                                    type="range"
-                                    min={0.8}
-                                    max={3}
-                                    step={0.05}
-                                    value={activeLayer.lineHeight ?? getDefaultTextAppearance(activeLayer).lineHeight}
-                                    onChange={(event) =>
-                                      updateLayer(activeLayer.id, {
-                                        lineHeight: Number(event.target.value),
-                                      })
-                                    }
-                                    className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
-                                  />
-                                </label>
-
-                                <label className="block">
-                                  <div className="mb-1 flex items-center justify-between gap-2 text-sm text-slate-700">
-                                    <span>Laufweite</span>
-                                    <span className="font-semibold text-slate-900">
-                                      {(activeLayer.letterSpacing ?? getDefaultTextAppearance(activeLayer).letterSpacing).toFixed(0)}
-                                      px
-                                    </span>
-                                  </div>
-                                  <input
-                                    type="range"
-                                    min={-10}
-                                    max={80}
-                                    step={0.5}
-                                    value={activeLayer.letterSpacing ?? getDefaultTextAppearance(activeLayer).letterSpacing}
-                                    onChange={(event) =>
-                                      updateLayer(activeLayer.id, {
-                                        letterSpacing: Number(event.target.value),
-                                      })
-                                    }
-                                    className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-700"
-                                  />
-                                </label>
-                              </div>
-                            ) : null}
-                          </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -4507,34 +4648,40 @@ export default function SocialMediaPage() {
 
                 <SectionCard
                   title="Ebenen"
-                  description="Reihenfolge bestimmt, was vorne oder hinten liegt. Schnellschalter direkt unter der Vorschau."
+                  description={
+                    isTrainerSocialUser
+                      ? "Schnellschalter fuer Sichtbarkeit direkt unter der Vorschau. Reihenfolge und Anzahl sind durch die Vorlage fest vorgegeben."
+                      : "Reihenfolge bestimmt, was vorne oder hinten liegt. Schnellschalter direkt unter der Vorschau."
+                  }
                   actions={
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => addLayer("image")}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                      >
-                        <ImageIcon size={15} />
-                        Bild
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => addLayer("caption")}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                      >
-                        <Type size={15} />
-                        Text
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => addLayer("badge")}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                      >
-                        <SquareStack size={15} />
-                        Badges
-                      </button>
-                    </div>
+                    canManageSocial ? (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => addLayer("image")}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                        >
+                          <ImageIcon size={15} />
+                          Bild
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addLayer("caption")}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                        >
+                          <Type size={15} />
+                          Text
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addLayer("badge")}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                        >
+                          <SquareStack size={15} />
+                          Badges
+                        </button>
+                      </div>
+                    ) : undefined
                   }
                 >
                   <div className="space-y-3">
@@ -4601,30 +4748,34 @@ export default function SocialMediaPage() {
                               >
                                 {layer.enabled ? <Eye size={15} /> : <EyeOff size={15} />}
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => moveLayer(layer.id, -1)}
-                                disabled={index === 0}
-                                className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                              >
-                                <ArrowUp size={15} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => moveLayer(layer.id, 1)}
-                                disabled={index === editorLayers.length - 1}
-                                className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                              >
-                                <ArrowDown size={15} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => removeLayer(layer.id)}
-                                disabled={isLayerProtected(layer)}
-                                className="rounded-2xl border border-rose-200 bg-rose-50 p-2 text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
-                              >
-                                <Trash2 size={15} />
-                              </button>
+                              {!isTrainerSocialUser ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => moveLayer(layer.id, -1)}
+                                    disabled={index === 0}
+                                    className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                  >
+                                    <ArrowUp size={15} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => moveLayer(layer.id, 1)}
+                                    disabled={index === editorLayers.length - 1}
+                                    className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                  >
+                                    <ArrowDown size={15} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeLayer(layer.id)}
+                                    disabled={isLayerProtected(layer)}
+                                    className="rounded-2xl border border-rose-200 bg-rose-50 p-2 text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </>
+                              ) : null}
                             </div>
                           </div>
                         </div>
