@@ -784,6 +784,18 @@ if (!matchColumns.includes('away_logo_url')) {
   db.prepare("ALTER TABLE matches ADD COLUMN away_logo_url TEXT DEFAULT ''").run()
 }
 
+if (!matchColumns.includes('fussball_de_match_url')) {
+  db.prepare("ALTER TABLE matches ADD COLUMN fussball_de_match_url TEXT DEFAULT ''").run()
+}
+
+if (!matchColumns.includes('is_manual')) {
+  db.prepare('ALTER TABLE matches ADD COLUMN is_manual INTEGER NOT NULL DEFAULT 0').run()
+}
+
+if (!matchColumns.includes('last_synced_at')) {
+  db.prepare('ALTER TABLE matches ADD COLUMN last_synced_at TEXT DEFAULT NULL').run()
+}
+
 const inventoryItemColumns = (
   db.prepare('PRAGMA table_info(inventory_items)').all() as { name: string }[]
 ).map((column) => column.name)

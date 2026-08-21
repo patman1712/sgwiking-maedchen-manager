@@ -461,8 +461,9 @@ const importMatchesForTeamFromFussballDe = async (team: FussballDeImportTeam) =>
     }
   }
 
-  const uniqueKey = (match: { opponent: string; kickoffAt: string }) =>
-    `${match.opponent}__${match.kickoffAt}`
+  const importedMatchUniqueUrl = new Set<string>()
+  const uniqueKey = (match: { opponent: string; kickoffAt: string; matchUrl: string | null }) =>
+    match.matchUrl || `${match.opponent}__${match.kickoffAt}`
   const uniqueMatches = Array.from(
     new Map(importedMatches.map((match) => [uniqueKey(match), match])).values(),
   )
@@ -485,12 +486,21 @@ const importMatchesForTeamFromFussballDe = async (team: FussballDeImportTeam) =>
       home_logo_url,
       away_logo_url,
       result,
-      created_at
+      created_at,
+      is_manual,
+      fussball_de_match_url,
+      last_synced_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
   `)
-  const findExisting = db.prepare(`
-    SELECT id, result
+  const findExistingByUrl = db.prepare(`
+    SELECT id, result, is_manual
+    FROM matches
+    WHERE team_id = ? AND TRIM(COALESCE(fussball_de_match_url, '')) = ?
+    LIMIT 1
+  `)
+  const findExistingByOpponentAndKickoff = db.prepare(`
+    SELECT id, result, is_manual
     FROM matches
     WHERE team_id = ? AND opponent = ? AND kickoff_at = ?
     LIMIT 1
@@ -498,6 +508,8 @@ const importMatchesForTeamFromFussballDe = async (team: FussballDeImportTeam) =>
   const updateMatch = db.prepare(`
     UPDATE matches
     SET
+      opponent = ?,
+      kickoff_at = ?,
       location = ?,
       is_home = ?,
       competition = ?,
@@ -505,22 +517,70 @@ const importMatchesForTeamFromFussballDe = async (team: FussballDeImportTeam) =>
       away_team_name = ?,
       home_logo_url = ?,
       away_logo_url = ?,
-      result = COALESCE(NULLIF(?, ''), result)
+      fussball_de_match_url = COALESCE(NULLIF(?, ''), fussball_de_match_url),
+      last_synced_at = ?,
+      is_manual = CASE WHEN is_manual = 1 THEN 1 ELSE 0 END
     WHERE id = ?
   `)
+  const deleteStaleFussballMatches = db.prepare(`
+    DELETE FROM matches
+    WHERE
+      team_id = ?
+      AND is_manual = 0
+      AND TRIM(COALESCE(fussball_de_match_url, '')) <> ''
+      AND TRIM(COALESCE(fussball_de_match_url, '')) NOT IN (
+        SELECT value FROM json_each(?)
+      )
+  `)
+  const deleteStaleLegacyFallbackMatches = db.prepare(`
+    DELETE FROM matches
+    WHERE
+      team_id = ?
+      AND is_manual = 0
+      AND (TRIM(COALESCE(fussball_de_match_url, '')) = '' OR fussball_de_match_url IS NULL)
+      AND opponent NOT IN (
+        SELECT value FROM json_each(?)
+      )
+  `)
 
-  let importedCount = 0
+  let insertedCount = 0
+  let updatedCount = 0
   const timestamp = now()
   const matchIdToUrl = new Map<string, string>()
+  const importedUrls: string[] = []
+  const importedOpponents: string[] = []
 
   uniqueMatches.forEach((match) => {
     const location = match.location || (match.isHome ? team.location : 'Auswaertsspiel')
-    const existing = findExisting.get(team.id, match.opponent, match.kickoffAt) as
-      | { id: string; result: string }
+    const normalizedMatchUrl = match.matchUrl?.trim() ?? ''
+    if (normalizedMatchUrl) {
+      importedMatchUniqueUrl.add(normalizedMatchUrl)
+      importedUrls.push(normalizedMatchUrl)
+    }
+    if (match.opponent?.trim()) {
+      importedOpponents.push(match.opponent.trim())
+    }
+
+    let existing:
+      | { id: string; result: string; is_manual: number }
       | undefined
+
+    if (normalizedMatchUrl) {
+      existing = findExistingByUrl.get(team.id, normalizedMatchUrl) as
+        | { id: string; result: string; is_manual: number }
+        | undefined
+    }
+
+    if (!existing) {
+      existing = findExistingByOpponentAndKickoff.get(team.id, match.opponent, match.kickoffAt) as
+        | { id: string; result: string; is_manual: number }
+        | undefined
+    }
 
     if (existing) {
       updateMatch.run(
+        match.opponent,
+        match.kickoffAt,
         location,
         match.isHome ? 1 : 0,
         match.competition ?? '',
@@ -528,11 +588,13 @@ const importMatchesForTeamFromFussballDe = async (team: FussballDeImportTeam) =>
         match.awayTeamName ?? (match.isHome ? match.opponent : team.name),
         match.homeLogoUrl ?? '',
         match.awayLogoUrl ?? '',
-        '',
+        normalizedMatchUrl,
+        timestamp,
         existing.id,
       )
-      if (match.matchUrl) {
-        matchIdToUrl.set(existing.id, match.matchUrl)
+      updatedCount += 1
+      if (normalizedMatchUrl) {
+        matchIdToUrl.set(existing.id, normalizedMatchUrl)
       }
       return
     }
@@ -552,13 +614,23 @@ const importMatchesForTeamFromFussballDe = async (team: FussballDeImportTeam) =>
       match.awayLogoUrl ?? '',
       '',
       timestamp,
+      normalizedMatchUrl,
+      timestamp,
     )
-    importedCount += 1
+    insertedCount += 1
 
-    if (match.matchUrl) {
-      matchIdToUrl.set(matchId, match.matchUrl)
+    if (normalizedMatchUrl) {
+      matchIdToUrl.set(matchId, normalizedMatchUrl)
     }
   })
+
+  if (importedUrls.length) {
+    try {
+      deleteStaleFussballMatches.run(team.id, JSON.stringify(importedUrls))
+    } catch {
+      /* ignore bei älteren SQLite Versionen ohne json_each */
+    }
+  }
 
   const nowDate = Date.now()
   for (const [matchId, matchUrl] of matchIdToUrl.entries()) {
@@ -588,7 +660,9 @@ const importMatchesForTeamFromFussballDe = async (team: FussballDeImportTeam) =>
   }
 
   return {
-    importedCount,
+    insertedCount,
+    updatedCount,
+    importedCount: insertedCount,
   }
 }
 
@@ -620,10 +694,13 @@ export const startAutomaticFussballDeImports = () => {
 
       let importedTotal = 0
 
+      let updatedTotal = 0
+
       for (const team of teams) {
         try {
           const result = await importMatchesForTeamFromFussballDe(team)
-          importedTotal += result.importedCount
+          importedTotal += result.insertedCount ?? result.importedCount ?? 0
+          updatedTotal += (result as { updatedCount?: number }).updatedCount ?? 0
         } catch (error) {
           console.error(
             `[fussball.de auto-import] ${team.name} fehlgeschlagen: ${
@@ -634,7 +711,7 @@ export const startAutomaticFussballDeImports = () => {
       }
 
       console.log(
-        `[fussball.de auto-import] ${reason} abgeschlossen: ${teams.length} Team(s), ${importedTotal} neue Spiele.`,
+        `[fussball.de auto-import] ${reason} abgeschlossen: ${teams.length} Team(s), ${importedTotal} neue Spiele, ${updatedTotal} aktualisiert.`,
       )
     } finally {
       automaticImportRunning = false
@@ -862,11 +939,14 @@ router.post('/:id/import-fussballde', async (req: Request, res: Response) => {
   }
 
   try {
-    const { importedCount } = await importMatchesForTeamFromFussballDe(team)
+    const { importedCount, insertedCount, updatedCount } =
+      await importMatchesForTeamFromFussballDe(team)
 
     res.json({
       success: true,
       importedCount,
+      insertedCount: insertedCount ?? importedCount,
+      updatedCount: updatedCount ?? 0,
       ...getBootstrapData(actorId),
     })
   } catch (error) {

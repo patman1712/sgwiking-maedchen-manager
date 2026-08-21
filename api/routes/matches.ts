@@ -64,9 +64,10 @@ router.post('/', (req: Request, res: Response) => {
       home_logo_url,
       away_logo_url,
       result,
-      created_at
+      created_at,
+      is_manual
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     matchId,
     teamId,
@@ -126,6 +127,7 @@ router.put('/:id', (req: Request, res: Response) => {
     location: string
     is_home: number
     result: string
+    is_manual: number
   }
   const teamName = (
     db.prepare('SELECT name FROM teams WHERE id = ?').get(match.team_id) as { name: string } | undefined
@@ -144,7 +146,7 @@ router.put('/:id', (req: Request, res: Response) => {
 
   db.prepare(`
     UPDATE matches
-    SET opponent = ?, kickoff_at = ?, location = ?, is_home = ?, home_team_name = ?, away_team_name = ?, result = ?
+    SET opponent = ?, kickoff_at = ?, location = ?, is_home = ?, home_team_name = ?, away_team_name = ?, result = ?, is_manual = ?
     WHERE id = ?
   `).run(
     nextOpponent,
@@ -154,6 +156,7 @@ router.put('/:id', (req: Request, res: Response) => {
     homeTeamName,
     awayTeamName,
     result ?? current.result,
+    current.is_manual || 1,
     id,
   )
 
