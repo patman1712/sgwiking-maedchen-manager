@@ -103,6 +103,56 @@ export function buildDraftAssets(
   crests: SocialMediaCrest[],
   assetsLibrary: SocialMediaAsset[] = [],
 ): EditorAsset[] {
+  const normKey = (s?: string | null) =>
+    (s ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "")
+      .trim();
+  const findInLibraryByKey = (key?: string | null): EditorAsset | null => {
+    if (!key) return null;
+    const nk = normKey(key);
+    if (!nk || nk === "emdash" || nk === "dash") return null;
+    const rawMatch = assetsLibrary.find(
+      (a) =>
+        a.id === key ||
+        a.imageUrl === key ||
+        a.name === key ||
+        a.name?.replace(/\.[^.]+$/, "") === key,
+    );
+    if (rawMatch) {
+      return {
+        id: rawMatch.id,
+        ref: rawMatch.id,
+        kind: "existing",
+        url: rawMatch.imageUrl,
+        fileName: rawMatch.name || getFileNameFromUrl(rawMatch.imageUrl),
+      };
+    }
+    if (nk.length < 2) return null;
+    const normMatch = assetsLibrary.find((a) => {
+      const cands = [
+        a.id,
+        a.name,
+        a.name?.replace(/\.[^.]+$/, ""),
+        a.imageUrl.split("/").pop()?.split("?")[0],
+        a.imageUrl
+          .split("/")
+          .pop()
+          ?.split("?")[0]
+          ?.replace(/\.[^.]+$/, ""),
+      ].filter(Boolean) as string[];
+      return cands.some((c) => normKey(c) === nk);
+    });
+    if (!normMatch) return null;
+    return {
+      id: normMatch.id,
+      ref: normMatch.id,
+      kind: "existing",
+      url: normMatch.imageUrl,
+      fileName: normMatch.name || getFileNameFromUrl(normMatch.imageUrl),
+    };
+  };
+
   const assets = new Map<string, EditorAsset>();
 
   assetsLibrary.forEach((asset, index) => {
@@ -128,6 +178,8 @@ export function buildDraftAssets(
       const cleanBase = basename.replace(/\.[^.]+$/, "");
       if (cleanBase) assets.set(cleanBase, editorAsset);
     }
+    const nk = normKey(asset.name);
+    if (nk.length >= 2) assets.set(`nk:${nk}`, editorAsset);
     void index;
   });
 
@@ -144,14 +196,37 @@ export function buildDraftAssets(
   });
 
   draft.layers.forEach((layer, index) => {
-    if (!layer.imageRef) {
-      return;
+    if (layer.kind !== "image") return;
+    const refIsBroken =
+      !layer.imageRef ||
+      layer.imageRef.trim() === "" ||
+      layer.imageRef === "—" ||
+      layer.imageRef === "-";
+
+    let matchedAsset: EditorAsset | null = null;
+    if (!refIsBroken && assets.has(layer.imageRef)) {
+      matchedAsset = assets.get(layer.imageRef) ?? null;
     }
-    if (assets.has(layer.imageRef)) {
-      return;
+    if (!matchedAsset && !refIsBroken) {
+      matchedAsset = findInLibraryByKey(layer.imageRef);
+      if (matchedAsset) assets.set(layer.imageRef, matchedAsset);
+    }
+    if (!matchedAsset && layer.label) {
+      matchedAsset = findInLibraryByKey(layer.label);
+      if (matchedAsset) {
+        assets.set(layer.label, matchedAsset);
+        const nkLabel = normKey(layer.label);
+        if (nkLabel.length >= 2) assets.set(`nk:${nkLabel}`, matchedAsset);
+      }
     }
 
-    if (isSharedCrestRef(layer.imageRef)) {
+    if (refIsBroken && matchedAsset) {
+      assets.set("—", matchedAsset);
+      assets.set("-", matchedAsset);
+      assets.set(`layerid:${layer.id}`, matchedAsset);
+    }
+
+    if (isSharedCrestRef(layer.imageRef ?? "")) {
       const crest = crests.find((entry) => entry.imageUrl === layer.imageRef);
       const created: EditorAsset = {
         id: `shared-${crest?.id ?? index}-${layer.imageRef}`,
@@ -162,20 +237,20 @@ export function buildDraftAssets(
       };
       assets.set(layer.imageRef, created);
       const crestBasename = layer.imageRef.split("/").pop()?.split("?")[0] ?? "";
-      if (crestBasename) {
-        assets.set(crestBasename, created);
-      }
+      if (crestBasename) assets.set(crestBasename, created);
       return;
     }
 
-    const created: EditorAsset = {
-      id: `layer-${index}-${layer.imageRef}`,
-      ref: layer.imageRef,
-      kind: "existing",
-      url: layer.imageRef,
-      fileName: layer.imageFileName ?? getFileNameFromUrl(layer.imageRef),
-    };
-    assets.set(layer.imageRef, created);
+    if (!refIsBroken && !assets.has(layer.imageRef)) {
+      const created: EditorAsset = {
+        id: `layer-${index}-${layer.imageRef}`,
+        ref: layer.imageRef,
+        kind: "existing",
+        url: layer.imageRef,
+        fileName: layer.imageFileName ?? getFileNameFromUrl(layer.imageRef),
+      };
+      assets.set(layer.imageRef, created);
+    }
   });
 
   const unique = new Map<string, EditorAsset>();
@@ -808,28 +883,45 @@ export function SocialPreview({
     startFontSize?: number;
     startLetterSpacing?: number;
   } | null>(null);
-  const resolveAssetUrl = (ref?: string) => {
-    if (!ref) return undefined;
-    const trimmed = ref.trim();
-    if (!trimmed) return undefined;
-    const direct = assets.find((asset) => asset.ref === trimmed)?.url
-      ?? assets.find((asset) => asset.id === trimmed)?.url
-      ?? assets.find((asset) => asset.url === trimmed)?.url;
-    if (direct) return direct;
-    const crestPrefix = SHARED_CREST_PREFIX;
-    const trimmedNoPrefix = trimmed.startsWith(crestPrefix) ? trimmed.slice(crestPrefix.length) : trimmed;
-    const matchByBasename = assets.find((asset) => {
-      const candidates = [asset.url, asset.ref, asset.fileName].filter(Boolean) as string[];
-      return candidates.some((candidate) => {
-        const base = candidate.split("/").pop()?.split("?")[0] ?? "";
-        const needleBase = trimmedNoPrefix.split("/").pop()?.split("?")[0] ?? "";
-        if (!base || !needleBase) return false;
-        return base === needleBase;
-      });
-    })?.url;
-    if (matchByBasename) return matchByBasename;
-    const looksLikeDirectUrl = /^(https?:)?\/\//i.test(trimmed) || trimmed.startsWith("/") || trimmed.startsWith("data:");
-    return looksLikeDirectUrl ? trimmed : undefined;
+  const resolveAssetUrl = (ref?: string, altLabel?: string) => {
+    const normKey = (s?: string | null) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "").trim();
+
+    const tryMatch = (needleRaw?: string) => {
+      if (!needleRaw) return undefined;
+      const trimmed = needleRaw.trim();
+      if (!trimmed || trimmed === "—" || trimmed === "-") return undefined;
+      const direct = assets.find((asset) => asset.ref === trimmed)?.url
+        ?? assets.find((asset) => asset.id === trimmed)?.url
+        ?? assets.find((asset) => asset.url === trimmed)?.url;
+      if (direct) return direct;
+      const crestPrefix = SHARED_CREST_PREFIX;
+      const trimmedNoPrefix = trimmed.startsWith(crestPrefix) ? trimmed.slice(crestPrefix.length) : trimmed;
+      const matchByBasename = assets.find((asset) => {
+        const candidates = [asset.url, asset.ref, asset.fileName].filter(Boolean) as string[];
+        return candidates.some((candidate) => {
+          const base = candidate.split("/").pop()?.split("?")[0] ?? "";
+          const needleBase = trimmedNoPrefix.split("/").pop()?.split("?")[0] ?? "";
+          if (!base || !needleBase) return false;
+          return base === needleBase;
+        });
+      })?.url;
+      if (matchByBasename) return matchByBasename;
+      const normNeedle = normKey(trimmed);
+      if (normNeedle.length >= 2) {
+        const byNorm = assets.find((asset) => {
+          return (
+            normKey(asset.fileName) === normNeedle ||
+            normKey(asset.ref) === normNeedle ||
+            normKey(asset.id) === normNeedle
+          );
+        })?.url;
+        if (byNorm) return byNorm;
+      }
+      const looksLikeDirectUrl = /^(https?:)?\/\//i.test(trimmed) || trimmed.startsWith("/") || trimmed.startsWith("data:");
+      return looksLikeDirectUrl ? trimmed : undefined;
+    };
+
+    return tryMatch(ref) ?? tryMatch(altLabel) ?? undefined;
   };
   const visibleLayers = layers.filter((layer) => layer.enabled ?? true);
 
@@ -946,7 +1038,7 @@ export function SocialPreview({
         const zStyle = { zIndex: index + 5 };
 
         if (layer.kind === "image") {
-          const assetUrl = resolveAssetUrl(layer.imageRef);
+          const assetUrl = resolveAssetUrl(layer.imageRef, layer.label);
           const geometry = getImageLayerGeometry(layer);
           const isSelected = activeLayerId === layer.id;
           const movable = canMoveLayer(layer, respectLayerLocks);
