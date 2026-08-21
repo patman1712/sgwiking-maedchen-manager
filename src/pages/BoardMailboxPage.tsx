@@ -18,6 +18,7 @@ import type {
 } from "@/types";
 import {
   SocialPreview,
+  SocialPostCard,
   buildDraftAssets,
   buildFallbackLayers,
   normalizeLayer,
@@ -169,6 +170,28 @@ export default function BoardMailboxPage() {
     let root: Root | null = null;
     try {
       const { assets, layers } = getDraftPreviewData(draft, socialMediaCrests);
+      const finalLogoUrl = clubLogoUrl ?? null;
+
+      const allUrlsToPreload: string[] = [];
+      for (const asset of assets) {
+        if (asset?.url) allUrlsToPreload.push(asset.url);
+      }
+      if (finalLogoUrl) allUrlsToPreload.push(finalLogoUrl);
+      const dedupedUrls = Array.from(new Set(allUrlsToPreload.filter((u) => typeof u === "string" && u.length > 0)));
+
+      await Promise.allSettled(
+        dedupedUrls.map(
+          (src) =>
+            new Promise<void>((resolve) => {
+              const img = new Image();
+              img.crossOrigin = "anonymous";
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+              img.src = src;
+            }),
+        ),
+      );
+
       wrap = document.createElement("div");
       wrap.style.position = "fixed";
       wrap.style.left = "-100000px";
@@ -176,28 +199,28 @@ export default function BoardMailboxPage() {
       wrap.style.pointerEvents = "none";
       wrap.style.opacity = "0";
       wrap.style.zIndex = "-1";
-      wrap.style.width = "1080px";
+      wrap.style.width = "1200px";
       document.body.appendChild(wrap);
 
       root = createRoot(wrap);
       root.render(
-        <div style={{ width: "1080px" }}>
-          <SocialPreview
+        <div style={{ width: "1200px" }}>
+          <SocialPostCard
             draftType={draft.draftType as "feed" | "story"}
             layout={draft.layout}
             layers={layers}
             assets={assets}
-            logoUrl={clubLogoUrl ?? null}
+            logoUrl={finalLogoUrl}
           />
         </div>,
       );
 
       await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, 1400);
+        window.setTimeout(resolve, 2200);
       });
 
       const target = wrap.querySelector<HTMLElement>(
-        "[class*='relative overflow-hidden rounded-']",
+        "[class*='overflow-hidden rounded-']",
       ) ?? (wrap.firstElementChild as HTMLElement | null);
       if (!target) {
         throw new Error("Vorschau konnte nicht erstellt werden.");
@@ -205,11 +228,10 @@ export default function BoardMailboxPage() {
 
       const dataUrl = await htmlToImage.toJpeg(target, {
         pixelRatio: 1,
-        width: 1080,
-        quality: 0.95,
+        quality: 0.96,
         cacheBust: true,
-        backgroundColor: "#ffffff",
         includeQueryParams: true,
+        backgroundColor: "#0f172a",
       });
 
       const slug = draft.title
@@ -358,10 +380,10 @@ export default function BoardMailboxPage() {
                         <div className="relative flex items-start justify-center">
                           <div
                             className={cn(
-                              "w-full max-w-[320px]",
+                              "w-full max-w-[420px]",
                             )}
                           >
-                            <SocialPreview
+                            <SocialPostCard
                               draftType={draft.draftType as "feed" | "story"}
                               layout={draft.layout}
                               layers={layers}
