@@ -621,16 +621,16 @@ function getTextLayerGeometry(layer: Pick<
 
 function getImageStyleClasses(style: SocialMediaLayerStyle, full = false) {
   if (full) {
-    return "rounded-none border-0 object-cover";
+    return "rounded-none border-0 bg-transparent object-cover";
   }
 
   switch (style) {
     case "original":
-      return "rounded-[1.5rem] border-0 object-contain shadow-[0_20px_60px_rgba(15,23,42,0.16)]";
+      return "rounded-none border-0 bg-transparent object-contain";
     case "soft":
       return "rounded-[1.75rem] border border-slate-200 object-cover opacity-95 shadow-[0_24px_60px_rgba(15,23,42,0.14)]";
     case "cutout":
-      return "rounded-[1.5rem] border-4 border-white bg-white object-contain p-2 shadow-[0_24px_60px_rgba(15,23,42,0.18)]";
+      return "rounded-[1.5rem] border-0 bg-transparent object-contain";
     case "glass":
       return "rounded-[1.75rem] border border-slate-200 object-cover shadow-[0_24px_60px_rgba(15,23,42,0.18)]";
     case "pill":
