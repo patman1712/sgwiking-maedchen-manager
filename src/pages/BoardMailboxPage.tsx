@@ -8,7 +8,7 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
-import * as htmlToImage from "html-to-image";
+import html2canvas from "html2canvas";
 import SectionCard from "@/components/SectionCard";
 import { useAppStore } from "@/store";
 import { cn } from "@/lib/utils";
@@ -214,71 +214,13 @@ export default function BoardMailboxPage() {
       const layers = (draft.layers.length ? draft.layers : buildFallbackLayers(draft)).map(
         normalizeLayer,
       );
-      const hasFullBgLayer = layers.some((l) => l.kind === "image" && l.position === "full");
       const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
-      const targetHeightPx = draft.draftType === "story" ? 1920 : 1440;
 
       let target: HTMLElement | null = document.querySelector(
         `[data-jpg-export="${CSS.escape(draft.id)}"]`,
       );
-      let usedOffscreen = false;
 
       if (!target) {
-        usedOffscreen = true;
-        const fetchDataUrl = async (rawSrc: string): Promise<string> => {
-          const trimmed = rawSrc.trim();
-          if (!trimmed) return rawSrc;
-          if (trimmed.startsWith("data:")) return trimmed;
-          if (trimmed.startsWith("blob:")) return trimmed;
-          try {
-            const url = trimmed.startsWith("http")
-              ? trimmed
-              : new URL(trimmed, window.location.origin).toString();
-            const response = await fetch(url, {
-              cache: "force-cache",
-              credentials: "same-origin",
-              mode: "cors",
-            });
-            if (!response.ok) {
-              return rawSrc;
-            }
-            const blob = await response.blob();
-            if (!blob || blob.size === 0) {
-              return rawSrc;
-            }
-            return await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => {
-                const result = reader.result;
-                if (typeof result === "string") resolve(result);
-                else resolve(rawSrc);
-              };
-              reader.onerror = () => reject(new Error("DataURL fehlgeschlagen"));
-              reader.readAsDataURL(blob);
-            });
-          } catch {
-            return rawSrc;
-          }
-        };
-
-        const cache = new Map<string, string>();
-        const toCachedDataUrl = async (src: string): Promise<string> => {
-          if (!src) return src;
-          if (cache.has(src)) {
-            return cache.get(src)!;
-          }
-          const out = await fetchDataUrl(src);
-          cache.set(src, out);
-          return out;
-        };
-
-        const assets: EditorAsset[] = await Promise.all(
-          baseAssets.map(async (asset) => {
-            const dataUrl = await toCachedDataUrl(asset.url);
-            return { ...asset, url: dataUrl, ref: asset.ref };
-          }),
-        );
-
         wrap = document.createElement("div");
         wrap.style.position = "absolute";
         wrap.style.left = "0";
@@ -290,29 +232,41 @@ export default function BoardMailboxPage() {
         document.body.appendChild(wrap);
 
         root = createRoot(wrap);
-        root.render(
-          <div style={{ width: `${exportWidthPx}px` }}>
-            <SocialPreview
-              draftType={draft.draftType as "feed" | "story"}
-              layout={draft.layout}
-              layers={layers}
-              assets={assets}
-              logoUrl={finalLogoUrl}
-            />
-          </div>,
-        );
-
-        await new Promise<void>((resolve) => {
-          window.setTimeout(resolve, 3800);
+        const DeferredRender = new Promise<HTMLElement>((resolveRender) => {
+          root!.render(
+            <div
+              ref={(el) => {
+                if (el) {
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                      const candidate = el.querySelector<HTMLElement>("[class*='aspect-']") ??
+                        (el.firstElementChild as HTMLElement | null);
+                      if (candidate) resolveRender(candidate);
+                    });
+                  });
+                }
+              }}
+              style={{ width: `${exportWidthPx}px` }}
+            >
+              <SocialPreview
+                draftType={draft.draftType as "feed" | "story"}
+                layout={draft.layout}
+                layers={layers}
+                assets={baseAssets}
+                logoUrl={finalLogoUrl}
+              />
+            </div>,
+          );
         });
-
-        const allImgs = Array.from(wrap.querySelectorAll("img"));
+        target = await DeferredRender;
+        await new Promise<void>((r) => setTimeout(r, 3600));
+        const wrapImgs = Array.from(wrap.querySelectorAll("img"));
         await Promise.all(
-          allImgs.map(async (imgEl) => {
+          wrapImgs.map(async (imgEl) => {
             try {
               if (imgEl.complete && imgEl.naturalWidth > 0) return;
               await new Promise<void>((res) => {
-                const to = window.setTimeout(res, 3200);
+                const to = window.setTimeout(res, 3000);
                 imgEl.addEventListener("load", () => {
                   window.clearTimeout(to);
                   res();
@@ -327,50 +281,27 @@ export default function BoardMailboxPage() {
             }
           }),
         );
-
-        target = wrap.querySelector<HTMLElement>(
-          "[class*='aspect-']",
-        ) ?? (wrap.firstElementChild as HTMLElement | null);
       }
 
       if (!target) {
         throw new Error("Vorschau konnte nicht erstellt werden.");
       }
 
-      const pngDataUrl = await htmlToImage.toPng(target, {
-        pixelRatio: usedOffscreen ? 2 : Math.max(2, (exportWidthPx / target.getBoundingClientRect().width)),
-        width: usedOffscreen ? exportWidthPx : undefined,
-        cacheBust: true,
-        includeQueryParams: true,
-        backgroundColor: hasFullBgLayer ? "#ffffff" : "#ffffff",
+      const boundingRect = target.getBoundingClientRect();
+      const baseScale = exportWidthPx / Math.max(1, boundingRect.width || 1);
+      const scale = Math.max(2, baseScale);
+
+      const canvas = await html2canvas(target, {
+        backgroundColor: "#ffffff",
+        scale: scale,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        windowWidth: Math.max(window.innerWidth, Math.ceil(boundingRect.width * scale * 2)),
+        windowHeight: Math.max(window.innerHeight, Math.ceil(boundingRect.height * scale * 2)),
       });
 
-      let finalDataUrl: string = pngDataUrl;
-      try {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve();
-          img.onerror = () => reject(new Error("PNG laden fehlgeschlagen"));
-          img.src = pngDataUrl;
-        });
-
-        const canvas = document.createElement("canvas");
-        canvas.width = exportWidthPx;
-        canvas.height = targetHeightPx;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          throw new Error("Canvas nicht verfügbar");
-        }
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        finalDataUrl = canvas.toDataURL("image/jpeg", 0.97);
-      } catch (err) {
-        console.warn("Canvas JPG Fallback fehlgeschlagen, verwende PNG DataURL direkt:", err);
-      }
+      const finalDataUrl = canvas.toDataURL("image/jpeg", 0.97);
 
       const slug = draft.title
         .toLowerCase()
