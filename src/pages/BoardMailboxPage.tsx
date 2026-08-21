@@ -249,6 +249,7 @@ export default function BoardMailboxPage() {
               style={{ width: `${exportWidthPx}px` }}
             >
               <SocialPreview
+                noChrome={true}
                 draftType={draft.draftType as "feed" | "story"}
                 layout={draft.layout}
                 layers={layers}
@@ -301,17 +302,6 @@ export default function BoardMailboxPage() {
         removeContainer: true,
         windowWidth: Math.max(window.innerWidth, Math.ceil(boundingRect.width * scale * 2)),
         windowHeight: Math.max(window.innerHeight, Math.ceil(boundingRect.height * scale * 2)),
-        onclone: (_, clonedDoc) => {
-          const clone = clonedDoc.querySelector<HTMLElement>(`[data-jpg-export="${CSS.escape(draft.id)}"]`);
-          if (!clone) return;
-          clone.style.setProperty("border-radius", "0", "important");
-          clone.style.setProperty("border", "0", "important");
-          clone.style.setProperty("box-shadow", "none", "important");
-          clone.style.setProperty("background", "transparent", "important");
-          clone.style.setProperty("overflow", "visible", "important");
-          clone.style.setProperty("width", `${boundingRect.width}px`, "important");
-          clone.style.setProperty("height", `${boundingRect.height}px`, "important");
-        },
       });
 
       let finalDataUrl: string = canvas.toDataURL("image/jpeg", 0.97);
@@ -490,6 +480,7 @@ export default function BoardMailboxPage() {
                             )}
                           >
                             <SocialPreview
+                              noChrome={true}
                               dataJpgExportId={draft.id}
                               draftType={draft.draftType as "feed" | "story"}
                               layout={draft.layout}
