@@ -215,28 +215,79 @@ export default function BoardMailboxPage() {
         normalizeLayer,
       );
       const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
+      const targetHeightPx = draft.draftType === "story" ? 1920 : 1440;
 
-      let target: HTMLElement | null = document.querySelector(
-        `[data-jpg-export="${CSS.escape(draft.id)}"]`,
+      const fetchDataUrl = async (rawSrc: string): Promise<string> => {
+        const trimmed = rawSrc.trim();
+        if (!trimmed) return rawSrc;
+        if (trimmed.startsWith("data:")) return trimmed;
+        if (trimmed.startsWith("blob:")) return trimmed;
+        try {
+          const url = trimmed.startsWith("http")
+            ? trimmed
+            : new URL(trimmed, window.location.origin).toString();
+          const response = await fetch(url, {
+            cache: "force-cache",
+            credentials: "same-origin",
+            mode: "cors",
+          });
+          if (!response.ok) {
+            return rawSrc;
+          }
+          const blob = await response.blob();
+          if (!blob || blob.size === 0) {
+            return rawSrc;
+          }
+          return await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const result = reader.result;
+              if (typeof result === "string") resolve(result);
+              else resolve(rawSrc);
+            };
+            reader.onerror = () => reject(new Error("DataURL fehlgeschlagen"));
+            reader.readAsDataURL(blob);
+          });
+        } catch {
+          return rawSrc;
+        }
+      };
+
+      const cache = new Map<string, string>();
+      const toCachedDataUrl = async (src: string): Promise<string> => {
+        if (!src) return src;
+        if (cache.has(src)) {
+          return cache.get(src)!;
+        }
+        const out = await fetchDataUrl(src);
+        cache.set(src, out);
+        return out;
+      };
+
+      const assets: EditorAsset[] = await Promise.all(
+        baseAssets.map(async (asset) => {
+          const dataUrl = await toCachedDataUrl(asset.url);
+          return { ...asset, url: dataUrl, ref: asset.ref };
+        }),
       );
 
-      if (!target) {
-        wrap = document.createElement("div");
-        wrap.style.position = "absolute";
-        wrap.style.left = "0";
-        wrap.style.top = "0";
-        wrap.style.pointerEvents = "none";
-        wrap.style.visibility = "hidden";
-        wrap.style.zIndex = "-9999";
-        wrap.style.width = `${exportWidthPx}px`;
-        document.body.appendChild(wrap);
+      wrap = document.createElement("div");
+      wrap.style.position = "absolute";
+      wrap.style.left = "0";
+      wrap.style.top = "0";
+      wrap.style.pointerEvents = "none";
+      wrap.style.visibility = "hidden";
+      wrap.style.zIndex = "-9999";
+      wrap.style.width = `${exportWidthPx}px`;
+      document.body.appendChild(wrap);
 
-        root = createRoot(wrap);
-        const DeferredRender = new Promise<HTMLElement>((resolveRender) => {
-          root!.render(
-            <div
-              ref={(el) => {
-                if (el) {
+      root = createRoot(wrap);
+      const target: HTMLElement = await new Promise<HTMLElement>((resolveRender) => {
+        root!.render(
+          <div
+            ref={(el) => {
+              if (el) {
+                requestAnimationFrame(() => {
                   requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
                       const candidate = el.querySelector<HTMLElement>("[class*='aspect-']") ??
@@ -244,64 +295,58 @@ export default function BoardMailboxPage() {
                       if (candidate) resolveRender(candidate);
                     });
                   });
-                }
-              }}
-              style={{ width: `${exportWidthPx}px` }}
-            >
-              <SocialPreview
-                noChrome={true}
-                draftType={draft.draftType as "feed" | "story"}
-                layout={draft.layout}
-                layers={layers}
-                assets={baseAssets}
-                logoUrl={finalLogoUrl}
-              />
-            </div>,
-          );
-        });
-        target = await DeferredRender;
-        await new Promise<void>((r) => setTimeout(r, 3600));
-        const wrapImgs = Array.from(wrap.querySelectorAll("img"));
-        await Promise.all(
-          wrapImgs.map(async (imgEl) => {
-            try {
-              if (imgEl.complete && imgEl.naturalWidth > 0) return;
-              await new Promise<void>((res) => {
-                const to = window.setTimeout(res, 3000);
-                imgEl.addEventListener("load", () => {
-                  window.clearTimeout(to);
-                  res();
                 });
-                imgEl.addEventListener("error", () => {
-                  window.clearTimeout(to);
-                  res();
-                });
-              });
-            } catch {
-              /* ignore */
-            }
-          }),
+              }
+            }}
+            style={{ width: `${exportWidthPx}px` }}
+          >
+            <SocialPreview
+              noChrome={true}
+              draftType={draft.draftType as "feed" | "story"}
+              layout={draft.layout}
+              layers={layers}
+              assets={assets}
+              logoUrl={finalLogoUrl}
+            />
+          </div>,
         );
-      }
+      });
 
-      if (!target) {
-        throw new Error("Vorschau konnte nicht erstellt werden.");
-      }
-
-      const boundingRect = target.getBoundingClientRect();
-      const baseScale = exportWidthPx / Math.max(1, boundingRect.width || 1);
-      const scale = Math.max(2, Math.min(3, baseScale));
+      await new Promise<void>((r) => setTimeout(r, 3800));
+      const wrapImgs = Array.from(wrap.querySelectorAll("img"));
+      await Promise.all(
+        wrapImgs.map(async (imgEl) => {
+          try {
+            if (imgEl.complete && imgEl.naturalWidth > 0) return;
+            await new Promise<void>((res) => {
+              const to = window.setTimeout(res, 3500);
+              imgEl.addEventListener("load", () => {
+                window.clearTimeout(to);
+                res();
+              });
+              imgEl.addEventListener("error", () => {
+                window.clearTimeout(to);
+                res();
+              });
+            });
+          } catch {
+            /* ignore */
+          }
+        }),
+      );
 
       const canvas = await html2canvas(target, {
         backgroundColor: "#ffffff",
-        scale: scale,
+        scale: 1,
+        width: exportWidthPx,
+        height: targetHeightPx,
+        windowWidth: exportWidthPx * 2,
+        windowHeight: targetHeightPx * 2,
         useCORS: true,
         allowTaint: true,
         logging: false,
         imageTimeout: 0,
         removeContainer: true,
-        windowWidth: Math.max(window.innerWidth, Math.ceil(boundingRect.width * scale * 2)),
-        windowHeight: Math.max(window.innerHeight, Math.ceil(boundingRect.height * scale * 2)),
       });
 
       let finalDataUrl: string = canvas.toDataURL("image/jpeg", 0.97);
@@ -310,10 +355,9 @@ export default function BoardMailboxPage() {
         sourceImg.crossOrigin = "anonymous";
         await new Promise<void>((resolve, reject) => {
           sourceImg.onload = () => resolve();
-          sourceImg.onerror = () => reject(new Error("Canvas laden fehlgeschlagen"));
+          sourceImg.onerror = () => reject(new Error("Finales Canvas laden fehlgeschlagen"));
           sourceImg.src = finalDataUrl;
         });
-        const targetHeightPx = draft.draftType === "story" ? 1920 : 1440;
         const finalCanvas = document.createElement("canvas");
         finalCanvas.width = exportWidthPx;
         finalCanvas.height = targetHeightPx;
@@ -327,7 +371,7 @@ export default function BoardMailboxPage() {
           finalDataUrl = finalCanvas.toDataURL("image/jpeg", 0.97);
         }
       } catch (err) {
-        console.warn("Final canvas resize übersprungen:", err);
+        console.warn("Finales Resize übersprungen:", err);
       }
 
       const slug = draft.title
