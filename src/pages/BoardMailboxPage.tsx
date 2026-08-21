@@ -289,7 +289,7 @@ export default function BoardMailboxPage() {
 
       const boundingRect = target.getBoundingClientRect();
       const baseScale = exportWidthPx / Math.max(1, boundingRect.width || 1);
-      const scale = Math.max(2, baseScale);
+      const scale = Math.max(2, Math.min(3, baseScale));
 
       const canvas = await html2canvas(target, {
         backgroundColor: "#ffffff",
@@ -297,11 +297,48 @@ export default function BoardMailboxPage() {
         useCORS: true,
         allowTaint: true,
         logging: false,
+        imageTimeout: 0,
+        removeContainer: true,
         windowWidth: Math.max(window.innerWidth, Math.ceil(boundingRect.width * scale * 2)),
         windowHeight: Math.max(window.innerHeight, Math.ceil(boundingRect.height * scale * 2)),
+        onclone: (_, clonedDoc) => {
+          const clone = clonedDoc.querySelector<HTMLElement>(`[data-jpg-export="${CSS.escape(draft.id)}"]`);
+          if (!clone) return;
+          clone.style.setProperty("border-radius", "0", "important");
+          clone.style.setProperty("border", "0", "important");
+          clone.style.setProperty("box-shadow", "none", "important");
+          clone.style.setProperty("background", "transparent", "important");
+          clone.style.setProperty("overflow", "visible", "important");
+          clone.style.setProperty("width", `${boundingRect.width}px`, "important");
+          clone.style.setProperty("height", `${boundingRect.height}px`, "important");
+        },
       });
 
-      const finalDataUrl = canvas.toDataURL("image/jpeg", 0.97);
+      let finalDataUrl: string = canvas.toDataURL("image/jpeg", 0.97);
+      try {
+        const sourceImg = new Image();
+        sourceImg.crossOrigin = "anonymous";
+        await new Promise<void>((resolve, reject) => {
+          sourceImg.onload = () => resolve();
+          sourceImg.onerror = () => reject(new Error("Canvas laden fehlgeschlagen"));
+          sourceImg.src = finalDataUrl;
+        });
+        const targetHeightPx = draft.draftType === "story" ? 1920 : 1440;
+        const finalCanvas = document.createElement("canvas");
+        finalCanvas.width = exportWidthPx;
+        finalCanvas.height = targetHeightPx;
+        const ctx = finalCanvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
+          ctx.drawImage(sourceImg, 0, 0, finalCanvas.width, finalCanvas.height);
+          finalDataUrl = finalCanvas.toDataURL("image/jpeg", 0.97);
+        }
+      } catch (err) {
+        console.warn("Final canvas resize übersprungen:", err);
+      }
 
       const slug = draft.title
         .toLowerCase()
