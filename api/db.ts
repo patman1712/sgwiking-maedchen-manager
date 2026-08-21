@@ -662,6 +662,18 @@ db.exec(`
     FOREIGN KEY(handed_over_by) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY(returned_by) REFERENCES users(id) ON DELETE SET NULL
   );
+
+  CREATE TABLE IF NOT EXISTS custom_external_links (
+    id TEXT PRIMARY KEY,
+    menu_name TEXT NOT NULL,
+    url TEXT NOT NULL,
+    role_visibility TEXT NOT NULL DEFAULT '[]',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
+  );
 `)
 
 const teamColumns = (
@@ -2540,6 +2552,138 @@ const getSocialMediaLayouts = () => {
   return defaultSocialMediaLayouts
 }
 
+type UserRole = 'admin' | 'trainer' | 'player' | 'board' | 'social'
+
+const parseRoleVisibility = (raw: unknown): UserRole[] => {
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (entry): entry is UserRole =>
+            entry === 'admin' ||
+            entry === 'trainer' ||
+            entry === 'player' ||
+            entry === 'board' ||
+            entry === 'social',
+        )
+      }
+    } catch {
+      // ignore parse errors and fall back to empty.
+    }
+  }
+
+  return []
+}
+
+type CustomExternalLinkRow = {
+  id: string
+  menu_name: string
+  url: string
+  role_visibility: string
+  sort_order: number
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+const mapCustomExternalLink = (row: CustomExternalLinkRow) => ({
+  id: row.id,
+  menuName: row.menu_name,
+  url: row.url,
+  roleVisibility: parseRoleVisibility(row.role_visibility),
+  sortOrder: row.sort_order,
+  createdBy: row.created_by,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+export const getCustomExternalLinks = () => {
+  const rows = db
+    .prepare('SELECT * FROM custom_external_links ORDER BY sort_order ASC, created_at DESC')
+    .all() as CustomExternalLinkRow[]
+
+  return rows.map(mapCustomExternalLink)
+}
+
+export const getCustomExternalLinkById = (linkId: string) => {
+  const row = db
+    .prepare('SELECT * FROM custom_external_links WHERE id = ?')
+    .get(linkId) as CustomExternalLinkRow | undefined
+
+  return row ? mapCustomExternalLink(row) : null
+}
+
+export const createCustomExternalLink = (input: {
+  createdBy: string
+  menuName: string
+  url: string
+  roleVisibility: UserRole[]
+  sortOrder: number
+}) => {
+  const id = createId()
+  const timestamp = now()
+
+  db.prepare(
+    `
+    INSERT INTO custom_external_links
+      (id, menu_name, url, role_visibility, sort_order, created_by, created_at, updated_at)
+    VALUES
+      (?, ?, ?, ?, ?, ?, ?, ?)
+  `,
+  ).run(
+    id,
+    input.menuName,
+    input.url,
+    JSON.stringify(input.roleVisibility),
+    input.sortOrder,
+    input.createdBy,
+    timestamp,
+    timestamp,
+  )
+
+  return getCustomExternalLinkById(id)!
+}
+
+export const updateCustomExternalLink = (
+  linkId: string,
+  input: {
+    menuName?: string
+    url?: string
+    roleVisibility?: UserRole[]
+    sortOrder?: number
+  },
+) => {
+  const current = getCustomExternalLinkById(linkId)
+  if (!current) return null
+
+  const nextMenuName = input.menuName ?? current.menuName
+  const nextUrl = input.url ?? current.url
+  const nextRoleVisibility = input.roleVisibility ?? current.roleVisibility
+  const nextSortOrder = input.sortOrder ?? current.sortOrder
+
+  db.prepare(
+    `
+    UPDATE custom_external_links
+    SET menu_name = ?, url = ?, role_visibility = ?, sort_order = ?, updated_at = ?
+    WHERE id = ?
+  `,
+  ).run(
+    nextMenuName,
+    nextUrl,
+    JSON.stringify(nextRoleVisibility),
+    nextSortOrder,
+    now(),
+    linkId,
+  )
+
+  return getCustomExternalLinkById(linkId)
+}
+
+export const deleteCustomExternalLink = (linkId: string) => {
+  db.prepare('DELETE FROM custom_external_links WHERE id = ?').run(linkId)
+}
+
 export const getSettings = () => ({
   clubName: getSetting('club_name') ?? 'SG Wiking Offenbach',
   logoUrl: getSetting('team_logo_url'),
@@ -2565,6 +2709,7 @@ export const getBootstrapData = (userId?: string | null) => ({
   socialMediaTextSnippets: getSocialMediaTextSnippets(userId),
   conversations: getConversations(userId),
   messages: getMessages(userId),
+  customExternalLinks: getCustomExternalLinks(),
   settings: getSettings(),
   currentUser: userId ? getUserById(userId) : null,
 })

@@ -1,4 +1,16 @@
 export type UserRole = "admin" | "trainer" | "player" | "board" | "social";
+
+export interface CustomExternalLink {
+  id: string;
+  menuName: string;
+  url: string;
+  roleVisibility: UserRole[];
+  sortOrder: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type PlayerDocumentType =
   | "member"
   | "membershipApplication"

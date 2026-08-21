@@ -1,9 +1,11 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
+  ArrowUpRight,
   Bell,
   Briefcase,
   ChevronDown,
+  ExternalLink,
   FileUser,
   KeyRound,
   LayoutDashboard,
@@ -55,6 +57,7 @@ export default function DashboardLayout() {
   const tournamentOffers = useAppStore((state) => state.tournamentOffers);
   const matchRescheduleRequests = useAppStore((state) => state.matchRescheduleRequests);
   const pendingPlayerApplications = useAppStore((state) => state.pendingPlayerApplications);
+  const customExternalLinks = useAppStore((state) => state.customExternalLinks);
   const navigate = useNavigate();
   const location = useLocation();
   const [incomingToast, setIncomingToast] = useState<{
@@ -115,6 +118,16 @@ export default function DashboardLayout() {
       }),
     [canUseSocialMedia, canUseTournamentBoerse, isSocialOnly],
   );
+  const visibleCustomExternalLinks = useMemo(() => {
+    if (!currentUser) return [];
+    return customExternalLinks
+      .filter((link) =>
+        link.roleVisibility.length
+          ? link.roleVisibility.includes(currentUser.role)
+          : true,
+      )
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.menuName.localeCompare(b.menuName));
+  }, [currentUser, customExternalLinks]);
   const keepsCollapsedTeamMenus =
     currentUser?.role === "admin" || currentUser?.role === "board";
 
@@ -964,6 +977,30 @@ export default function DashboardLayout() {
               </NavLink>
             );
           })}
+
+          {visibleCustomExternalLinks.length ? (
+            <div className="mt-4 space-y-2 border-t border-white/10 pt-4">
+              <p className="px-4 pb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-200/80">
+                Externe Links
+              </p>
+              {visibleCustomExternalLinks.map((link) => (
+                <a
+                  key={link.id}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setSidebarOpen(false)}
+                  className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-blue-100 transition-all hover:bg-white/10 hover:text-white"
+                >
+                  <ExternalLink size={18} />
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate">{link.menuName}</span>
+                    <ArrowUpRight size={14} className="shrink-0 opacity-70" />
+                  </span>
+                </a>
+              ))}
+            </div>
+          ) : null}
         </nav>
 
         <div className="shrink-0 border-t border-white/10 px-4 py-4">

@@ -27,6 +27,7 @@ import keyAssignmentsRoutes from './routes/key-assignments.js'
 import playerApplicationsRoutes from './routes/player-applications.js'
 import socialMediaRoutes from './routes/social-media.js'
 import settingsRoutes from './routes/settings.js'
+import externalLinksRoutes from './routes/external-links.js'
 import teamsRoutes, { startAutomaticFussballDeImports } from './routes/teams.js'
 import tournamentsRoutes from './routes/tournaments.js'
 import usersRoutes from './routes/users.js'
@@ -67,6 +68,7 @@ app.use('/api/key-assignments', keyAssignmentsRoutes)
 app.use('/api/player-applications', playerApplicationsRoutes)
 app.use('/api/social-media', socialMediaRoutes)
 app.use('/api/settings', settingsRoutes)
+app.use('/api/external-links', externalLinksRoutes)
 app.use('/api/tournaments', tournamentsRoutes)
 app.use('/uploads', express.static(uploadPath))
 

@@ -4,6 +4,7 @@ import type {
   AppSettings,
   CashbookEntry,
   Conversation,
+  CustomExternalLink,
   FleaMarketListing,
   InventoryItem,
   KeyAssignment,
@@ -80,6 +81,7 @@ interface ApiStatePayload {
   socialMediaTextSnippets: SocialMediaTextSnippet[];
   conversations: Conversation[];
   messages: Message[];
+  customExternalLinks: CustomExternalLink[];
   settings: AppSettings;
   currentUser?: UserProfile | null;
 }
@@ -136,6 +138,7 @@ interface AppState {
   socialMediaTextSnippets: SocialMediaTextSnippet[];
   conversations: Conversation[];
   messages: Message[];
+  customExternalLinks: CustomExternalLink[];
   settings: AppSettings;
   currentUserId: string | null;
   loading: boolean;
@@ -368,6 +371,22 @@ interface AppState {
   createGroupConversation: (participantIds: string[], title?: string) => Promise<string | null>;
   sendMessage: (conversationId: string, content: string) => Promise<ActionResult>;
   deleteConversation: (conversationId: string) => Promise<ActionResult>;
+  addCustomExternalLink: (input: {
+    menuName: string;
+    url: string;
+    roleVisibility: UserRole[];
+    sortOrder?: number;
+  }) => Promise<ActionResult>;
+  updateCustomExternalLink: (
+    linkId: string,
+    input: Partial<{
+      menuName: string;
+      url: string;
+      roleVisibility: UserRole[];
+      sortOrder: number;
+    }>,
+  ) => Promise<ActionResult>;
+  deleteCustomExternalLink: (linkId: string) => Promise<ActionResult>;
 }
 
 export const initialAppState = {
@@ -389,6 +408,7 @@ export const initialAppState = {
   socialMediaTextSnippets: [] as SocialMediaTextSnippet[],
   conversations: [] as Conversation[],
   messages: [] as Message[],
+  customExternalLinks: [] as CustomExternalLink[],
   settings: {
     clubName: "SG Wiking Offenbach",
     logoUrl: null,
@@ -512,6 +532,10 @@ const applyPayload = (
   );
   const nextConversations = arrayShallowEqualsById(state.conversations, payload.conversations);
   const nextMessages = arrayShallowEqualsById(state.messages, payload.messages);
+  const nextCustomExternalLinks = arrayShallowEqualsById(
+    state.customExternalLinks,
+    payload.customExternalLinks ?? [],
+  );
   const nextSettings = objectShallowEquals(state.settings, payload.settings);
   const nextCurrentUserId = payload.currentUser?.id ?? fallbackUserId;
 
@@ -534,6 +558,7 @@ const applyPayload = (
     socialMediaTextSnippets: nextSocialSnippets,
     conversations: nextConversations,
     messages: nextMessages,
+    customExternalLinks: nextCustomExternalLinks,
     settings: nextSettings,
     currentUserId: state.currentUserId ?? nextCurrentUserId,
     initialized: true,
@@ -2345,6 +2370,78 @@ export const useAppStore = create<AppState>()(
               error instanceof Error
                 ? error.message
                 : "Konversation konnte nicht geloescht werden.",
+          };
+        }
+      },
+      addCustomExternalLink: async (input) => {
+        try {
+          const actorId = get().currentUserId;
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch("/api/external-links", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId, ...input }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId, get);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error ? error.message : "Link konnte nicht angelegt werden.",
+          };
+        }
+      },
+      updateCustomExternalLink: async (linkId, input) => {
+        try {
+          const actorId = get().currentUserId;
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/external-links/${encodeURIComponent(linkId)}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId, ...input }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId, get);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error ? error.message : "Link konnte nicht gespeichert werden.",
+          };
+        }
+      },
+      deleteCustomExternalLink: async (linkId) => {
+        try {
+          const actorId = get().currentUserId;
+          if (!actorId) {
+            return { success: false, error: "Bitte zuerst anmelden." };
+          }
+
+          const response = await fetch(`/api/external-links/${encodeURIComponent(linkId)}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actorId }),
+          });
+          const data = (await readJson(response)) as ApiStatePayload;
+          applyPayload(set, data, actorId, get);
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error:
+              error instanceof Error ? error.message : "Link konnte nicht geloescht werden.",
           };
         }
       },
