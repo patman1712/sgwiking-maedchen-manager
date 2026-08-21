@@ -211,125 +211,135 @@ export default function BoardMailboxPage() {
     try {
       const baseAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
       const finalLogoUrl = clubLogoUrl ?? null;
-
-      const fetchDataUrl = async (rawSrc: string): Promise<string> => {
-        const trimmed = rawSrc.trim();
-        if (!trimmed) return rawSrc;
-        if (trimmed.startsWith("data:")) return trimmed;
-        if (trimmed.startsWith("blob:")) return trimmed;
-        try {
-          const url = trimmed.startsWith("http")
-            ? trimmed
-            : new URL(trimmed, window.location.origin).toString();
-          const response = await fetch(url, {
-            cache: "force-cache",
-            credentials: "same-origin",
-            mode: "cors",
-          });
-          if (!response.ok) {
-            return rawSrc;
-          }
-          const blob = await response.blob();
-          if (!blob || blob.size === 0) {
-            return rawSrc;
-          }
-          return await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              const result = reader.result;
-              if (typeof result === "string") resolve(result);
-              else resolve(rawSrc);
-            };
-            reader.onerror = () => reject(new Error("DataURL fehlgeschlagen"));
-            reader.readAsDataURL(blob);
-          });
-        } catch {
-          return rawSrc;
-        }
-      };
-
-      const cache = new Map<string, string>();
-      const toCachedDataUrl = async (src: string): Promise<string> => {
-        if (!src) return src;
-        if (cache.has(src)) {
-          return cache.get(src)!;
-        }
-        const out = await fetchDataUrl(src);
-        cache.set(src, out);
-        return out;
-      };
-
-      const assets: EditorAsset[] = await Promise.all(
-        baseAssets.map(async (asset) => {
-          const dataUrl = await toCachedDataUrl(asset.url);
-          return { ...asset, url: dataUrl, ref: asset.ref };
-        }),
-      );
-
       const layers = (draft.layers.length ? draft.layers : buildFallbackLayers(draft)).map(
         normalizeLayer,
       );
-
+      const hasFullBgLayer = layers.some((l) => l.kind === "image" && l.position === "full");
       const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
-      wrap = document.createElement("div");
-      wrap.style.position = "fixed";
-      wrap.style.left = "-100000px";
-      wrap.style.top = "0";
-      wrap.style.pointerEvents = "none";
-      wrap.style.opacity = "0";
-      wrap.style.zIndex = "-1";
-      wrap.style.width = `${exportWidthPx}px`;
-      document.body.appendChild(wrap);
 
-      root = createRoot(wrap);
-      root.render(
-        <div style={{ width: `${exportWidthPx}px`, background: "transparent" }}>
-          <SocialPreview
-            draftType={draft.draftType as "feed" | "story"}
-            layout={draft.layout}
-            layers={layers}
-            assets={assets}
-            logoUrl={finalLogoUrl}
-          />
-        </div>,
+      let target: HTMLElement | null = document.querySelector(
+        `[data-jpg-export="${CSS.escape(draft.id)}"]`,
       );
+      let usedOffscreen = false;
 
-      await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, 3800);
-      });
-
-      const allImgs = Array.from(wrap.querySelectorAll("img"));
-      await Promise.all(
-        allImgs.map(async (imgEl) => {
+      if (!target) {
+        usedOffscreen = true;
+        const fetchDataUrl = async (rawSrc: string): Promise<string> => {
+          const trimmed = rawSrc.trim();
+          if (!trimmed) return rawSrc;
+          if (trimmed.startsWith("data:")) return trimmed;
+          if (trimmed.startsWith("blob:")) return trimmed;
           try {
-            if (imgEl.complete && imgEl.naturalWidth > 0) return;
-            await new Promise<void>((res) => {
-              const to = window.setTimeout(res, 3200);
-              imgEl.addEventListener("load", () => {
-                window.clearTimeout(to);
-                res();
-              });
-              imgEl.addEventListener("error", () => {
-                window.clearTimeout(to);
-                res();
-              });
+            const url = trimmed.startsWith("http")
+              ? trimmed
+              : new URL(trimmed, window.location.origin).toString();
+            const response = await fetch(url, {
+              cache: "force-cache",
+              credentials: "same-origin",
+              mode: "cors",
+            });
+            if (!response.ok) {
+              return rawSrc;
+            }
+            const blob = await response.blob();
+            if (!blob || blob.size === 0) {
+              return rawSrc;
+            }
+            return await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const result = reader.result;
+                if (typeof result === "string") resolve(result);
+                else resolve(rawSrc);
+              };
+              reader.onerror = () => reject(new Error("DataURL fehlgeschlagen"));
+              reader.readAsDataURL(blob);
             });
           } catch {
-            /* ignore */
+            return rawSrc;
           }
-        }),
-      );
+        };
 
-      const target = wrap.querySelector<HTMLElement>(
-        "[class*='aspect-']",
-      ) ?? (wrap.firstElementChild as HTMLElement | null);
+        const cache = new Map<string, string>();
+        const toCachedDataUrl = async (src: string): Promise<string> => {
+          if (!src) return src;
+          if (cache.has(src)) {
+            return cache.get(src)!;
+          }
+          const out = await fetchDataUrl(src);
+          cache.set(src, out);
+          return out;
+        };
+
+        const assets: EditorAsset[] = await Promise.all(
+          baseAssets.map(async (asset) => {
+            const dataUrl = await toCachedDataUrl(asset.url);
+            return { ...asset, url: dataUrl, ref: asset.ref };
+          }),
+        );
+
+        wrap = document.createElement("div");
+        wrap.style.position = "absolute";
+        wrap.style.left = "0";
+        wrap.style.top = "0";
+        wrap.style.pointerEvents = "none";
+        wrap.style.visibility = "hidden";
+        wrap.style.zIndex = "-9999";
+        wrap.style.width = `${exportWidthPx}px`;
+        document.body.appendChild(wrap);
+
+        root = createRoot(wrap);
+        root.render(
+          <div style={{ width: `${exportWidthPx}px` }}>
+            <SocialPreview
+              draftType={draft.draftType as "feed" | "story"}
+              layout={draft.layout}
+              layers={layers}
+              assets={assets}
+              logoUrl={finalLogoUrl}
+            />
+          </div>,
+        );
+
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, 3800);
+        });
+
+        const allImgs = Array.from(wrap.querySelectorAll("img"));
+        await Promise.all(
+          allImgs.map(async (imgEl) => {
+            try {
+              if (imgEl.complete && imgEl.naturalWidth > 0) return;
+              await new Promise<void>((res) => {
+                const to = window.setTimeout(res, 3200);
+                imgEl.addEventListener("load", () => {
+                  window.clearTimeout(to);
+                  res();
+                });
+                imgEl.addEventListener("error", () => {
+                  window.clearTimeout(to);
+                  res();
+                });
+              });
+            } catch {
+              /* ignore */
+            }
+          }),
+        );
+
+        target = wrap.querySelector<HTMLElement>(
+          "[class*='aspect-']",
+        ) ?? (wrap.firstElementChild as HTMLElement | null);
+      }
+
       if (!target) {
         throw new Error("Vorschau konnte nicht erstellt werden.");
       }
 
-      const hasFullBgLayer = layers.some((l) => l.kind === "image" && l.position === "full");
+      const scaleForExport = usedOffscreen ? 1 : (exportWidthPx / target.getBoundingClientRect().width);
+
       const dataUrl = await htmlToImage.toJpeg(target, {
-        pixelRatio: 1,
+        pixelRatio: Math.max(2, scaleForExport),
         width: exportWidthPx,
         quality: 0.97,
         cacheBust: true,
@@ -487,6 +497,7 @@ export default function BoardMailboxPage() {
                             )}
                           >
                             <SocialPreview
+                              data-jpg-export={draft.id}
                               draftType={draft.draftType as "feed" | "story"}
                               layout={draft.layout}
                               layers={layers}
