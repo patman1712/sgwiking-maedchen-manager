@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { useNavigate } from "react-router-dom";
 import {
   Check,
   Copy,
@@ -18,7 +19,6 @@ import type {
 } from "@/types";
 import {
   SocialPreview,
-  SocialPostCard,
   buildDraftAssets,
   buildFallbackLayers,
   normalizeLayer,
@@ -93,6 +93,7 @@ export default function BoardMailboxPage() {
   const clearMatchRescheduleTrash = useAppStore((state) => state.clearMatchRescheduleTrash);
   const updateSocialMediaDraft = useAppStore((state) => state.updateSocialMediaDraft);
   const deleteSocialMediaDraft = useAppStore((state) => state.deleteSocialMediaDraft);
+  const navigate = useNavigate();
 
   const currentUser = useMemo(
     () => users.find((user) => user.id === currentUserId) ?? null,
@@ -176,7 +177,6 @@ export default function BoardMailboxPage() {
       for (const asset of assets) {
         if (asset?.url) allUrlsToPreload.push(asset.url);
       }
-      if (finalLogoUrl) allUrlsToPreload.push(finalLogoUrl);
       const dedupedUrls = Array.from(new Set(allUrlsToPreload.filter((u) => typeof u === "string" && u.length > 0)));
 
       await Promise.allSettled(
@@ -192,6 +192,7 @@ export default function BoardMailboxPage() {
         ),
       );
 
+      const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
       wrap = document.createElement("div");
       wrap.style.position = "fixed";
       wrap.style.left = "-100000px";
@@ -199,13 +200,13 @@ export default function BoardMailboxPage() {
       wrap.style.pointerEvents = "none";
       wrap.style.opacity = "0";
       wrap.style.zIndex = "-1";
-      wrap.style.width = "1200px";
+      wrap.style.width = `${exportWidthPx}px`;
       document.body.appendChild(wrap);
 
       root = createRoot(wrap);
       root.render(
-        <div style={{ width: "1200px" }}>
-          <SocialPostCard
+        <div style={{ width: `${exportWidthPx}px` }}>
+          <SocialPreview
             draftType={draft.draftType as "feed" | "story"}
             layout={draft.layout}
             layers={layers}
@@ -216,11 +217,11 @@ export default function BoardMailboxPage() {
       );
 
       await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, 2200);
+        window.setTimeout(resolve, 2000);
       });
 
       const target = wrap.querySelector<HTMLElement>(
-        "[class*='overflow-hidden rounded-']",
+        "[class*='aspect-']",
       ) ?? (wrap.firstElementChild as HTMLElement | null);
       if (!target) {
         throw new Error("Vorschau konnte nicht erstellt werden.");
@@ -228,10 +229,11 @@ export default function BoardMailboxPage() {
 
       const dataUrl = await htmlToImage.toJpeg(target, {
         pixelRatio: 1,
+        width: exportWidthPx,
         quality: 0.96,
         cacheBust: true,
         includeQueryParams: true,
-        backgroundColor: "#0f172a",
+        backgroundColor: "#ffffff",
       });
 
       const slug = draft.title
@@ -380,10 +382,10 @@ export default function BoardMailboxPage() {
                         <div className="relative flex items-start justify-center">
                           <div
                             className={cn(
-                              "w-full max-w-[420px]",
+                              "w-full max-w-[360px]",
                             )}
                           >
-                            <SocialPostCard
+                            <SocialPreview
                               draftType={draft.draftType as "feed" | "story"}
                               layout={draft.layout}
                               layers={layers}
@@ -476,6 +478,18 @@ export default function BoardMailboxPage() {
                           ) : null}
 
                           <div className="flex flex-wrap gap-3 pt-1">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                navigate("/dashboard/social-media", {
+                                  state: { openDraftId: draft.id },
+                                })
+                              }
+                              className="inline-flex items-center gap-2 rounded-2xl border border-blue-200 bg-white px-5 py-3 text-sm font-semibold text-blue-900 shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-50"
+                            >
+                              <Pencil size={16} />
+                              Bearbeiten
+                            </button>
                             <button
                               type="button"
                               disabled={exportingJpgId === draft.id || savingId === `sm-del-${draft.id}`}

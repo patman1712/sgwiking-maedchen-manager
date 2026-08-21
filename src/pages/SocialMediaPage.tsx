@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { defaultRouteForRole } from "@/lib/utils";
 import {
   Archive,
@@ -1105,81 +1105,6 @@ export function SocialPreview({
   );
 }
 
-export function SocialPostCard({
-  draftType,
-  layout,
-  layers,
-  assets,
-  logoUrl,
-  clubName = "SG WIKING",
-  clubSubtitle = "Handball Offenbach",
-  activeLayerId,
-  onSelectLayer,
-  onUpdateLayer,
-  respectLayerLocks = false,
-}: {
-  draftType: "feed" | "story";
-  layout: string;
-  layers: SocialMediaLayer[];
-  assets: EditorAsset[];
-  logoUrl: string | null;
-  clubName?: string;
-  clubSubtitle?: string;
-  activeLayerId?: string | null;
-  onSelectLayer?: (layerId: string) => void;
-  onUpdateLayer?: (layerId: string, patch: Partial<SocialMediaLayer>) => void;
-  respectLayerLocks?: boolean;
-}) {
-  const layoutLabel =
-    fallbackLayoutOptions.find((option) => option.value === layout)?.label ?? "Vorlage";
-  return (
-    <div className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-blue-950 via-slate-900 to-blue-900 shadow-[0_30px_90px_rgba(15,23,42,0.22)]">
-      <div className="flex items-center justify-between px-6 py-5 text-white">
-        <div className="flex items-center gap-4">
-          {logoUrl ? (
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-white/80 shadow-lg">
-              <img
-                src={logoUrl}
-                alt={clubName}
-                crossOrigin="anonymous"
-                className="h-10 w-10 object-contain"
-              />
-            </div>
-          ) : (
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/90 text-blue-950 font-black text-lg">
-              {clubName.slice(0, 2)}
-            </div>
-          )}
-          <div className="leading-tight">
-            <div className="text-[0.9rem] font-black uppercase tracking-[0.2em] text-white/95">
-              {clubName}
-            </div>
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-white/65">
-              {clubSubtitle}
-            </div>
-          </div>
-        </div>
-        <span className="rounded-full border border-white/20 bg-white/10 px-5 py-2 text-[0.7rem] font-bold uppercase tracking-[0.3em] text-white/95 backdrop-blur">
-          {layoutLabel}
-        </span>
-      </div>
-      <div className="px-6 pb-6">
-        <SocialPreview
-          draftType={draftType}
-          layout={layout}
-          layers={layers}
-          assets={assets}
-          logoUrl={logoUrl}
-          activeLayerId={activeLayerId}
-          onSelectLayer={onSelectLayer}
-          onUpdateLayer={onUpdateLayer}
-          respectLayerLocks={respectLayerLocks}
-        />
-      </div>
-    </div>
-  );
-}
-
 export default function SocialMediaPage() {
   const socialMediaDrafts = useAppStore((state) => state.socialMediaDrafts);
   const socialMediaCrests = useAppStore((state) => state.socialMediaCrests);
@@ -1206,6 +1131,7 @@ export default function SocialMediaPage() {
   const updateSocialMediaTextSnippet = useAppStore((state) => state.updateSocialMediaTextSnippet);
   const deleteSocialMediaTextSnippet = useAppStore((state) => state.deleteSocialMediaTextSnippet);
   const updateUser = useAppStore((state) => state.updateUser);
+  const location = useLocation();
 
   const currentUser = useMemo(
     () => users.find((user) => user.id === currentUserId) ?? null,
@@ -1586,6 +1512,18 @@ export default function SocialMediaPage() {
   const openEditDraft = (draft: SocialMediaDraft) => {
     openEditorWithDraft(draft, "edit", draft.isTemplate);
   };
+
+  useEffect(() => {
+    const state = location.state as null | { openDraftId?: string };
+    const openDraftId = state?.openDraftId;
+    if (!openDraftId) return;
+    const draft = socialMediaDrafts.find((entry) => entry.id === openDraftId);
+    if (!draft) return;
+    openEditorWithDraft(draft, "edit", draft.isTemplate);
+    if (window.history.replaceState) {
+      window.history.replaceState({}, "");
+    }
+  }, [location.state, socialMediaDrafts]);
 
   const useTemplateAsDraft = (draft: SocialMediaDraft) => {
     openEditorWithDraft(
