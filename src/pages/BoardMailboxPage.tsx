@@ -17,6 +17,7 @@ import type {
   SocialMediaDraft,
   SocialMediaLayoutOption,
   SocialMediaAsset,
+  SocialMediaLayer,
 } from "@/types";
 import {
   SocialPreview,
@@ -75,6 +76,38 @@ function getDraftPreviewData(
   const rawLayers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
   const layers = rawLayers.map(normalizeLayer);
   return { assets, layers };
+}
+
+function DebugAssetInfo(props: {
+  draft: SocialMediaDraft;
+  assets: EditorAsset[];
+  layers: SocialMediaLayer[];
+  crestsCount: number;
+  libraryCount: number;
+}) {
+  const { draft, assets, crestsCount, libraryCount } = props;
+  const resolvedAssetsShort = assets.map((a) => ({ fileName: a.fileName, urlLen: a.url.length, ref: a.ref.slice(0, 60) }));
+  const layersShort = draft.layers.map((l) => `${l.kind}:${(l.label || "?").slice(0, 20)}|ref:${String(l.imageRef ?? "—").slice(0, 60)}`);
+  const matchTests: string[] = [];
+  draft.layers.forEach((layer, i) => {
+    if (layer.kind !== "image") { matchTests.push(`${i}:TEXT`); return; }
+    const ref = layer.imageRef ?? "";
+    const t = assets.find(
+      (a) => a.ref === ref || a.id === ref || a.url === ref || a.fileName === ref,
+    );
+    matchTests.push(`${i}:${t ? "JA(" + t.fileName + ")" : "NEIN"}`);
+  });
+  return (
+    <div className="mt-4 rounded-2xl border border-slate-300 bg-slate-100 p-3 font-mono text-[10px] leading-tight text-slate-900 break-words break-all">
+      <div className="mb-1 font-bold text-rose-700">BITTE SCHREIB MIR 1 SCREENSHOT DAVON →</div>
+      <div>1. imageUrls = {JSON.stringify(draft.imageUrls)}</div>
+      <div>2. socialMediaAssets (Bibliothek) Länge = {libraryCount}</div>
+      <div>3. socialMediaCrests (alt) Länge = {crestsCount}</div>
+      <div>4. Resolved Assets ({assets.length}): {JSON.stringify(resolvedAssetsShort).slice(0, 500)}</div>
+      <div>5. Draft.layers: {JSON.stringify(layersShort).slice(0, 500)}</div>
+      <div>6. Match Testergebnis (Bild-Layer): {JSON.stringify(matchTests)}</div>
+    </div>
+  );
 }
 
 export default function BoardMailboxPage() {
@@ -436,6 +469,13 @@ export default function BoardMailboxPage() {
                               layers={layers}
                               assets={assets}
                               logoUrl={clubLogoUrl ?? null}
+                            />
+                            <DebugAssetInfo
+                              draft={draft}
+                              assets={assets}
+                              layers={layers}
+                              crestsCount={socialMediaCrests.length}
+                              libraryCount={socialMediaAssets.length}
                             />
                           </div>
                         </div>
