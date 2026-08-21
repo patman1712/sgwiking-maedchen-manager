@@ -905,6 +905,7 @@ export function SocialPreview({
   onSelectLayer,
   onUpdateLayer,
   respectLayerLocks = false,
+  dataJpgExportId,
 }: {
   draftType: SocialMediaDraftType;
   layout: string;
@@ -915,6 +916,7 @@ export function SocialPreview({
   onSelectLayer?: (layerId: string) => void;
   onUpdateLayer?: (layerId: string, patch: Partial<SocialMediaLayer>) => void;
   respectLayerLocks?: boolean;
+  dataJpgExportId?: string;
 }) {
   const layoutLabel =
     fallbackLayoutOptions.find((option) => option.value === layout)?.label ?? "Vorlage";
@@ -1086,6 +1088,7 @@ export function SocialPreview({
   return (
     <div
       ref={previewRef}
+      data-jpg-export={dataJpgExportId}
       className={cn(
         "relative overflow-hidden rounded-[2.25rem] border border-slate-200 bg-white text-slate-900 shadow-[0_28px_90px_rgba(15,23,42,0.14)]",
         draftType === "story" ? "aspect-[9/16]" : "aspect-[3/4]",

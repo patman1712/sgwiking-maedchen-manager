@@ -453,7 +453,7 @@ export default function BoardMailboxPage() {
                             )}
                           >
                             <SocialPreview
-                              data-jpg-export={draft.id}
+                              dataJpgExportId={draft.id}
                               draftType={draft.draftType as "feed" | "story"}
                               layout={draft.layout}
                               layers={layers}
