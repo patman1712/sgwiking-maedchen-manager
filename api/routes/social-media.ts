@@ -120,8 +120,6 @@ const parseLayers = (value: string | null | undefined) => {
       strokeWidth?: number
       lineHeight?: number
       letterSpacing?: number
-      lockPosition?: boolean
-      lockSize?: boolean
     }>
   }
 

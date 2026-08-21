@@ -1142,7 +1142,7 @@ export default function BoardMailboxPage() {
                                   caption: draft.caption ?? "",
                                   callToAction: draft.callToAction ?? "",
                                   layout: draft.layout,
-                                  imageUrls: draft.imageUrls,
+                                  existingImageUrls: draft.imageUrls,
                                   layers: draft.layers,
                                   isTemplate: draft.isTemplate,
                                   postingText: draft.postingText ?? "",
