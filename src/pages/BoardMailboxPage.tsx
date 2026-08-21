@@ -16,6 +16,7 @@ import type {
   SocialMediaCrest,
   SocialMediaDraft,
   SocialMediaLayoutOption,
+  SocialMediaAsset,
 } from "@/types";
 import {
   SocialPreview,
@@ -65,8 +66,12 @@ function previewDate(value: string) {
   });
 }
 
-function getDraftPreviewData(draft: SocialMediaDraft, crests: SocialMediaCrest[]) {
-  const assets = buildDraftAssets(draft, crests);
+function getDraftPreviewData(
+  draft: SocialMediaDraft,
+  crests: SocialMediaCrest[],
+  assetsLibrary: SocialMediaAsset[] = [],
+) {
+  const assets = buildDraftAssets(draft, crests, assetsLibrary);
   const rawLayers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
   const layers = rawLayers.map(normalizeLayer);
   return { assets, layers };
@@ -80,6 +85,7 @@ export default function BoardMailboxPage() {
   const matchRescheduleRequests = useAppStore((state) => state.matchRescheduleRequests);
   const socialMediaDrafts = useAppStore((state) => state.socialMediaDrafts);
   const socialMediaCrests = useAppStore((state) => state.socialMediaCrests);
+  const socialMediaAssets = useAppStore((state) => state.socialMediaAssets);
   const settings = useAppStore((state) => state.settings);
   const approvePlayerApplication = useAppStore((state) => state.approvePlayerApplication);
   const rejectPlayerApplication = useAppStore((state) => state.rejectPlayerApplication);
@@ -170,7 +176,7 @@ export default function BoardMailboxPage() {
     let wrap: HTMLDivElement | null = null;
     let root: Root | null = null;
     try {
-      const baseAssets = buildDraftAssets(draft, socialMediaCrests);
+      const baseAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
       const finalLogoUrl = clubLogoUrl ?? null;
 
       const fetchDataUrl = async (rawSrc: string): Promise<string> => {
@@ -380,7 +386,7 @@ export default function BoardMailboxPage() {
             <div className="space-y-5">
               {submittedInboxDrafts.length ? (
                 submittedInboxDrafts.map((draft) => {
-                  const { assets, layers } = getDraftPreviewData(draft, socialMediaCrests);
+                  const { assets, layers } = getDraftPreviewData(draft, socialMediaCrests, socialMediaAssets);
                   const hashtagsText = (draft.hashtags ?? []).filter(Boolean).map(tag =>
                     tag.startsWith("#") ? tag : `#${tag}`,
                   ).join(" ");

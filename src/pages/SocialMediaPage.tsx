@@ -46,6 +46,7 @@ import type {
   SocialMediaTextAlign,
   SocialMediaTextEffect,
   UserProfile,
+  SocialMediaAsset,
 } from "@/types";
 
 export const SHARED_CREST_PREFIX = "/uploads/social-media-crests/";
@@ -97,17 +98,49 @@ function getFileNameFromUrl(url: string, fallback = "Bild") {
   }
 }
 
-export function buildDraftAssets(draft: SocialMediaDraft, crests: SocialMediaCrest[]): EditorAsset[] {
+export function buildDraftAssets(
+  draft: SocialMediaDraft,
+  crests: SocialMediaCrest[],
+  assetsLibrary: SocialMediaAsset[] = [],
+): EditorAsset[] {
   const assets = new Map<string, EditorAsset>();
 
-  draft.imageUrls.forEach((url, index) => {
-    assets.set(url, {
-      id: `existing-${index}-${url}`,
-      ref: url,
+  assetsLibrary.forEach((asset, index) => {
+    const editorAsset: EditorAsset = {
+      id: asset.id,
+      ref: asset.id,
       kind: "existing",
-      url,
-      fileName: getFileNameFromUrl(url),
-    });
+      url: asset.imageUrl,
+      fileName: asset.name || getFileNameFromUrl(asset.imageUrl),
+    };
+    assets.set(asset.id, editorAsset);
+    assets.set(asset.imageUrl, editorAsset);
+    if (asset.name) {
+      assets.set(asset.name, editorAsset);
+      const cleanedName = asset.name.replace(/\.[^.]+$/, "");
+      if (cleanedName && cleanedName !== asset.name) {
+        assets.set(cleanedName, editorAsset);
+      }
+    }
+    const basename = asset.imageUrl.split("/").pop()?.split("?")[0] ?? "";
+    if (basename) {
+      assets.set(basename, editorAsset);
+      const cleanBase = basename.replace(/\.[^.]+$/, "");
+      if (cleanBase) assets.set(cleanBase, editorAsset);
+    }
+    void index;
+  });
+
+  draft.imageUrls.forEach((url, index) => {
+    if (!assets.has(url)) {
+      assets.set(url, {
+        id: `existing-${index}-${url}`,
+        ref: url,
+        kind: "existing",
+        url,
+        fileName: getFileNameFromUrl(url),
+      });
+    }
   });
 
   draft.layers.forEach((layer, index) => {
@@ -120,26 +153,38 @@ export function buildDraftAssets(draft: SocialMediaDraft, crests: SocialMediaCre
 
     if (isSharedCrestRef(layer.imageRef)) {
       const crest = crests.find((entry) => entry.imageUrl === layer.imageRef);
-      assets.set(layer.imageRef, {
+      const created: EditorAsset = {
         id: `shared-${crest?.id ?? index}-${layer.imageRef}`,
         ref: layer.imageRef,
         kind: "existing",
         url: layer.imageRef,
         fileName: crest?.name ? `${crest.name}.png` : getFileNameFromUrl(layer.imageRef, crest?.name ?? "Wappen"),
-      });
+      };
+      assets.set(layer.imageRef, created);
+      const crestBasename = layer.imageRef.split("/").pop()?.split("?")[0] ?? "";
+      if (crestBasename) {
+        assets.set(crestBasename, created);
+      }
       return;
     }
 
-    assets.set(layer.imageRef, {
+    const created: EditorAsset = {
       id: `layer-${index}-${layer.imageRef}`,
       ref: layer.imageRef,
       kind: "existing",
       url: layer.imageRef,
       fileName: layer.imageFileName ?? getFileNameFromUrl(layer.imageRef),
-    });
+    };
+    assets.set(layer.imageRef, created);
   });
 
-  return [...assets.values()];
+  const unique = new Map<string, EditorAsset>();
+  for (const editorAsset of assets.values()) {
+    if (!unique.has(editorAsset.id)) {
+      unique.set(editorAsset.id, editorAsset);
+    }
+  }
+  return [...unique.values()];
 }
 
 const fallbackLayoutOptions: SocialMediaLayoutOption[] = [
@@ -1243,7 +1288,7 @@ export default function SocialMediaPage() {
 
     setExportingJpgId(draft.id);
     try {
-      const previewAssets = buildDraftAssets(draft, socialMediaCrests);
+      const previewAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
       const previewLayers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
       const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
       const wrap = document.createElement("div");
@@ -1527,7 +1572,7 @@ export default function SocialMediaPage() {
     }
     setEditorHashtags(base);
     setEditorPostingText(draft.postingText ?? "");
-    const assets = buildDraftAssets(draft, socialMediaCrests);
+    const assets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
     setEditorAssets(assets);
     const layers = (draft.layers.length ? draft.layers : buildFallbackLayers(draft)).map(normalizeLayer);
     setEditorLayers(layers);
@@ -1581,7 +1626,7 @@ export default function SocialMediaPage() {
 
     setEditorDraftType(draft.draftType);
     setEditorLayout(draft.layout);
-    setEditorAssets(buildDraftAssets(draft, socialMediaCrests));
+    setEditorAssets(buildDraftAssets(draft, socialMediaCrests, socialMediaAssets));
     const layers = (draft.layers.length ? draft.layers : buildFallbackLayers(draft)).map(normalizeLayer);
     setEditorLayers(layers);
     setActiveLayerId(layers[0]?.id ?? null);
@@ -2223,7 +2268,7 @@ export default function SocialMediaPage() {
                                   ? selectedTemplate.layers
                                   : buildFallbackLayers(selectedTemplate)
                               }
-                              assets={buildDraftAssets(selectedTemplate, socialMediaCrests)}
+                              assets={buildDraftAssets(selectedTemplate, socialMediaCrests, socialMediaAssets)}
                               logoUrl={settings.logoUrl}
                             />
                           </div>
@@ -2275,7 +2320,7 @@ export default function SocialMediaPage() {
 
                     <div className="grid gap-4 md:grid-cols-2">
                       {templateDrafts.map((draft) => {
-                        const previewAssets = buildDraftAssets(draft, socialMediaCrests);
+                        const previewAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
                         const previewLayers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
 
                         return (
@@ -2355,7 +2400,7 @@ export default function SocialMediaPage() {
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       {releasedTemplateDrafts.map((draft) => {
-                        const previewAssets = buildDraftAssets(draft, socialMediaCrests);
+                        const previewAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
                         const previewLayers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
 
                         return (
@@ -2429,7 +2474,7 @@ export default function SocialMediaPage() {
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       {submittedInboxDrafts.map((draft) => {
-                        const previewAssets = buildDraftAssets(draft, socialMediaCrests);
+                        const previewAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
                         const previewLayers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
                         const hashtagsLine =
                           draft.hashtags && draft.hashtags.length > 0
@@ -2537,7 +2582,7 @@ export default function SocialMediaPage() {
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       {editableDrafts.map((draft) => {
-                        const previewAssets = buildDraftAssets(draft, socialMediaCrests);
+                        const previewAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
                         const previewLayers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
                         const hashtagsLine =
                           draft.hashtags && draft.hashtags.length > 0
