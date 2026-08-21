@@ -764,7 +764,7 @@ function SocialPreview({
     startLetterSpacing?: number;
   } | null>(null);
   const resolveAssetUrl = (ref?: string) => assets.find((asset) => asset.ref === ref)?.url;
-  const visibleLayers = layers.filter((layer) => layer.enabled);
+  const visibleLayers = layers.filter((layer) => layer.enabled ?? true);
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {

@@ -109,66 +109,102 @@ const parseLayers = (value: string | null | undefined) => {
       heightPercent?: number
       lockPosition?: boolean
       lockSize?: boolean
+      keepAspectRatio?: boolean
+      baseAspectRatio?: number
       fontFamily?: string
       fontSize?: number
       textColor?: string
       textAlign?: string
       textEffect?: string
+      strokeColor?: string
+      strokeWidth?: number
+      lineHeight?: number
+      letterSpacing?: number
+      lockPosition?: boolean
+      lockSize?: boolean
     }>
   }
+
+  const acceptedKinds = new Set(['image', 'badge', 'title', 'subtitle', 'caption', 'cta'])
+  const acceptedPositions = new Set([
+    'full', 'topLeft', 'topRight', 'center',
+    'bottomLeft', 'bottomCenter', 'bottomRight',
+  ])
+  const acceptedStyles = new Set([
+    'cover', 'original', 'soft', 'cutout', 'glass', 'solid', 'pill', 'clean',
+  ])
+  const acceptedTextAligns = new Set(['left', 'center', 'right'])
+  const acceptedTextEffects = new Set(['none', 'shadow', 'outline'])
 
   try {
     const parsed = JSON.parse(value) as unknown
     if (Array.isArray(parsed)) {
-      return parsed.filter(
-        (
-          entry,
-        ): entry is {
-          id: string
-          kind: string
-          label: string
-          position: string
-          style: string
-          imageRef?: string
-          text?: string
-          enabled: boolean
-          centerX?: number
-          centerY?: number
-          widthPercent?: number
-          heightPercent?: number
-          lockPosition?: boolean
-          lockSize?: boolean
-          fontFamily?: string
-          fontSize?: number
-          textColor?: string
-          textAlign?: string
-          textEffect?: string
-        } =>
-          Boolean(
-            entry &&
-              typeof entry === 'object' &&
-              typeof (entry as { id?: unknown }).id === 'string' &&
-              typeof (entry as { kind?: unknown }).kind === 'string' &&
-              typeof (entry as { label?: unknown }).label === 'string' &&
-              typeof (entry as { position?: unknown }).position === 'string' &&
-              typeof (entry as { style?: unknown }).style === 'string' &&
-              typeof (entry as { enabled?: unknown }).enabled === 'boolean' &&
-              ((entry as { lockPosition?: unknown }).lockPosition === undefined ||
-                typeof (entry as { lockPosition?: unknown }).lockPosition === 'boolean') &&
-              ((entry as { lockSize?: unknown }).lockSize === undefined ||
-                typeof (entry as { lockSize?: unknown }).lockSize === 'boolean') &&
-              ((entry as { fontFamily?: unknown }).fontFamily === undefined ||
-                typeof (entry as { fontFamily?: unknown }).fontFamily === 'string') &&
-              ((entry as { fontSize?: unknown }).fontSize === undefined ||
-                typeof (entry as { fontSize?: unknown }).fontSize === 'number') &&
-              ((entry as { textColor?: unknown }).textColor === undefined ||
-                typeof (entry as { textColor?: unknown }).textColor === 'string') &&
-              ((entry as { textAlign?: unknown }).textAlign === undefined ||
-                typeof (entry as { textAlign?: unknown }).textAlign === 'string') &&
-              ((entry as { textEffect?: unknown }).textEffect === undefined ||
-                typeof (entry as { textEffect?: unknown }).textEffect === 'string'),
-          ),
-      )
+      return parsed
+        .map((entry) => {
+          if (!entry || typeof entry !== 'object') return null
+          const obj = entry as Record<string, unknown>
+          if (
+            typeof obj.id !== 'string' ||
+            typeof obj.kind !== 'string' || !acceptedKinds.has(obj.kind) ||
+            typeof obj.label !== 'string' ||
+            typeof obj.position !== 'string' || !acceptedPositions.has(obj.position) ||
+            typeof obj.style !== 'string' || !acceptedStyles.has(obj.style)
+          ) {
+            return null
+          }
+          if (
+            (obj.imageRef !== undefined && typeof obj.imageRef !== 'string') ||
+            (obj.text !== undefined && typeof obj.text !== 'string') ||
+            (obj.lockPosition !== undefined && typeof obj.lockPosition !== 'boolean') ||
+            (obj.lockSize !== undefined && typeof obj.lockSize !== 'boolean') ||
+            (obj.keepAspectRatio !== undefined && typeof obj.keepAspectRatio !== 'boolean') ||
+            (obj.baseAspectRatio !== undefined && typeof obj.baseAspectRatio !== 'number') ||
+            (obj.fontFamily !== undefined && typeof obj.fontFamily !== 'string') ||
+            (obj.fontSize !== undefined && typeof obj.fontSize !== 'number') ||
+            (obj.textColor !== undefined && typeof obj.textColor !== 'string') ||
+            (obj.textAlign !== undefined && !acceptedTextAligns.has(obj.textAlign as string)) ||
+            (obj.textEffect !== undefined && !acceptedTextEffects.has(obj.textEffect as string)) ||
+            (obj.strokeColor !== undefined && typeof obj.strokeColor !== 'string') ||
+            (obj.strokeWidth !== undefined && typeof obj.strokeWidth !== 'number') ||
+            (obj.lineHeight !== undefined && typeof obj.lineHeight !== 'number') ||
+            (obj.letterSpacing !== undefined && typeof obj.letterSpacing !== 'number') ||
+            (obj.centerX !== undefined && typeof obj.centerX !== 'number') ||
+            (obj.centerY !== undefined && typeof obj.centerY !== 'number') ||
+            (obj.widthPercent !== undefined && typeof obj.widthPercent !== 'number') ||
+            (obj.heightPercent !== undefined && typeof obj.heightPercent !== 'number')
+          ) {
+            return null
+          }
+          return {
+            ...(entry as object),
+            id: obj.id,
+            kind: obj.kind,
+            label: obj.label,
+            position: obj.position,
+            style: obj.style,
+            imageRef: obj.imageRef as string | undefined,
+            text: obj.text as string | undefined,
+            enabled: typeof obj.enabled === 'boolean' ? obj.enabled : true,
+            centerX: obj.centerX as number | undefined,
+            centerY: obj.centerY as number | undefined,
+            widthPercent: obj.widthPercent as number | undefined,
+            heightPercent: obj.heightPercent as number | undefined,
+            lockPosition: typeof obj.lockPosition === 'boolean' ? obj.lockPosition : false,
+            lockSize: typeof obj.lockSize === 'boolean' ? obj.lockSize : false,
+            keepAspectRatio: typeof obj.keepAspectRatio === 'boolean' ? obj.keepAspectRatio : undefined,
+            baseAspectRatio: obj.baseAspectRatio as number | undefined,
+            fontFamily: obj.fontFamily as string | undefined,
+            fontSize: obj.fontSize as number | undefined,
+            textColor: obj.textColor as string | undefined,
+            textAlign: (obj.textAlign as 'left' | 'center' | 'right' | undefined) ?? undefined,
+            textEffect: (obj.textEffect as 'none' | 'shadow' | 'outline' | undefined) ?? undefined,
+            strokeColor: obj.strokeColor as string | undefined,
+            strokeWidth: obj.strokeWidth as number | undefined,
+            lineHeight: obj.lineHeight as number | undefined,
+            letterSpacing: obj.letterSpacing as number | undefined,
+          }
+        })
+        .filter((entry): entry is Exclude<typeof entry, null> => entry !== null)
     }
   } catch {
     return []

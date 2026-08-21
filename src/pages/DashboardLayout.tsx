@@ -58,6 +58,7 @@ export default function DashboardLayout() {
   const tournamentOffers = useAppStore((state) => state.tournamentOffers);
   const matchRescheduleRequests = useAppStore((state) => state.matchRescheduleRequests);
   const pendingPlayerApplications = useAppStore((state) => state.pendingPlayerApplications);
+  const socialMediaDrafts = useAppStore((state) => state.socialMediaDrafts);
   const customExternalLinks = useAppStore((state) => state.customExternalLinks);
   const navigate = useNavigate();
   const location = useLocation();
@@ -266,7 +267,10 @@ export default function DashboardLayout() {
       const openReschedules = matchRescheduleRequests.filter(
         (entry) => entry.status === "pending" || entry.status === "in_progress",
       ).length;
-      return openPlayerApplications + openReschedules;
+      const openSocialPostings = socialMediaDrafts.filter(
+        (draft) => !draft.isTemplate && draft.status === "submitted",
+      ).length;
+      return openPlayerApplications + openReschedules + openSocialPostings;
     }
 
     if (currentUser.role === "trainer") {
