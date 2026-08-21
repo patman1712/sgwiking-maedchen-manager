@@ -46,7 +46,8 @@ const buildPayload = (teamId: string, actorId: string) => {
   const manualEvents = (
     db.prepare(
       `
-        SELECT id, team_id, title, description, location, starts_at, ends_at, category, created_by, created_at
+        SELECT id, team_id, title, description, location, starts_at, ends_at, category, created_by, created_at,
+               recurrence_id, recurrence_pattern, recurrence_ordinal, recurrence_total, recurrence_edited_individually
         FROM team_events
         WHERE team_id = ?
         ORDER BY starts_at ASC, created_at ASC
@@ -75,6 +76,12 @@ const buildPayload = (teamId: string, actorId: string) => {
     sourceType: 'manual' as const,
     createdBy: row.created_by,
     createdAt: row.created_at,
+    recurrenceId: (row as { recurrence_id?: string }).recurrence_id || '',
+    recurrencePattern: (row as { recurrence_pattern?: string }).recurrence_pattern || '',
+    recurrenceOrdinal: Number((row as { recurrence_ordinal?: number }).recurrence_ordinal ?? 0),
+    recurrenceTotal: Number((row as { recurrence_total?: number }).recurrence_total ?? 0),
+    recurrenceEditedIndividually:
+      Number((row as { recurrence_edited_individually?: number }).recurrence_edited_individually ?? 0) === 1,
   }))
 
   const responseRows = db.prepare(
@@ -293,12 +300,16 @@ router.post('/', (req: Request, res: Response) => {
 
   const insertEvent = db.prepare(`
     INSERT INTO team_events (
-      id, team_id, title, description, location, starts_at, ends_at, category, created_by, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      id, team_id, title, description, location, starts_at, ends_at, category, created_by, created_at,
+      recurrence_id, recurrence_pattern, recurrence_ordinal, recurrence_total, recurrence_edited_individually
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
   `)
   const timestamp = now()
+  const recurrenceId = repeatWeekly && occurrences.length > 1 ? createId('recurrence') : ''
+  const pattern = repeatWeekly && occurrences.length > 1 ? 'weekly' : ''
+  const total = occurrences.length
 
-  occurrences.forEach((occurrence) => {
+  occurrences.forEach((occurrence, index) => {
     insertEvent.run(
       createId('event'),
       teamId,
@@ -310,6 +321,10 @@ router.post('/', (req: Request, res: Response) => {
       category?.trim() || 'training',
       actorId,
       timestamp,
+      recurrenceId,
+      pattern,
+      index + 1,
+      total,
     )
   })
 
@@ -410,10 +425,305 @@ router.post('/response', (req: Request, res: Response) => {
   })
 })
 
+type RecurrenceScope = 'single' | 'this_and_future' | 'all'
+
+const validateRecurrenceScope = (value: unknown): RecurrenceScope => {
+  if (value === 'single' || value === 'this_and_future' || value === 'all') {
+    return value
+  }
+  return 'single'
+}
+
+const getRecurrenceRelatedEvents = (
+  teamId: string,
+  baseEvent: {
+    id: string
+    recurrence_id: string
+    starts_at: string
+    recurrence_edited_individually: number
+  },
+  scope: RecurrenceScope,
+) => {
+  const baseStartsAt = new Date(baseEvent.starts_at).getTime()
+  const baseOrdinalRow = db
+    .prepare(
+      'SELECT recurrence_ordinal FROM team_events WHERE id = ? AND team_id = ? LIMIT 1',
+    )
+    .get(baseEvent.id, teamId) as { recurrence_ordinal: number } | undefined
+  const baseOrdinal = Number(baseOrdinalRow?.recurrence_ordinal ?? 0)
+
+  if (!baseEvent.recurrence_id || baseEvent.recurrence_edited_individually === 1 || scope === 'single') {
+    return {
+      toModify: [baseEvent.id],
+      toRemoveFromRecurrence: [] as string[],
+      newRecurrenceId: '',
+    }
+  }
+
+  if (scope === 'all') {
+    const rowIds = (
+      db
+        .prepare(
+          'SELECT id FROM team_events WHERE team_id = ? AND recurrence_id = ? ORDER BY starts_at ASC',
+        )
+        .all(teamId, baseEvent.recurrence_id) as Array<{ id: string }>
+    ).map((row) => row.id)
+    return { toModify: rowIds, toRemoveFromRecurrence: [] as string[], newRecurrenceId: '' }
+  }
+
+  const futureRows = (
+    db
+      .prepare(
+        'SELECT id, starts_at, recurrence_ordinal FROM team_events WHERE team_id = ? AND recurrence_id = ? ORDER BY starts_at ASC',
+      )
+      .all(teamId, baseEvent.recurrence_id) as Array<{
+      id: string
+      starts_at: string
+      recurrence_ordinal: number
+    }>
+  ).filter((row) => {
+    const startsAt = new Date(row.starts_at).getTime()
+    return (
+      startsAt >= baseStartsAt ||
+      (Number.isFinite(baseOrdinal) && baseOrdinal > 0 && Number(row.recurrence_ordinal) >= baseOrdinal)
+    )
+  })
+
+  const futureIds = futureRows.map((row) => row.id)
+  return {
+    toModify: futureIds,
+    toRemoveFromRecurrence: futureIds,
+    newRecurrenceId: createId('recurrence'),
+  }
+}
+
+router.put('/:eventId', (req: Request, res: Response) => {
+  const { eventId } = req.params
+  const {
+    actorId,
+    title,
+    description,
+    location,
+    startsAt,
+    endsAt,
+    category,
+    scope,
+  } = req.body as {
+    actorId?: string
+    title?: string
+    description?: string
+    location?: string
+    startsAt?: string
+    endsAt?: string
+    category?: string
+    scope?: unknown
+  }
+
+  if (!eventId || !actorId) {
+    res.status(400).json({ success: false, error: 'Ungueltige Anfrage.' })
+    return
+  }
+
+  const actor = getUserRowById(actorId)
+  const eventRow = db
+    .prepare(
+      `SELECT id, team_id, recurrence_id, starts_at, recurrence_edited_individually
+       FROM team_events WHERE id = ? LIMIT 1`,
+    )
+    .get(eventId) as
+    | {
+      id: string
+      team_id: string
+      recurrence_id: string
+      starts_at: string
+      recurrence_edited_individually: number
+    }
+    | undefined
+
+  if (!eventRow) {
+    res.status(404).json({ success: false, error: 'Termin nicht gefunden.' })
+    return
+  }
+
+  if (!actor || !canManageTeamEvents(actorId, eventRow.team_id)) {
+    res.status(403).json({ success: false, error: 'Termine koennen nur von Trainer, Admin oder Vorstand bearbeitet werden.' })
+    return
+  }
+
+  const normalizedScope = validateRecurrenceScope(scope)
+  const related = getRecurrenceRelatedEvents(eventRow.team_id, eventRow, normalizedScope)
+
+  const current = db
+    .prepare(
+      `SELECT * FROM team_events WHERE id = ? AND team_id = ? LIMIT 1`,
+    )
+    .get(eventId, eventRow.team_id) as {
+    title: string
+    description: string
+    location: string
+    starts_at: string
+    ends_at: string
+    category: string
+  }
+
+  const nextTitle = title?.trim() ?? current.title
+  const nextDescription = description?.trim() ?? current.description
+  const nextLocation = location?.trim() ?? current.location
+  const nextCategory = category?.trim() || current.category || 'training'
+  const rawNextStartsAt = startsAt ?? current.starts_at
+  const rawNextEndsAt = endsAt ?? current.ends_at
+  const nextStartsAtDate = new Date(rawNextStartsAt)
+  const nextEndsAtDate = rawNextEndsAt ? new Date(rawNextEndsAt) : null
+  if (Number.isNaN(nextStartsAtDate.getTime()) || (nextEndsAtDate && Number.isNaN(nextEndsAtDate.getTime()))) {
+    res.status(400).json({ success: false, error: 'Ungueltiges Datum/Uhrzeit.' })
+    return
+  }
+
+  const durationMs =
+    nextEndsAtDate
+      ? nextEndsAtDate.getTime() - nextStartsAtDate.getTime()
+      : (current.ends_at ? new Date(current.ends_at).getTime() - new Date(current.starts_at).getTime() : 0)
+
+  const updateOne = db.prepare(`
+    UPDATE team_events
+    SET title = ?, description = ?, location = ?, starts_at = ?, ends_at = ?, category = ?,
+        recurrence_edited_individually = CASE WHEN ? = 1 THEN 1 ELSE recurrence_edited_individually END,
+        recurrence_id = COALESCE(NULLIF(?, ''), recurrence_id)
+    WHERE id = ? AND team_id = ?
+  `)
+
+  let modified = 0
+  related.toModify.forEach((id, index) => {
+    const row = db.prepare('SELECT starts_at FROM team_events WHERE id = ? AND team_id = ?').get(
+      id,
+      eventRow.team_id,
+    ) as { starts_at: string } | undefined
+    if (!row) {
+      return
+    }
+
+    let effectiveStart: Date
+    let effectiveEnd: string | null
+
+    if (normalizedScope === 'single') {
+      effectiveStart = nextStartsAtDate
+      effectiveEnd = nextEndsAtDate ? nextEndsAtDate.toISOString() : null
+    } else if (normalizedScope === 'all') {
+      if (index === 0) {
+        effectiveStart = nextStartsAtDate
+        effectiveEnd = nextEndsAtDate ? nextEndsAtDate.toISOString() : null
+      } else {
+        const prevRow = db
+          .prepare('SELECT starts_at FROM team_events WHERE id = ? AND team_id = ?')
+          .get(related.toModify[index - 1], eventRow.team_id) as { starts_at: string } | undefined
+        const prevStart = prevRow ? new Date(prevRow.starts_at) : nextStartsAtDate
+        effectiveStart = new Date(prevStart.getTime() + 7 * 24 * 60 * 60 * 1000)
+        effectiveEnd = durationMs ? new Date(effectiveStart.getTime() + durationMs).toISOString() : null
+      }
+    } else {
+      if (id === eventId) {
+        effectiveStart = nextStartsAtDate
+        effectiveEnd = nextEndsAtDate ? nextEndsAtDate.toISOString() : null
+      } else {
+        const prevId = related.toModify[index - 1]
+        const prevRow = prevId
+          ? (db
+              .prepare('SELECT starts_at FROM team_events WHERE id = ? AND team_id = ?')
+              .get(prevId, eventRow.team_id) as { starts_at: string } | undefined)
+          : undefined
+        const prevStart = prevRow ? new Date(prevRow.starts_at) : nextStartsAtDate
+        effectiveStart = new Date(prevStart.getTime() + 7 * 24 * 60 * 60 * 1000)
+        effectiveEnd = durationMs ? new Date(effectiveStart.getTime() + durationMs).toISOString() : null
+      }
+    }
+
+    const newRecurrenceIdForRow =
+      normalizedScope === 'this_and_future' && related.toRemoveFromRecurrence.includes(id)
+        ? related.newRecurrenceId
+        : ''
+
+    updateOne.run(
+      nextTitle,
+      nextDescription,
+      nextLocation,
+      effectiveStart.toISOString(),
+      effectiveEnd ?? '',
+      nextCategory,
+      normalizedScope === 'single' ? 1 : 0,
+      newRecurrenceIdForRow,
+      id,
+      eventRow.team_id,
+    )
+    modified += 1
+  })
+
+  if (normalizedScope === 'this_and_future' && related.newRecurrenceId) {
+    const remaining = (
+      db
+        .prepare(
+          'SELECT id, recurrence_ordinal FROM team_events WHERE team_id = ? AND recurrence_id = ? ORDER BY starts_at ASC',
+        )
+        .all(eventRow.team_id, eventRow.recurrence_id) as Array<{ id: string; recurrence_ordinal: number }>
+    )
+    const newTotal = remaining.length
+    const oldTotalForNew = related.toRemoveFromRecurrence.length
+    remaining.forEach((row, idx) => {
+      db.prepare('UPDATE team_events SET recurrence_total = ?, recurrence_ordinal = ? WHERE id = ?').run(
+        newTotal,
+        idx + 1,
+        row.id,
+      )
+    })
+    ;(
+      db
+        .prepare(
+          'SELECT id, recurrence_ordinal FROM team_events WHERE team_id = ? AND recurrence_id = ? ORDER BY starts_at ASC',
+        )
+        .all(eventRow.team_id, related.newRecurrenceId) as Array<{ id: string; recurrence_ordinal: number }>
+    ).forEach((row, idx) => {
+      db.prepare('UPDATE team_events SET recurrence_total = ?, recurrence_ordinal = ? WHERE id = ?').run(
+        oldTotalForNew,
+        idx + 1,
+        row.id,
+      )
+    })
+  }
+
+  if (normalizedScope === 'all' && eventRow.recurrence_id) {
+    const allRowIds = (
+      db
+        .prepare(
+          'SELECT id FROM team_events WHERE team_id = ? AND recurrence_id = ? ORDER BY starts_at ASC',
+        )
+        .all(eventRow.team_id, eventRow.recurrence_id) as Array<{ id: string }>
+    ).map((row) => row.id)
+    allRowIds.forEach((_id, idx) => {
+      db.prepare('UPDATE team_events SET recurrence_ordinal = ?, recurrence_total = ? WHERE id = ?').run(
+        idx + 1,
+        allRowIds.length,
+        related.toModify[idx],
+      )
+    })
+  }
+
+  res.json({
+    success: true,
+    modifiedCount: modified,
+    scope: normalizedScope,
+    ...buildPayload(eventRow.team_id, actorId),
+  })
+})
+
 router.delete('/:eventId', (req: Request, res: Response) => {
   const { eventId } = req.params
   const teamId = typeof req.query.teamId === 'string' ? req.query.teamId : ''
-  const actorId = typeof req.query.actorId === 'string' ? req.query.actorId : ''
+  const actorId =
+    (typeof req.query.actorId === 'string' ? req.query.actorId : '') ||
+    (req.body?.actorId as string | undefined) ||
+    ''
+  const scope = validateRecurrenceScope(
+    (req.body as { scope?: unknown } | null)?.scope ?? req.query.scope,
+  )
 
   if (!eventId || !teamId || !actorId) {
     res.status(400).json({ success: false, error: 'Ungueltige Anfrage.' })
@@ -422,19 +732,58 @@ router.delete('/:eventId', (req: Request, res: Response) => {
 
   const actor = getUserRowById(actorId)
   const event = db
-    .prepare('SELECT id FROM team_events WHERE id = ? AND team_id = ?')
-    .get(eventId, teamId) as { id: string } | undefined
+    .prepare(
+      `SELECT id, team_id, recurrence_id, starts_at, recurrence_edited_individually
+       FROM team_events WHERE id = ? AND team_id = ? LIMIT 1`,
+    )
+    .get(eventId, teamId) as
+    | {
+      id: string
+      team_id: string
+      recurrence_id: string
+      starts_at: string
+      recurrence_edited_individually: number
+    }
+    | undefined
 
   if (!actor || !event || !canManageTeamEvents(actorId, teamId)) {
     res.status(403).json({ success: false, error: 'Nur Trainer, Admin oder Vorstand duerfen Termine loeschen.' })
     return
   }
 
-  db.prepare('DELETE FROM team_events WHERE id = ?').run(eventId)
-  db.prepare('DELETE FROM team_event_responses WHERE event_id = ?').run(eventId)
+  const related = getRecurrenceRelatedEvents(teamId, event, scope)
+  let removed = 0
+  related.toModify.forEach((id) => {
+    const found = db.prepare('SELECT id FROM team_events WHERE id = ? AND team_id = ?').get(id, teamId)
+    if (!found) {
+      return
+    }
+    db.prepare('DELETE FROM team_events WHERE id = ? AND team_id = ?').run(id, teamId)
+    db.prepare('DELETE FROM team_event_responses WHERE event_id = ?').run(id)
+    removed += 1
+  })
+
+  if (scope === 'this_and_future' && event.recurrence_id) {
+    const remaining = (
+      db
+        .prepare(
+          'SELECT id FROM team_events WHERE team_id = ? AND recurrence_id = ? ORDER BY starts_at ASC',
+        )
+        .all(teamId, event.recurrence_id) as Array<{ id: string }>
+    )
+    remaining.forEach((row, idx) => {
+      db.prepare('UPDATE team_events SET recurrence_ordinal = ?, recurrence_total = ? WHERE id = ?').run(
+        idx + 1,
+        remaining.length,
+        row.id,
+      )
+    })
+  }
 
   res.json({
     success: true,
+    deletedCount: removed,
+    scope,
     ...buildPayload(teamId, actorId),
   })
 })

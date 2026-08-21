@@ -12,6 +12,7 @@ import {
   MapPin,
   MessageSquare,
   Package,
+  Pencil,
   Plus,
   Shield,
   Trash2,
@@ -48,6 +49,11 @@ type ManualTeamEvent = {
   sourceType: "manual";
   createdBy: string;
   createdAt: string;
+  recurrenceId: string;
+  recurrencePattern: string;
+  recurrenceOrdinal: number;
+  recurrenceTotal: number;
+  recurrenceEditedIndividually: boolean;
 };
 
 type TeamEventSummary = {
@@ -94,7 +100,20 @@ type UnifiedTeamEvent = {
   sourceType: "manual" | "match" | "tournament";
   relatedMatchId?: string;
   tournamentPlanUrl?: string | null;
+  recurrenceId: string;
+  recurrencePattern: string;
+  recurrenceOrdinal: number;
+  recurrenceTotal: number;
+  recurrenceEditedIndividually: boolean;
 };
+
+type RecurrenceScope = "single" | "this_and_future" | "all";
+type RecurrencePrompt = {
+  mode: "edit" | "delete";
+  event: UnifiedTeamEvent;
+  onChoose: (scope: RecurrenceScope) => void;
+  onCancel: () => void;
+} | null;
 
 export default function TeamDetailPage() {
   const { teamId, section } = useParams();
@@ -291,6 +310,18 @@ export default function TeamDetailPage() {
   });
   const [showEventSettingsForm, setShowEventSettingsForm] = useState(false);
   const [showEventCreateForm, setShowEventCreateForm] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [pendingEditScope, setPendingEditScope] = useState<RecurrenceScope>("single");
+  const [eventEditSubmitting, setEventEditSubmitting] = useState(false);
+  const [eventEditForm, setEventEditForm] = useState({
+    title: "",
+    description: "",
+    location: "",
+    startsAt: "",
+    endsAt: "",
+    category: "training",
+  });
+  const [recurrencePrompt, setRecurrencePrompt] = useState<RecurrencePrompt>(null);
   const [responseDetailsModal, setResponseDetailsModal] = useState<{
     eventTitle: string;
     type: "accepted" | "declined";
@@ -733,6 +764,11 @@ export default function TeamDetailPage() {
       endsAt: event.endsAt,
       category: event.category,
       sourceType: "manual" as const,
+      recurrenceId: event.recurrenceId,
+      recurrencePattern: event.recurrencePattern,
+      recurrenceOrdinal: event.recurrenceOrdinal,
+      recurrenceTotal: event.recurrenceTotal,
+      recurrenceEditedIndividually: event.recurrenceEditedIndividually,
     }));
     const acceptedTournaments = tournamentEvents.map((event) => ({
       id: event.id,
@@ -745,6 +781,11 @@ export default function TeamDetailPage() {
       category: event.category,
       sourceType: "tournament" as const,
       tournamentPlanUrl: event.tournamentPlanUrl ?? null,
+      recurrenceId: "",
+      recurrencePattern: "",
+      recurrenceOrdinal: 0,
+      recurrenceTotal: 0,
+      recurrenceEditedIndividually: false,
     }));
 
     const derivedMatches = teamMatches.map((match) => ({
@@ -761,6 +802,11 @@ export default function TeamDetailPage() {
       category: "match",
       sourceType: "match" as const,
       relatedMatchId: match.id,
+      recurrenceId: "",
+      recurrencePattern: "",
+      recurrenceOrdinal: 0,
+      recurrenceTotal: 0,
+      recurrenceEditedIndividually: false,
     }));
 
     return [...manual, ...acceptedTournaments, ...derivedMatches].sort(
@@ -837,6 +883,127 @@ export default function TeamDetailPage() {
     [nowDate, unifiedTeamEvents],
   );
 
+  const isPartOfRecurrenceSeries = (evt: UnifiedTeamEvent) =>
+    !!evt.recurrenceId && evt.recurrenceTotal > 1 && !evt.recurrenceEditedIndividually;
+
+  const executeDeleteManualEvent = async (evt: UnifiedTeamEvent, scope: RecurrenceScope) => {
+    if (!currentUserId) {
+      return;
+    }
+    setEventsError("");
+    setEventsMessage("");
+    setEventDeletingId(evt.id);
+    try {
+      const response = await fetch(
+        `/api/events/${evt.id}?teamId=${encodeURIComponent(team.id)}&actorId=${encodeURIComponent(currentUserId)}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ actorId: currentUserId, scope }),
+        },
+      );
+      const data = await response.json();
+      if (!response.ok || data.success === false) {
+        throw new Error(data.error || "Termin konnte nicht geloescht werden.");
+      }
+      setManualEvents(data.manualEvents ?? []);
+      setTournamentEvents(data.tournamentEvents ?? []);
+      setEventSummaries(data.responseSummaries ?? []);
+      setEventResponseDetails(data.responseDetails ?? []);
+      setEventSettings(data.settings ?? { responseCloseHoursBefore: 24 });
+      setEventsMessage(
+        `${data.deletedCount ?? 1} Termin(e) wurden geloescht${scope !== "single" ? ` (${scope === "all" ? "ganze Serie" : "diese + zukuenftige"}).` : "."}`,
+      );
+    } catch (error) {
+      setEventsError(
+        error instanceof Error ? error.message : "Termin konnte nicht geloescht werden.",
+      );
+    } finally {
+      setEventDeletingId(null);
+    }
+  };
+
+  const openEventEditDraft = (evt: UnifiedTeamEvent) => {
+    const start = new Date(evt.startsAt);
+    const startLocal = new Date(
+      start.getTime() - start.getTimezoneOffset() * 60 * 1000,
+    );
+    const startInput = startLocal.toISOString().slice(0, 16);
+    let endInput = "";
+    if (evt.endsAt) {
+      const end = new Date(evt.endsAt);
+      const endLocal = new Date(end.getTime() - end.getTimezoneOffset() * 60 * 1000);
+      endInput = endLocal.toISOString().slice(0, 16);
+    }
+    setEditingEventId(evt.id);
+    setEventEditForm({
+      title: evt.title,
+      description: evt.description,
+      location: evt.location,
+      startsAt: startInput,
+      endsAt: endInput,
+      category: evt.category || "training",
+    });
+  };
+
+  const executeUpdateManualEvent = async () => {
+    if (!currentUserId || !editingEventId) {
+      return;
+    }
+    const evt = unifiedTeamEvents.find((entry) => entry.id === editingEventId);
+    if (!evt) {
+      setEventsError("Dieser Termin existiert aktuell nicht mehr.");
+      return;
+    }
+    const scope = pendingEditScope;
+    const startsAtIso = eventEditForm.startsAt
+      ? new Date(eventEditForm.startsAt).toISOString()
+      : "";
+    const endsAtIso = eventEditForm.endsAt ? new Date(eventEditForm.endsAt).toISOString() : "";
+    if (!startsAtIso) {
+      setEventsError("Bitte einen gueltigen Startzeitpunkt angeben.");
+      return;
+    }
+    setEventsError("");
+    setEventsMessage("");
+    setEventEditSubmitting(true);
+    try {
+      const response = await fetch(`/api/events/${editingEventId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actorId: currentUserId,
+          title: eventEditForm.title,
+          description: eventEditForm.description,
+          location: eventEditForm.location,
+          startsAt: startsAtIso,
+          endsAt: endsAtIso,
+          category: eventEditForm.category,
+          scope,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || data.success === false) {
+        throw new Error(data.error || "Termin konnte nicht bearbeitet werden.");
+      }
+      setManualEvents(data.manualEvents ?? []);
+      setTournamentEvents(data.tournamentEvents ?? []);
+      setEventSummaries(data.responseSummaries ?? []);
+      setEventResponseDetails(data.responseDetails ?? []);
+      setEventSettings(data.settings ?? { responseCloseHoursBefore: 24 });
+      setEditingEventId(null);
+      setEventsMessage(
+        `${data.modifiedCount ?? 1} Termin(e) wurden aktualisiert${scope !== "single" ? ` (${scope === "all" ? "ganze Serie" : "diese + zukuenftige"}).` : "."}`,
+      );
+    } catch (error) {
+      setEventsError(
+        error instanceof Error ? error.message : "Termin konnte nicht bearbeitet werden.",
+      );
+    } finally {
+      setEventEditSubmitting(false);
+    }
+  };
+
   const renderEventCard = (event: UnifiedTeamEvent, emphasize = false) => {
     const summary = eventSummaryById[event.id];
     const responseDetail = eventResponseDetailsById[event.id];
@@ -844,6 +1011,7 @@ export default function TeamDetailPage() {
     const responseClosed = deadline.getTime() <= Date.now();
     const canViewResponseNames = currentUser?.role === "trainer";
     const isTournament = event.sourceType === "tournament";
+    const partOfSeries = isPartOfRecurrenceSeries(event);
 
     return (
       <div
@@ -865,6 +1033,15 @@ export default function TeamDetailPage() {
                     ? "Turnier"
                     : event.category}
               </span>
+              {partOfSeries ? (
+                <span className="rounded-full bg-violet-100 px-3 py-1 text-[11px] font-semibold text-violet-800">
+                  Serientermin {event.recurrenceOrdinal}/{event.recurrenceTotal}
+                </span>
+              ) : event.recurrenceEditedIndividually ? (
+                <span className="rounded-full bg-slate-200 px-3 py-1 text-[11px] font-semibold text-slate-700">
+                  Aus Serie veraendert
+                </span>
+              ) : null}
               {event.sourceType === "match" ? (
                 <span className="rounded-full bg-blue-100 px-3 py-1 text-[11px] font-semibold text-blue-900">
                   Aus Spielplan
@@ -883,50 +1060,63 @@ export default function TeamDetailPage() {
           </div>
 
           {canManageEventsHere && event.sourceType === "manual" ? (
-            <button
-              type="button"
-              disabled={eventDeletingId === event.id}
-              onClick={async () => {
-                const confirmed = window.confirm("Termin wirklich loeschen?");
-
-                if (!confirmed || !currentUserId) {
-                  return;
-                }
-
-                setEventsError("");
-                setEventsMessage("");
-                setEventDeletingId(event.id);
-
-                try {
-                  const response = await fetch(
-                    `/api/events/${event.id}?teamId=${encodeURIComponent(team.id)}&actorId=${encodeURIComponent(currentUserId)}`,
-                    { method: "DELETE" },
-                  );
-                  const data = await response.json();
-
-                  if (!response.ok || data.success === false) {
-                    throw new Error(data.error || "Termin konnte nicht geloescht werden.");
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={eventDeletingId === event.id || eventEditSubmitting}
+                onClick={() => {
+                  setEventsError("");
+                  setEventsMessage("");
+                  if (partOfSeries) {
+                    setRecurrencePrompt({
+                      mode: "edit",
+                      event,
+                      onCancel: () => setRecurrencePrompt(null),
+                      onChoose: (scope) => {
+                        setRecurrencePrompt(null);
+                        setPendingEditScope(scope);
+                        openEventEditDraft(event);
+                      },
+                    });
+                  } else {
+                    setPendingEditScope("single");
+                    openEventEditDraft(event);
                   }
-
-                  setManualEvents(data.manualEvents ?? []);
-                  setTournamentEvents(data.tournamentEvents ?? []);
-                  setEventSummaries(data.responseSummaries ?? []);
-                  setEventResponseDetails(data.responseDetails ?? []);
-                  setEventSettings(data.settings ?? { responseCloseHoursBefore: 24 });
-                  setEventsMessage("Termin wurde geloescht.");
-                } catch (error) {
-                  setEventsError(
-                    error instanceof Error ? error.message : "Termin konnte nicht geloescht werden.",
-                  );
-                } finally {
-                  setEventDeletingId(null);
-                }
-              }}
-              className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Trash2 size={16} />
-              {eventDeletingId === event.id ? "Loesche..." : "Loeschen"}
-            </button>
+                }}
+                className="inline-flex items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Pencil size={16} />
+                Bearbeiten
+              </button>
+              <button
+                type="button"
+                disabled={eventDeletingId === event.id}
+                onClick={() => {
+                  setEventsError("");
+                  setEventsMessage("");
+                  if (partOfSeries) {
+                    setRecurrencePrompt({
+                      mode: "delete",
+                      event,
+                      onCancel: () => setRecurrencePrompt(null),
+                      onChoose: (scope) => {
+                        setRecurrencePrompt(null);
+                        void executeDeleteManualEvent(event, scope);
+                      },
+                    });
+                  } else {
+                    const confirmed = window.confirm("Termin wirklich loeschen?");
+                    if (confirmed) {
+                      void executeDeleteManualEvent(event, "single");
+                    }
+                  }
+                }}
+                className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Trash2 size={16} />
+                {eventDeletingId === event.id ? "Loesche..." : "Loeschen"}
+              </button>
+            </div>
           ) : null}
         </div>
 
@@ -1143,6 +1333,237 @@ export default function TeamDetailPage() {
                   Noch keine Rueckmeldungen vorhanden.
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {recurrencePrompt ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/35 p-4">
+          <div className="w-full max-w-lg rounded-[2rem] border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-700">
+                  Serientermin {recurrencePrompt.event.recurrenceOrdinal}/
+                  {recurrencePrompt.event.recurrenceTotal}
+                </p>
+                <h3 className="mt-2 text-xl font-semibold text-slate-900">
+                  {recurrencePrompt.mode === "delete"
+                    ? "Termin(e) loeschen"
+                    : "Termin(e) bearbeiten"}
+                </h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  Dieser Termin ist Teil einer wiederkehrenden Termin-Serie. Soll die Aktion
+                  nur fuer diesen Termin gelten, oder auch fuer zukuenftige bzw. alle Termine
+                  dieser Serie?
+                </p>
+                <p className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
+                  {recurrencePrompt.event.title} •{" "}
+                  {new Date(recurrencePrompt.event.startsAt).toLocaleString("de-DE")}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={recurrencePrompt.onCancel}
+                className="shrink-0 rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              <button
+                type="button"
+                onClick={() => recurrencePrompt.onChoose("single")}
+                className="group flex w-full flex-col items-start gap-1 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-blue-300 hover:bg-blue-50/70"
+              >
+                <p className="text-sm font-bold text-slate-900 group-hover:text-blue-900">
+                  Nur diesen Termin
+                </p>
+                <p className="text-xs text-slate-500 group-hover:text-blue-800">
+                  Aktion gilt ausschliesslich fuer den Termin vom{" "}
+                  {new Date(recurrencePrompt.event.startsAt).toLocaleDateString("de-DE")}.
+                  Alle anderen Termine der Serie bleiben unveraendert.
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => recurrencePrompt.onChoose("this_and_future")}
+                className="group flex w-full flex-col items-start gap-1 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-blue-300 hover:bg-blue-50/70"
+              >
+                <p className="text-sm font-bold text-slate-900 group-hover:text-blue-900">
+                  Diesen und alle zukuenftigen Termine
+                </p>
+                <p className="text-xs text-slate-500 group-hover:text-blue-800">
+                  Aktion gilt fuer diesen Termin und alle folgenden Termine dieser Serie.
+                  Vergangene Termine bleiben unveraendert.
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => recurrencePrompt.onChoose("all")}
+                className="group flex w-full flex-col items-start gap-1 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-blue-300 hover:bg-blue-50/70"
+              >
+                <p className="text-sm font-bold text-slate-900 group-hover:text-blue-900">
+                  Alle Termine der Serie
+                </p>
+                <p className="text-xs text-slate-500 group-hover:text-blue-800">
+                  Aktion wird auf ALLE {recurrencePrompt.event.recurrenceTotal} Termine der
+                  gesamten Serie angewendet — auch auf die in der Vergangenheit.
+                </p>
+              </button>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={recurrencePrompt.onCancel}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {editingEventId ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/35 p-4">
+          <div className="w-full max-w-xl rounded-[2rem] border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
+                  Termin bearbeiten
+                </p>
+                <h3 className="mt-2 text-xl font-semibold text-slate-900">
+                  {pendingEditScope === "single"
+                    ? "Einzelnen Termin bearbeiten"
+                    : pendingEditScope === "this_and_future"
+                      ? "Diesen + zukuenftige Termine bearbeiten"
+                      : "Alle Serientermine bearbeiten"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingEventId(null);
+                }}
+                className="shrink-0 rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="block md:col-span-2">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">
+                    Titel
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={eventEditForm.title}
+                    onChange={(evt) =>
+                      setEventEditForm({ ...eventEditForm, title: evt.target.value })
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  />
+                </label>
+                <label className="block md:col-span-2">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">
+                    Beschreibung
+                  </span>
+                  <textarea
+                    rows={3}
+                    value={eventEditForm.description}
+                    onChange={(evt) =>
+                      setEventEditForm({ ...eventEditForm, description: evt.target.value })
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  />
+                </label>
+                <label className="block md:col-span-2">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">
+                    Ort
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={eventEditForm.location}
+                    onChange={(evt) =>
+                      setEventEditForm({ ...eventEditForm, location: evt.target.value })
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">
+                    Start
+                  </span>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={eventEditForm.startsAt}
+                    onChange={(evt) =>
+                      setEventEditForm({ ...eventEditForm, startsAt: evt.target.value })
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">
+                    Ende (optional)
+                  </span>
+                  <input
+                    type="datetime-local"
+                    value={eventEditForm.endsAt}
+                    onChange={(evt) =>
+                      setEventEditForm({ ...eventEditForm, endsAt: evt.target.value })
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  />
+                </label>
+                <label className="block md:col-span-2">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">
+                    Kategorie
+                  </span>
+                  <select
+                    required
+                    value={eventEditForm.category}
+                    onChange={(evt) =>
+                      setEventEditForm({ ...eventEditForm, category: evt.target.value })
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  >
+                    <option value="training">Training</option>
+                    <option value="besprechung">Besprechung</option>
+                    <option value="turnier">Turnier</option>
+                    <option value="spieltag">Spieltag-Event</option>
+                    <option value="sonstiges">Sonstiges</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingEventId(null);
+                }}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                disabled={eventEditSubmitting || !eventEditForm.title || !eventEditForm.startsAt}
+                onClick={() => void executeUpdateManualEvent()}
+                className="rounded-2xl bg-gradient-to-r from-blue-900 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {eventEditSubmitting ? "Speichere..." : "Aenderungen speichern"}
+              </button>
             </div>
           </div>
         </div>

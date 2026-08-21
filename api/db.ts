@@ -816,6 +816,30 @@ if (!inventoryItemColumns.includes('image_url')) {
   db.prepare('ALTER TABLE inventory_items ADD COLUMN image_url TEXT DEFAULT NULL').run()
 }
 
+const teamEventColumns = (
+  db.prepare('PRAGMA table_info(team_events)').all() as { name: string }[]
+).map((column) => column.name)
+
+if (!teamEventColumns.includes('recurrence_id')) {
+  db.prepare("ALTER TABLE team_events ADD COLUMN recurrence_id TEXT DEFAULT ''").run()
+}
+
+if (!teamEventColumns.includes('recurrence_pattern')) {
+  db.prepare("ALTER TABLE team_events ADD COLUMN recurrence_pattern TEXT DEFAULT ''").run()
+}
+
+if (!teamEventColumns.includes('recurrence_ordinal')) {
+  db.prepare('ALTER TABLE team_events ADD COLUMN recurrence_ordinal INTEGER NOT NULL DEFAULT 0').run()
+}
+
+if (!teamEventColumns.includes('recurrence_total')) {
+  db.prepare('ALTER TABLE team_events ADD COLUMN recurrence_total INTEGER NOT NULL DEFAULT 0').run()
+}
+
+if (!teamEventColumns.includes('recurrence_edited_individually')) {
+  db.prepare('ALTER TABLE team_events ADD COLUMN recurrence_edited_individually INTEGER NOT NULL DEFAULT 0').run()
+}
+
 const socialMediaDraftColumns = (
   db.prepare('PRAGMA table_info(social_media_drafts)').all() as { name: string }[]
 ).map((column) => column.name)
