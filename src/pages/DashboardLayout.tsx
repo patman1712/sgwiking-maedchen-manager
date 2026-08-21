@@ -985,7 +985,7 @@ export default function DashboardLayout() {
                 Admin
               </p>
               <NavLink
-                to="/dashboard/settings"
+                to="/dashboard/settings?tab=links"
                 onClick={() => setSidebarOpen(false)}
                 className={({ isActive }) =>
                   cn(
@@ -999,6 +999,9 @@ export default function DashboardLayout() {
                 <Shield size={18} />
                 <span className="flex min-w-0 items-center gap-2">
                   <span>Einstellungen</span>
+                  <span className="inline-flex items-center rounded-full bg-amber-300 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-amber-950">
+                    Externe Links
+                  </span>
                 </span>
               </NavLink>
             </div>
@@ -1159,7 +1162,7 @@ export default function DashboardLayout() {
                     </Link>
                     {currentUser?.role === "admin" ? (
                       <Link
-                        to="/dashboard/settings"
+                        to="/dashboard/settings?tab=links"
                         onClick={() => setProfileMenuOpen(false)}
                         className="block rounded-xl px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
                       >

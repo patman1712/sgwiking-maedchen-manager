@@ -83,9 +83,14 @@ export default function SettingsPage() {
   const deleteCustomExternalLink = useAppStore((state) => state.deleteCustomExternalLink);
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTabFromUrl = searchParams.get("tab") === "links" ? "links" : searchParams.get("tab") === "logo" ? "logo" : null;
+  const initialTabFromUrl =
+    searchParams.get("tab") === "logo"
+      ? "logo"
+      : searchParams.get("tab") === "links"
+        ? "links"
+        : null;
 
-  const [tab, setTab] = useState<SettingsTab>(initialTabFromUrl || "logo");
+  const [tab, setTab] = useState<SettingsTab>(initialTabFromUrl || "links");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -129,40 +134,62 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3 rounded-3xl border border-slate-200 bg-white p-2 shadow-sm">
-        {([
-          { key: "logo", label: "Vereinswappen", badge: null as string | null },
-          { key: "links", label: "Externe Links", badge: "NEU" },
-        ] as const).map((entry) => (
-          <button
-            key={entry.key}
-            type="button"
-            onClick={() => {
-              flushMessages();
-              setTab(entry.key);
-              if (entry.key === "links") {
-                searchParams.set("tab", "links");
-              } else {
-                searchParams.delete("tab");
+      <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-bold text-slate-900">Vereins-Einstellungen</h2>
+          <p className="text-sm text-slate-500">
+            Hier verwaltest du das Teamwappen (Login-Seite) und die externen Links in der linken
+            Seitenleiste.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-slate-50 p-3">
+          {([
+            { key: "logo", label: "Vereinswappen", sub: "Logo (Login)", badge: null as string | null },
+            {
+              key: "links",
+              label: "Externe Links",
+              sub: "Sidebar Fanshop etc.",
+              badge: "⭐ NEU",
+            },
+          ] as const).map((entry) => (
+            <button
+              key={entry.key}
+              type="button"
+              onClick={() => {
+                flushMessages();
+                setTab(entry.key);
+                if (entry.key === "links") {
+                  searchParams.set("tab", "links");
+                } else {
+                  searchParams.delete("tab");
+                }
+                setSearchParams(searchParams, { replace: true });
+              }}
+              className={
+                "flex min-h-[56px] flex-1 flex-col items-start justify-center gap-0.5 rounded-2xl px-5 py-3 text-left text-sm font-semibold transition min-w-[200px] " +
+                (tab === entry.key
+                  ? "bg-gradient-to-r from-blue-950 to-blue-700 text-white shadow-lg shadow-blue-900/20 ring-2 ring-blue-500"
+                  : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200")
               }
-              setSearchParams(searchParams, { replace: true });
-            }}
-            className={
-              "flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition " +
-              (tab === entry.key
-                ? "bg-gradient-to-r from-blue-950 to-blue-700 text-white shadow-lg shadow-blue-900/20"
-                : "text-slate-700 hover:bg-slate-100")
-            }
-          >
-            {entry.key === "logo" ? <Shield size={18} /> : <ExternalLink size={18} />}
-            <span>{entry.label}</span>
-            {entry.badge ? (
-              <span className="inline-flex items-center rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-amber-900">
-                {entry.badge}
+            >
+              <span className="flex items-center gap-2">
+                {entry.key === "logo" ? <Shield size={18} /> : <ExternalLink size={18} />}
+                <span>{entry.label}</span>
+                {entry.badge ? (
+                  <span className="inline-flex items-center rounded-full bg-amber-300 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-amber-950 shadow-sm">
+                    {entry.badge}
+                  </span>
+                ) : null}
               </span>
-            ) : null}
-          </button>
-        ))}
+              <span className={
+                "text-[12px] font-medium " +
+                (tab === entry.key ? "text-blue-100" : "text-slate-500")
+              }>
+                {entry.sub}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {tab === "logo" ? (

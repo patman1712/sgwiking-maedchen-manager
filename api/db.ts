@@ -2621,7 +2621,7 @@ export const createCustomExternalLink = (input: {
   roleVisibility: UserRole[]
   sortOrder: number
 }) => {
-  const id = createId()
+  const id = createId('link')
   const timestamp = now()
 
   db.prepare(
