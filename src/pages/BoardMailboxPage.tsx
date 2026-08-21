@@ -170,26 +170,65 @@ export default function BoardMailboxPage() {
     let wrap: HTMLDivElement | null = null;
     let root: Root | null = null;
     try {
-      const { assets, layers } = getDraftPreviewData(draft, socialMediaCrests);
+      const baseAssets = buildDraftAssets(draft, socialMediaCrests);
       const finalLogoUrl = clubLogoUrl ?? null;
 
-      const allUrlsToPreload: string[] = [];
-      for (const asset of assets) {
-        if (asset?.url) allUrlsToPreload.push(asset.url);
-      }
-      const dedupedUrls = Array.from(new Set(allUrlsToPreload.filter((u) => typeof u === "string" && u.length > 0)));
+      const fetchDataUrl = async (rawSrc: string): Promise<string> => {
+        const trimmed = rawSrc.trim();
+        if (!trimmed) return rawSrc;
+        if (trimmed.startsWith("data:")) return trimmed;
+        if (trimmed.startsWith("blob:")) return trimmed;
+        try {
+          const url = trimmed.startsWith("http")
+            ? trimmed
+            : new URL(trimmed, window.location.origin).toString();
+          const response = await fetch(url, {
+            cache: "force-cache",
+            credentials: "same-origin",
+            mode: "cors",
+          });
+          if (!response.ok) {
+            return rawSrc;
+          }
+          const blob = await response.blob();
+          if (!blob || blob.size === 0) {
+            return rawSrc;
+          }
+          return await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const result = reader.result;
+              if (typeof result === "string") resolve(result);
+              else resolve(rawSrc);
+            };
+            reader.onerror = () => reject(new Error("DataURL fehlgeschlagen"));
+            reader.readAsDataURL(blob);
+          });
+        } catch {
+          return rawSrc;
+        }
+      };
 
-      await Promise.allSettled(
-        dedupedUrls.map(
-          (src) =>
-            new Promise<void>((resolve) => {
-              const img = new Image();
-              img.crossOrigin = "anonymous";
-              img.onload = () => resolve();
-              img.onerror = () => resolve();
-              img.src = src;
-            }),
-        ),
+      const cache = new Map<string, string>();
+      const toCachedDataUrl = async (src: string): Promise<string> => {
+        if (!src) return src;
+        if (cache.has(src)) {
+          return cache.get(src)!;
+        }
+        const out = await fetchDataUrl(src);
+        cache.set(src, out);
+        return out;
+      };
+
+      const assets: EditorAsset[] = await Promise.all(
+        baseAssets.map(async (asset) => {
+          const dataUrl = await toCachedDataUrl(asset.url);
+          return { ...asset, url: dataUrl, ref: asset.ref };
+        }),
+      );
+
+      const layers = (draft.layers.length ? draft.layers : buildFallbackLayers(draft)).map(
+        normalizeLayer,
       );
 
       const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
@@ -217,7 +256,7 @@ export default function BoardMailboxPage() {
       );
 
       await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, 2000);
+        window.setTimeout(resolve, 2400);
       });
 
       const target = wrap.querySelector<HTMLElement>(

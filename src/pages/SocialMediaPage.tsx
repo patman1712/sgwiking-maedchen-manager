@@ -763,7 +763,29 @@ export function SocialPreview({
     startFontSize?: number;
     startLetterSpacing?: number;
   } | null>(null);
-  const resolveAssetUrl = (ref?: string) => assets.find((asset) => asset.ref === ref)?.url;
+  const resolveAssetUrl = (ref?: string) => {
+    if (!ref) return undefined;
+    const trimmed = ref.trim();
+    if (!trimmed) return undefined;
+    const direct = assets.find((asset) => asset.ref === trimmed)?.url
+      ?? assets.find((asset) => asset.id === trimmed)?.url
+      ?? assets.find((asset) => asset.url === trimmed)?.url;
+    if (direct) return direct;
+    const crestPrefix = SHARED_CREST_PREFIX;
+    const trimmedNoPrefix = trimmed.startsWith(crestPrefix) ? trimmed.slice(crestPrefix.length) : trimmed;
+    const matchByBasename = assets.find((asset) => {
+      const candidates = [asset.url, asset.ref, asset.fileName].filter(Boolean) as string[];
+      return candidates.some((candidate) => {
+        const base = candidate.split("/").pop()?.split("?")[0] ?? "";
+        const needleBase = trimmedNoPrefix.split("/").pop()?.split("?")[0] ?? "";
+        if (!base || !needleBase) return false;
+        return base === needleBase;
+      });
+    })?.url;
+    if (matchByBasename) return matchByBasename;
+    const looksLikeDirectUrl = /^(https?:)?\/\//i.test(trimmed) || trimmed.startsWith("/") || trimmed.startsWith("data:");
+    return looksLikeDirectUrl ? trimmed : undefined;
+  };
   const visibleLayers = layers.filter((layer) => layer.enabled ?? true);
 
   useEffect(() => {
@@ -936,6 +958,10 @@ export function SocialPreview({
                 <img
                   src={assetUrl}
                   alt={layer.label}
+                  crossOrigin="anonymous"
+                  loading="eager"
+                  referrerPolicy="no-referrer"
+                  decoding="async"
                   className={cn(
                     "h-full w-full",
                     getImageStyleClasses(layer.style, layer.position === "full"),
