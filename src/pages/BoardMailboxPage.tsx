@@ -1136,13 +1136,15 @@ export default function BoardMailboxPage() {
                                 setSuccess("");
                                 setSavingId(`sm-done-${draft.id}`);
                                 const result = await updateSocialMediaDraft(draft.id, {
-                                  draftType: draft.draftType,
+                                  draftType: draft.draftType as "feed" | "story",
                                   title: draft.title,
                                   subtitle: draft.subtitle ?? "",
                                   caption: draft.caption ?? "",
                                   callToAction: draft.callToAction ?? "",
                                   layout: draft.layout,
                                   existingImageUrls: draft.imageUrls,
+                                  newImageFiles: [],
+                                  imageOrder: draft.imageUrls,
                                   layers: draft.layers,
                                   isTemplate: draft.isTemplate,
                                   postingText: draft.postingText ?? "",
