@@ -195,6 +195,33 @@ export function buildDraftAssets(
     }
   });
 
+  const backgroundHints = [
+    "hintergrund",
+    "background",
+    "blauweiss",
+    "weissblau",
+    "frankfurt",
+    "trikot",
+    "streifen",
+    "blau",
+    "stoff",
+    "vorlage",
+    "layout",
+  ];
+  const hintRank = (asset: SocialMediaAsset): number => {
+    const hay = `${asset.name} ${asset.imageUrl}`.toLowerCase();
+    const explicit = backgroundHints.findIndex((h) => hay.includes(h));
+    if (explicit >= 0) return 10000 - explicit * 100;
+    const isLogoLike = /(logo|wappen|crest|badge|icon|svz|sv |ifc|u12)/i.test(asset.name ?? "");
+    if (isLogoLike) return -10000;
+    const isUploadedPhoto = asset.imageUrl.startsWith("/uploads/") && /(jpg|jpeg)/i.test(asset.imageUrl);
+    return 1000 + (asset.name?.length ?? 0) + (isUploadedPhoto ? 500 : 0);
+  };
+  const sortedLibraryForBg = [...assetsLibrary].sort(
+    (a, b) => hintRank(b) - hintRank(a),
+  );
+  const bestBgCandidate = sortedLibraryForBg[0] ?? null;
+
   draft.layers.forEach((layer, index) => {
     if (layer.kind !== "image") return;
     const refIsBroken =
@@ -219,10 +246,33 @@ export function buildDraftAssets(
         if (nkLabel.length >= 2) assets.set(`nk:${nkLabel}`, matchedAsset);
       }
     }
+    if (!matchedAsset && layer.position === "full" && bestBgCandidate) {
+      matchedAsset = {
+        id: bestBgCandidate.id,
+        ref: bestBgCandidate.id,
+        kind: "existing",
+        url: bestBgCandidate.imageUrl,
+        fileName: bestBgCandidate.name || getFileNameFromUrl(bestBgCandidate.imageUrl),
+      };
+    }
 
     if (refIsBroken && matchedAsset) {
-      assets.set("—", matchedAsset);
-      assets.set("-", matchedAsset);
+      const fallbacks: string[] = [];
+      if (layer.imageRef) fallbacks.push(layer.imageRef);
+      fallbacks.push("—", "-", "");
+      if (layer.position === "full") fallbacks.push("position:full", `layeridx-full-${index}`);
+      if (layer.label) fallbacks.push(layer.label);
+      fallbacks.forEach((key) => {
+        if (assets.has(key)) return;
+        assets.set(key, {
+          id: `fallback-${index}-${key}-${matchedAsset!.id}`,
+          ref: key || matchedAsset!.ref,
+          kind: "existing",
+          url: matchedAsset!.url,
+          fileName: matchedAsset!.fileName,
+        });
+      });
+    } else if (matchedAsset) {
       assets.set(`layerid:${layer.id}`, matchedAsset);
     }
 
@@ -883,13 +933,13 @@ export function SocialPreview({
     startFontSize?: number;
     startLetterSpacing?: number;
   } | null>(null);
-  const resolveAssetUrl = (ref?: string, altLabel?: string) => {
+  const resolveAssetUrl = (ref?: string, altLabel?: string, positionHint?: string) => {
     const normKey = (s?: string | null) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "").trim();
 
-    const tryMatch = (needleRaw?: string) => {
-      if (!needleRaw) return undefined;
-      const trimmed = needleRaw.trim();
-      if (!trimmed || trimmed === "—" || trimmed === "-") return undefined;
+    const tryMatch = (needleRaw?: string, allowBrokenKey = false) => {
+      if (!needleRaw && !allowBrokenKey) return undefined;
+      const trimmed = (needleRaw ?? "").trim();
+      if (!allowBrokenKey && (!trimmed || trimmed === "—" || trimmed === "-")) return undefined;
       const direct = assets.find((asset) => asset.ref === trimmed)?.url
         ?? assets.find((asset) => asset.id === trimmed)?.url
         ?? assets.find((asset) => asset.url === trimmed)?.url;
@@ -921,7 +971,14 @@ export function SocialPreview({
       return looksLikeDirectUrl ? trimmed : undefined;
     };
 
-    return tryMatch(ref) ?? tryMatch(altLabel) ?? undefined;
+    return (
+      tryMatch(ref)
+      ?? tryMatch(altLabel)
+      ?? (positionHint === "full" ? assets.find((asset) => asset.ref === "position:full")?.url : undefined)
+      ?? assets.find((asset) => asset.ref === ref)?.url
+      ?? assets.find((asset) => asset.ref === (altLabel ?? "__no__"))?.url
+      ?? undefined
+    );
   };
   const visibleLayers = layers.filter((layer) => layer.enabled ?? true);
 
@@ -1038,7 +1095,7 @@ export function SocialPreview({
         const zStyle = { zIndex: index + 5 };
 
         if (layer.kind === "image") {
-          const assetUrl = resolveAssetUrl(layer.imageRef, layer.label);
+          const assetUrl = resolveAssetUrl(layer.imageRef, layer.label, layer.position);
           const geometry = getImageLayerGeometry(layer);
           const isSelected = activeLayerId === layer.id;
           const movable = canMoveLayer(layer, respectLayerLocks);
@@ -1076,8 +1133,8 @@ export function SocialPreview({
                 };
               }}
               className={cn(
-                "absolute touch-none",
-                isOriginalStyle ? "overflow-visible" : "overflow-hidden",
+                "absolute touch-none bg-transparent",
+                isOriginalStyle ? "overflow-visible rounded-none border-0" : "overflow-hidden",
                 movable ? "cursor-grab active:cursor-grabbing" : "cursor-default",
                 isSelected && !isOriginalStyle &&
                   "ring-2 ring-sky-300 ring-offset-2 ring-offset-transparent",

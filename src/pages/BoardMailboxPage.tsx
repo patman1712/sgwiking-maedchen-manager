@@ -283,7 +283,7 @@ export default function BoardMailboxPage() {
 
       root = createRoot(wrap);
       root.render(
-        <div style={{ width: `${exportWidthPx}px` }}>
+        <div style={{ width: `${exportWidthPx}px`, background: "transparent" }}>
           <SocialPreview
             draftType={draft.draftType as "feed" | "story"}
             layout={draft.layout}
@@ -295,8 +295,30 @@ export default function BoardMailboxPage() {
       );
 
       await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, 2400);
+        window.setTimeout(resolve, 3800);
       });
+
+      const allImgs = Array.from(wrap.querySelectorAll("img"));
+      await Promise.all(
+        allImgs.map(async (imgEl) => {
+          try {
+            if (imgEl.complete && imgEl.naturalWidth > 0) return;
+            await new Promise<void>((res) => {
+              const to = window.setTimeout(res, 3200);
+              imgEl.addEventListener("load", () => {
+                window.clearTimeout(to);
+                res();
+              });
+              imgEl.addEventListener("error", () => {
+                window.clearTimeout(to);
+                res();
+              });
+            });
+          } catch {
+            /* ignore */
+          }
+        }),
+      );
 
       const target = wrap.querySelector<HTMLElement>(
         "[class*='aspect-']",
@@ -305,13 +327,14 @@ export default function BoardMailboxPage() {
         throw new Error("Vorschau konnte nicht erstellt werden.");
       }
 
+      const hasFullBgLayer = layers.some((l) => l.kind === "image" && l.position === "full");
       const dataUrl = await htmlToImage.toJpeg(target, {
         pixelRatio: 1,
         width: exportWidthPx,
-        quality: 0.96,
+        quality: 0.97,
         cacheBust: true,
         includeQueryParams: true,
-        backgroundColor: "#ffffff",
+        backgroundColor: hasFullBgLayer ? undefined : "#ffffff",
       });
 
       const slug = draft.title
