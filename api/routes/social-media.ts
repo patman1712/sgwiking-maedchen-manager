@@ -253,10 +253,7 @@ const remapLayerImageRefs = (
       }
     }
 
-    return {
-      ...layer,
-      imageRef: retainedImageUrls.includes(layer.imageRef) ? layer.imageRef : undefined,
-    }
+    return layer
   })
 
 const deleteDraftImages = (imageUrls: string[]) => {
