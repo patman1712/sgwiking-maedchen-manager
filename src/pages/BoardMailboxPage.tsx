@@ -4,8 +4,6 @@ import {
   Check,
   Copy,
   Download,
-  EyeOff,
-  Image as ImageIcon,
   Pencil,
   Trash2,
 } from "lucide-react";
@@ -16,13 +14,22 @@ import { cn } from "@/lib/utils";
 import type {
   SocialMediaCrest,
   SocialMediaDraft,
-  SocialMediaDraftType,
-  SocialMediaLayer,
-  SocialMediaLayerKind,
-  SocialMediaLayerPosition,
-  SocialMediaLayerStyle,
   SocialMediaLayoutOption,
 } from "@/types";
+import {
+  SocialPreview,
+  buildDraftAssets,
+  buildFallbackLayers,
+  normalizeLayer,
+  type EditorAsset,
+} from "./SocialMediaPage";
+
+const fallbackLayoutOptions: SocialMediaLayoutOption[] = [
+  { value: "matchday", label: "Spieltag", enabled: true },
+  { value: "result", label: "Ergebnis", enabled: true },
+  { value: "training", label: "Training", enabled: true },
+  { value: "announcement", label: "Ankuendigung", enabled: true },
+];
 
 function formatDate(value: string | null | undefined) {
   if (!value) {
@@ -57,655 +64,11 @@ function previewDate(value: string) {
   });
 }
 
-type EditorAsset = {
-  id: string;
-  ref: string;
-  kind: "upload" | "existing";
-  url: string;
-  fileName: string;
-};
-
-function getFileNameFromUrl(url: string, fallback = "Bild") {
-  try {
-    const pathname = new URL(url, window.location.origin).pathname;
-    const base = pathname.split("/").pop() ?? fallback;
-    return decodeURIComponent(base) || fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function isSharedCrestRef(ref: string) {
-  return typeof ref === "string" && (ref.includes("crests/") || ref.includes("crest-"));
-}
-
-const fallbackLayoutOptions: SocialMediaLayoutOption[] = [
-  { value: "matchday", label: "Spieltag", enabled: true },
-  { value: "result", label: "Ergebnis", enabled: true },
-  { value: "training", label: "Training", enabled: true },
-  { value: "announcement", label: "Ankuendigung", enabled: true },
-];
-
-function createLayerId() {
-  return `layer-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function createLayer(
-  kind: SocialMediaLayerKind,
-  overrides: Partial<SocialMediaLayer> = {},
-): SocialMediaLayer {
-  const defaults: Record<SocialMediaLayerKind, Omit<SocialMediaLayer, "id">> = {
-    image: {
-      kind: "image",
-      label: "Bild",
-      position: "center",
-      style: "original",
-      imageRef: undefined,
-      text: "",
-      enabled: true,
-      centerX: 50,
-      centerY: 50,
-      widthPercent: 40,
-      heightPercent: 40,
-      lockPosition: false,
-      lockSize: false,
-      keepAspectRatio: true,
-      fontFamily: undefined,
-      fontSize: undefined,
-      textColor: undefined,
-      textAlign: undefined,
-      textEffect: undefined,
-      strokeColor: undefined,
-      strokeWidth: undefined,
-      lineHeight: undefined,
-      letterSpacing: undefined,
-    },
-    badge: {
-      kind: "badge",
-      label: "Badge",
-      position: "topLeft",
-      style: "pill",
-      text: "SG Wiking Offenbach",
-      enabled: true,
-      lockPosition: false,
-      lockSize: false,
-      fontFamily: "Montserrat",
-      fontSize: 12,
-      textColor: "#0f172a",
-      textAlign: "left",
-      textEffect: "none",
-      strokeColor: "#ffffff",
-      strokeWidth: 0,
-      lineHeight: 1.2,
-      letterSpacing: 0.2,
-    },
-    title: {
-      kind: "title",
-      label: "Titel",
-      position: "bottomLeft",
-      style: "solid",
-      text: "Titel Text",
-      enabled: true,
-      lockPosition: false,
-      lockSize: false,
-      fontFamily: "Oswald",
-      fontSize: 42,
-      textColor: "#ffffff",
-      textAlign: "left",
-      textEffect: "shadow",
-      strokeColor: "#0f172a",
-      strokeWidth: 1.2,
-      lineHeight: 1.05,
-      letterSpacing: 0,
-    },
-    subtitle: {
-      kind: "subtitle",
-      label: "Untertitel",
-      position: "bottomLeft",
-      style: "glass",
-      text: "Untertitel mit weiteren Infos",
-      enabled: true,
-      lockPosition: false,
-      lockSize: false,
-      fontFamily: "Inter",
-      fontSize: 18,
-      textColor: "#ffffff",
-      textAlign: "left",
-      textEffect: "none",
-      strokeColor: undefined,
-      strokeWidth: 0,
-      lineHeight: 1.3,
-      letterSpacing: 0,
-    },
-    caption: {
-      kind: "caption",
-      label: "Textkarte",
-      position: "center",
-      style: "clean",
-      text: "Text in der Mitte",
-      enabled: true,
-      lockPosition: false,
-      lockSize: false,
-      fontFamily: "Inter",
-      fontSize: 20,
-      textColor: "#0f172a",
-      textAlign: "center",
-      textEffect: "none",
-      strokeColor: undefined,
-      strokeWidth: 0,
-      lineHeight: 1.35,
-      letterSpacing: 0,
-    },
-    cta: {
-      kind: "cta",
-      label: "Button",
-      position: "bottomRight",
-      style: "pill",
-      text: "Jetzt anmelden",
-      enabled: true,
-      lockPosition: false,
-      lockSize: false,
-      fontFamily: "Montserrat",
-      fontSize: 12,
-      textColor: "#0f172a",
-      textAlign: "center",
-      textEffect: "none",
-      strokeColor: undefined,
-      strokeWidth: 0,
-      lineHeight: 1.2,
-      letterSpacing: 0.4,
-    },
-  };
-
-  return {
-    id: createLayerId(),
-    ...defaults[kind],
-    ...overrides,
-  };
-}
-
-function buildDraftAssets(draft: SocialMediaDraft, crests: SocialMediaCrest[]): EditorAsset[] {
-  const assets = new Map<string, EditorAsset>();
-
-  draft.imageUrls.forEach((url, index) => {
-    assets.set(url, {
-      id: `existing-${index}-${url}`,
-      ref: url,
-      kind: "existing",
-      url,
-      fileName: getFileNameFromUrl(url),
-    });
-  });
-
-  draft.layers.forEach((layer, index) => {
-    if (!layer.imageRef) {
-      return;
-    }
-    if (assets.has(layer.imageRef)) {
-      return;
-    }
-
-    if (isSharedCrestRef(layer.imageRef)) {
-      const crest = crests.find((entry) => entry.imageUrl === layer.imageRef);
-      assets.set(layer.imageRef, {
-        id: `shared-${crest?.id ?? index}-${layer.imageRef}`,
-        ref: layer.imageRef,
-        kind: "existing",
-        url: layer.imageRef,
-        fileName: crest?.name ? `${crest.name}.png` : getFileNameFromUrl(layer.imageRef, crest?.name ?? "Wappen"),
-      });
-      return;
-    }
-
-    assets.set(layer.imageRef, {
-      id: `layer-${index}-${layer.imageRef}`,
-      ref: layer.imageRef,
-      kind: "existing",
-      url: layer.imageRef,
-      fileName: getFileNameFromUrl(layer.imageRef),
-    });
-  });
-
-  return [...assets.values()];
-}
-
-function buildFallbackLayers(draft: SocialMediaDraft): SocialMediaLayer[] {
-  const firstImageRef = draft.imageUrls[0];
-  const fallback = [
-    createLayer("image", { imageRef: firstImageRef }),
-    createLayer("badge", {
-      text: fallbackLayoutOptions.find((option) => option.value === draft.layout)?.label ?? "Vorlage",
-    }),
-    createLayer("title", { text: draft.title || "Titel" }),
-  ];
-  if (draft.subtitle) {
-    fallback.push(createLayer("subtitle", { text: draft.subtitle }));
-  }
-  if (draft.caption) {
-    fallback.push(createLayer("caption", { text: draft.caption }));
-  }
-  if (draft.callToAction) {
-    fallback.push(createLayer("cta", { text: draft.callToAction }));
-  }
-  return fallback;
-}
-
-function sanitizePercent(value: number | undefined, fallback: number, min: number, max: number) {
-  if (value === undefined || value === null || Number.isNaN(value)) return fallback;
-  return Math.max(min, Math.min(max, value));
-}
-
-function getPlacementByPosition(position: SocialMediaLayerPosition): {
-  centerX: number;
-  centerY: number;
-} {
-  switch (position) {
-    case "full":
-    case "center":
-      return { centerX: 50, centerY: 50 };
-    case "topLeft":
-      return { centerX: 16, centerY: 16 };
-    case "topRight":
-      return { centerX: 84, centerY: 16 };
-    case "bottomLeft":
-      return { centerX: 18, centerY: 82 };
-    case "bottomCenter":
-      return { centerX: 50, centerY: 84 };
-    case "bottomRight":
-      return { centerX: 82, centerY: 82 };
-  }
-}
-
-function getDefaultImageGeometry(layer: Pick<SocialMediaLayer, "position" | "style">) {
-  const sizeByKind: Record<
-    SocialMediaLayerKind,
-    { widthPercent: number; heightPercent: number }
-  > = {
-    image: { widthPercent: 40, heightPercent: 40 },
-    title: { widthPercent: 72, heightPercent: 18 },
-    subtitle: { widthPercent: 68, heightPercent: 14 },
-    caption: { widthPercent: 72, heightPercent: 26 },
-    badge: { widthPercent: 40, heightPercent: 10 },
-    cta: { widthPercent: 44, heightPercent: 10 },
-  };
-  const effectivePosition =
-    layer.position === "full" ? ("center" as SocialMediaLayerPosition) : layer.position;
-  return {
-    ...getPlacementByPosition(effectivePosition),
-    ...sizeByKind.image,
-  };
-}
-
-function getImageLayerGeometry(layer: Pick<
-  SocialMediaLayer,
-  "position" | "style" | "centerX" | "centerY" | "widthPercent" | "heightPercent"
->) {
-  const defaults = getDefaultImageGeometry(layer);
-  const widthPercent = sanitizePercent(layer.widthPercent, defaults.widthPercent, 2, 100);
-  const heightPercent = sanitizePercent(layer.heightPercent, defaults.heightPercent, 2, 100);
-
-  return {
-    widthPercent,
-    heightPercent,
-    centerX: sanitizePercent(layer.centerX, defaults.centerX, 0, 100),
-    centerY: sanitizePercent(layer.centerY, defaults.centerY, 0, 100),
-  };
-}
-
-function getDefaultTextGeometry(layer: Pick<
-  SocialMediaLayer,
-  "kind" | "position"
->) {
-  const sizeByKind: Record<
-    SocialMediaLayerKind,
-    { widthPercent: number; heightPercent: number }
-  > = {
-    title: { widthPercent: 72, heightPercent: 18 },
-    subtitle: { widthPercent: 68, heightPercent: 14 },
-    caption: { widthPercent: 72, heightPercent: 26 },
-    badge: { widthPercent: 40, heightPercent: 10 },
-    cta: { widthPercent: 44, heightPercent: 10 },
-    image: { widthPercent: 40, heightPercent: 40 },
-  };
-  const effectivePosition =
-    layer.position === "full" ? ("center" as SocialMediaLayerPosition) : layer.position;
-  return {
-    ...getPlacementByPosition(effectivePosition),
-    ...sizeByKind[layer.kind],
-  };
-}
-
-function getTextLayerGeometry(layer: Pick<
-  SocialMediaLayer,
-  "kind" | "position" | "centerX" | "centerY" | "widthPercent" | "heightPercent"
->) {
-  const defaults = getDefaultTextGeometry(layer);
-  const widthPercent = sanitizePercent(layer.widthPercent, defaults.widthPercent, 6, 140);
-  const heightPercent = sanitizePercent(layer.heightPercent, defaults.heightPercent, 4, 120);
-
-  return {
-    widthPercent,
-    heightPercent,
-    centerX: sanitizePercent(layer.centerX, defaults.centerX, 0, 100),
-    centerY: sanitizePercent(
-      layer.centerY,
-      defaults.centerY,
-      0,
-      100,
-    ),
-  };
-}
-
-function getImageStyleClasses(style: SocialMediaLayerStyle, full = false) {
-  if (full) {
-    return "rounded-2xl";
-  }
-  switch (style) {
-    case "cover":
-      return "rounded-[2rem] shadow-[0_20px_50px_rgba(15,23,42,0.25)]";
-    case "cutout":
-      return "rounded-[1.5rem] shadow-[0_20px_60px_rgba(15,23,42,0.35)]";
-    case "soft":
-      return "rounded-[1.5rem] shadow-[0_14px_40px_rgba(15,23,42,0.12)]";
-    case "original":
-    default:
-      return "rounded-[1.25rem] shadow-[0_18px_45px_rgba(15,23,42,0.18)]";
-  }
-}
-
-function getLayerContainerClasses(style: SocialMediaLayerStyle, kind: SocialMediaLayerKind) {
-  if (kind === "image") {
-    return getImageStyleClasses(style);
-  }
-  switch (style) {
-    case "pill":
-      return "rounded-full shadow-[0_10px_30px_rgba(15,23,42,0.18)]";
-    case "solid":
-      return "rounded-[1.25rem] shadow-[0_18px_50px_rgba(15,23,42,0.25)]";
-    case "glass":
-      return "rounded-[1.25rem] border border-white/30 bg-white/10 backdrop-blur-xl shadow-[0_14px_40px_rgba(15,23,42,0.18)]";
-    case "clean":
-      return "rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.08)]";
-    case "cutout":
-      return "rounded-[1.5rem] shadow-[0_22px_60px_rgba(15,23,42,0.35)]";
-    case "soft":
-      return "rounded-[1.5rem] shadow-[0_14px_40px_rgba(15,23,42,0.12)]";
-    default:
-      return "rounded-[1.25rem]";
-  }
-}
-
-function getLayerTextColorClasses(kind: SocialMediaLayerKind, style: SocialMediaLayerStyle) {
-  if (kind === "title" || kind === "subtitle" || kind === "badge" || kind === "cta") {
-    if (style === "clean") {
-      return "text-slate-900";
-    }
-    return "text-white";
-  }
-  if (style === "glass") {
-    return "text-white";
-  }
-  if (style === "solid") {
-    return kind === "caption" ? "text-white" : "text-slate-900";
-  }
-  return "text-slate-900";
-}
-
-function getLayerFillClasses(style: SocialMediaLayerStyle, kind: SocialMediaLayerKind) {
-  if (kind === "image") return "";
-  switch (style) {
-    case "pill":
-      return "bg-white/90";
-    case "solid":
-      return "bg-slate-900/90";
-    case "glass":
-      return "bg-white/10";
-    case "clean":
-      return "bg-white";
-    case "soft":
-      return "bg-white/70";
-    case "cutout":
-      return "bg-white";
-    default:
-      return "bg-slate-900/90";
-  }
-}
-
-function geometryToStyle(geo: {
-  widthPercent: number;
-  heightPercent: number;
-  centerX: number;
-  centerY: number;
-}): React.CSSProperties {
-  return {
-    width: `${geo.widthPercent}%`,
-    height: `${geo.heightPercent}%`,
-    left: `${geo.centerX}%`,
-    top: `${geo.centerY}%`,
-    transform: "translate(-50%, -50%)",
-  };
-}
-
-function renderPreviewLayers(
-  layers: SocialMediaLayer[],
-  assets: EditorAsset[],
-): React.ReactNode {
-  const resolveAssetUrl = (ref?: string) => assets.find((asset) => asset.ref === ref)?.url;
-  return layers
-    .filter((layer) => layer.enabled ?? true)
-    .map((layer, index) => {
-      const geo =
-        layer.kind === "image"
-          ? getImageLayerGeometry(layer)
-          : getTextLayerGeometry(layer);
-      const style = geometryToStyle(geo);
-      const zIndex = index + 5;
-
-      if (layer.kind === "image") {
-        const assetUrl = resolveAssetUrl(layer.imageRef);
-        if (layer.position === "full") {
-          return (
-            <div
-              key={layer.id}
-              className="absolute inset-0"
-              style={{ zIndex }}
-            >
-              {assetUrl ? (
-                <img
-                  src={assetUrl}
-                  alt={layer.label}
-                  className="h-full w-full rounded-[1.75rem] object-cover"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center rounded-[1.75rem] border-2 border-dashed border-slate-300 bg-slate-100 text-slate-400">
-                  <ImageIcon size={36} />
-                </div>
-              )}
-            </div>
-          );
-        }
-        return (
-          <div
-            key={layer.id}
-            className="absolute"
-            style={{ ...style, zIndex }}
-          >
-            {assetUrl ? (
-              <img
-                src={assetUrl}
-                alt={layer.label}
-                className={cn("h-full w-full", getImageStyleClasses(layer.style), layer.style === "cover" ? "object-cover" : "object-contain")}
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center rounded-[1.25rem] border-2 border-dashed border-slate-300 bg-slate-100 text-slate-400">
-                <ImageIcon size={22} />
-              </div>
-            )}
-          </div>
-        );
-      }
-
-      const textAlign = layer.textAlign ?? "left";
-      const textEffect = layer.textEffect ?? "none";
-      const layerFill = getLayerFillClasses(layer.style, layer.kind);
-      const textColor = getLayerTextColorClasses(layer.kind, layer.style);
-      const containerClasses = getLayerContainerClasses(layer.style, layer.kind);
-
-      const fontSize =
-        layer.kind === "title"
-          ? `${sanitizePercent(layer.fontSize, 42, 8, 180)}px`
-          : layer.kind === "subtitle"
-            ? `${sanitizePercent(layer.fontSize, 18, 8, 80)}px`
-            : layer.kind === "caption"
-              ? `${sanitizePercent(layer.fontSize, 20, 8, 80)}px`
-              : layer.kind === "badge"
-                ? `${sanitizePercent(layer.fontSize, 12, 6, 60)}px`
-                : `${sanitizePercent(layer.fontSize, 12, 6, 60)}px`;
-
-      const fontFamily =
-        layer.fontFamily && ["Inter", "Oswald", "Montserrat"].includes(layer.fontFamily)
-          ? `'${layer.fontFamily}', sans-serif`
-          : "'Inter', sans-serif";
-
-      let textShadow = "none";
-      if (textEffect === "shadow") {
-        textShadow = "0 3px 12px rgba(15, 23, 42, 0.55), 0 1px 2px rgba(15, 23, 42, 0.6)";
-      } else if (textEffect === "outline" && layer.strokeColor) {
-        textShadow = `0 0 1px ${layer.strokeColor}, 0 0 2px ${layer.strokeColor}, 0 1px 0 ${layer.strokeColor}, 0 -1px 0 ${layer.strokeColor}, 1px 0 0 ${layer.strokeColor}, -1px 0 0 ${layer.strokeColor}, 1px 1px 0 ${layer.strokeColor}, -1px -1px 0 ${layer.strokeColor}, 1px -1px 0 ${layer.strokeColor}, -1px 1px 0 ${layer.strokeColor}`;
-      }
-
-      return (
-        <div
-          key={layer.id}
-          className={cn("absolute overflow-hidden", containerClasses, layerFill)}
-          style={{ ...style, zIndex }}
-        >
-          <div
-            className={cn(
-              "flex h-full w-full items-center",
-              textAlign === "left"
-                ? "justify-start px-4"
-                : textAlign === "right"
-                  ? "justify-end px-4"
-                  : "justify-center px-3",
-            )}
-          >
-            <p
-              className={cn("w-full break-words", textColor)}
-              style={{
-                fontFamily,
-                fontSize,
-                textAlign,
-                lineHeight: layer.lineHeight ?? 1.2,
-                letterSpacing: `${layer.letterSpacing ?? 0}px`,
-                textShadow,
-                whiteSpace: "pre-wrap",
-              }}
-            >
-              {layer.text ?? ""}
-            </p>
-          </div>
-        </div>
-      );
-    });
-}
-
-function buildPreviewHtmlContent(
-  draft: SocialMediaDraft,
-  assets: EditorAsset[],
-  layers: SocialMediaLayer[],
-  logoUrl: string | null,
-): React.ReactNode {
-  const darkLayouts = ["matchday", "result", "training"];
-  const dark = darkLayouts.includes(draft.layout);
-
-  return (
-    <div
-      className={cn(
-        "relative overflow-hidden",
-        dark
-          ? "bg-[radial-gradient(circle_at_top_left,#1e3a8a_0%,#0f172a_60%,#020617_100%)] text-white shadow-[0_24px_70px_rgba(15,23,42,0.35)]"
-          : "bg-[radial-gradient(circle_at_top_left,#dbeafe_0%,#f8fafc_55%,#ffffff_100%)] text-slate-900 shadow-[0_18px_50px_rgba(15,23,42,0.08)]",
-        draft.draftType === "story"
-          ? "aspect-[9/16] w-[1080px] rounded-[2.5rem] px-8 py-10"
-          : "aspect-[4/5] w-[1080px] rounded-[2.5rem] px-10 py-10",
-      )}
-    >
-      <div className="flex h-full w-full flex-col">
-        <div className="flex items-start justify-between">
-          {logoUrl ? (
-            <div
-              className={cn(
-                "flex items-center gap-3",
-                dark ? "text-white" : "text-slate-900",
-              )}
-            >
-              <img
-                src={logoUrl}
-                alt="Wappen"
-                className="h-14 w-14 shrink-0 rounded-2xl bg-white object-cover shadow-md"
-              />
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.3em] opacity-80">
-                  SG Wiking
-                </p>
-                <p className="text-xs font-medium opacity-90">Handball Offenbach</p>
-              </div>
-            </div>
-          ) : null}
-          {layers.some((layer) => layer.kind === "badge") ? null : (
-            <span
-              className={cn(
-                "rounded-full px-4 py-2 text-[11px] font-bold uppercase tracking-[0.25em]",
-                dark
-                  ? "bg-white/15 text-white"
-                  : "bg-slate-900/90 text-white",
-              )}
-            >
-              {fallbackLayoutOptions.find((opt) => opt.value === draft.layout)?.label ?? "Post"}
-            </span>
-          )}
-        </div>
-
-        <div className="relative flex-1">{renderPreviewLayers(layers, assets)}</div>
-
-        {(draft.caption || draft.callToAction) &&
-        !layers.some((l) => l.kind === "caption" || l.kind === "cta") ? (
-          <div
-            className={cn(
-              "mt-4 grid gap-4 rounded-3xl px-5 py-6",
-              dark
-                ? "bg-white/10 backdrop-blur-xl text-white ring-1 ring-white/15"
-                : "bg-white/90 text-slate-900 ring-1 ring-slate-200",
-            )}
-          >
-            {draft.caption ? (
-              <p
-                className="whitespace-pre-wrap text-base font-semibold leading-relaxed"
-                style={{ fontFamily: "'Inter', sans-serif" }}
-              >
-                {draft.caption}
-              </p>
-            ) : null}
-            {draft.callToAction ? (
-              <div className="flex flex-wrap items-center gap-3">
-                <span
-                  className={cn(
-                    "inline-flex items-center rounded-full px-5 py-3 text-sm font-bold",
-                    dark
-                      ? "bg-white text-blue-950 shadow-lg"
-                      : "bg-blue-900 text-white shadow-lg shadow-blue-900/20",
-                  )}
-                >
-                  {draft.callToAction}
-                </span>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
+function getDraftPreviewData(draft: SocialMediaDraft, crests: SocialMediaCrest[]) {
+  const assets = buildDraftAssets(draft, crests);
+  const rawLayers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
+  const layers = rawLayers.map(normalizeLayer);
+  return { assets, layers };
 }
 
 export default function BoardMailboxPage() {
@@ -805,8 +168,7 @@ export default function BoardMailboxPage() {
     let wrap: HTMLDivElement | null = null;
     let root: Root | null = null;
     try {
-      const previewAssets = buildDraftAssets(draft, socialMediaCrests);
-      const previewLayers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
+      const { assets, layers } = getDraftPreviewData(draft, socialMediaCrests);
       wrap = document.createElement("div");
       wrap.style.position = "fixed";
       wrap.style.left = "-100000px";
@@ -814,27 +176,40 @@ export default function BoardMailboxPage() {
       wrap.style.pointerEvents = "none";
       wrap.style.opacity = "0";
       wrap.style.zIndex = "-1";
+      wrap.style.width = "1080px";
       document.body.appendChild(wrap);
 
       root = createRoot(wrap);
-      const PreviewWrapper = () =>
-        buildPreviewHtmlContent(draft, previewAssets, previewLayers, clubLogoUrl ?? null);
-      root.render(<PreviewWrapper />);
+      root.render(
+        <div style={{ width: "1080px" }}>
+          <SocialPreview
+            draftType={draft.draftType as "feed" | "story"}
+            layout={draft.layout}
+            layers={layers}
+            assets={assets}
+            logoUrl={clubLogoUrl ?? null}
+          />
+        </div>,
+      );
 
       await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, 600);
+        window.setTimeout(resolve, 1400);
       });
 
-      const target = wrap.firstElementChild as HTMLElement | null;
+      const target = wrap.querySelector<HTMLElement>(
+        "[class*='relative overflow-hidden rounded-']",
+      ) ?? (wrap.firstElementChild as HTMLElement | null);
       if (!target) {
         throw new Error("Vorschau konnte nicht erstellt werden.");
       }
 
       const dataUrl = await htmlToImage.toJpeg(target, {
         pixelRatio: 1,
+        width: 1080,
         quality: 0.95,
         cacheBust: true,
         backgroundColor: "#ffffff",
+        includeQueryParams: true,
       });
 
       const slug = draft.title
@@ -939,32 +314,18 @@ export default function BoardMailboxPage() {
 
         {activeTab === "social" ? (
           canManageMailbox ? (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    Eingereichte Social-Media-Postings
-                  </p>
-                  <p className="text-sm text-slate-600">
-                    Poste dein Team ueber den Button rechts als JPG herunter, inklusive Text +
-                    Hashtags zum Kopieren. Wenn erledigt: als bearbeitet markieren.
-                  </p>
-                </div>
-                <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
-                  {submittedInboxDrafts.length} eingereicht
-                </span>
-              </div>
-
+            <div className="space-y-5">
               {submittedInboxDrafts.length ? (
                 submittedInboxDrafts.map((draft) => {
-                  const hashtagsText = draft.hashtags?.length
-                    ? draft.hashtags.map((tag) => (tag.startsWith("#") ? tag : `#${tag}`)).join(" ")
-                    : "";
-                  const fullPostingText = [draft.postingText?.trim(), hashtagsText]
+                  const { assets, layers } = getDraftPreviewData(draft, socialMediaCrests);
+                  const hashtagsText = (draft.hashtags ?? []).filter(Boolean).map(tag =>
+                    tag.startsWith("#") ? tag : `#${tag}`,
+                  ).join(" ");
+                  const fullPostingText = [draft.postingText, hashtagsText]
                     .filter(Boolean)
                     .join("\n\n");
-                  const createdAt = previewDate(draft.createdAt);
-                  const updatedAt = previewDate(draft.updatedAt);
+                  const createdAt = previewDate(draft.createdAt ?? new Date().toISOString());
+                  const updatedAt = previewDate(draft.updatedAt ?? draft.createdAt ?? new Date().toISOString());
 
                   return (
                     <div
@@ -974,17 +335,9 @@ export default function BoardMailboxPage() {
                       <div className="flex flex-wrap items-start justify-between gap-4">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-lg font-semibold text-slate-900">
-                              {draft.title || "Posting (ohne Titel)"}
-                            </h3>
-                            <span
-                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                                draft.draftType === "story"
-                                  ? "bg-fuchsia-100 text-fuchsia-800"
-                                  : "bg-blue-50 px-3 py-1 text-blue-900"
-                              }`}
-                            >
-                              {draft.draftType === "story" ? "Story 9:16" : "Feed 4:5"}
+                            <h3 className="text-lg font-semibold text-slate-900">{draft.title}</h3>
+                            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-900">
+                              {draft.draftType === "story" ? "Story" : "Feed"}
                             </span>
                             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
                               {fallbackLayoutOptions.find((l) => l.value === draft.layout)?.label ??
@@ -1005,32 +358,16 @@ export default function BoardMailboxPage() {
                         <div className="relative flex items-start justify-center">
                           <div
                             className={cn(
-                              "w-full max-w-[280px] overflow-hidden rounded-3xl border border-slate-200 shadow-xl bg-white",
+                              "w-full max-w-[320px]",
                             )}
                           >
-                            <div
-                              className={
-                                "w-full aspect-[4/5] bg-slate-100 relative flex items-center justify-center"
-                              }
-                              style={
-                                draft.draftType === "story"
-                                  ? { aspectRatio: "9 / 16" }
-                                  : undefined
-                              }
-                            >
-                              {draft.imageUrls[0] ? (
-                                <img
-                                  src={draft.imageUrls[0]}
-                                  alt="Vorschau"
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : (
-                                <span className="text-xs text-slate-400">
-                                  Kein Vorschaubild
-                                </span>
-                              )}
-                              <EyeOff size={24} className="absolute bottom-3 right-3 opacity-30" />
-                            </div>
+                            <SocialPreview
+                              draftType={draft.draftType as "feed" | "story"}
+                              layout={draft.layout}
+                              layers={layers}
+                              assets={assets}
+                              logoUrl={clubLogoUrl ?? null}
+                            />
                           </div>
                         </div>
 

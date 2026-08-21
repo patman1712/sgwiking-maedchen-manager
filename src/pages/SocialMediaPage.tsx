@@ -48,9 +48,9 @@ import type {
   UserProfile,
 } from "@/types";
 
-const SHARED_CREST_PREFIX = "/uploads/social-media-crests/";
+export const SHARED_CREST_PREFIX = "/uploads/social-media-crests/";
 
-type EditorAsset =
+export type EditorAsset =
   | {
       id: string;
       ref: string;
@@ -97,7 +97,7 @@ function getFileNameFromUrl(url: string, fallback = "Bild") {
   }
 }
 
-function buildDraftAssets(draft: SocialMediaDraft, crests: SocialMediaCrest[]): EditorAsset[] {
+export function buildDraftAssets(draft: SocialMediaDraft, crests: SocialMediaCrest[]): EditorAsset[] {
   const assets = new Map<string, EditorAsset>();
 
   draft.imageUrls.forEach((url, index) => {
@@ -339,7 +339,7 @@ function createStarterLayers(firstImageRef?: string): SocialMediaLayer[] {
   ];
 }
 
-function buildFallbackLayers(draft: SocialMediaDraft): SocialMediaLayer[] {
+export function buildFallbackLayers(draft: SocialMediaDraft): SocialMediaLayer[] {
   const firstImageRef = draft.imageUrls[0];
   const fallback = [
     createLayer("image", { imageRef: firstImageRef }),
@@ -524,7 +524,7 @@ function getImageStyleClasses(style: SocialMediaLayerStyle, full = false) {
   }
 }
 
-function normalizeLayer(layer: SocialMediaLayer): SocialMediaLayer {
+export function normalizeLayer(layer: SocialMediaLayer): SocialMediaLayer {
   if (layer.kind !== "image") {
     const defaults = getDefaultTextAppearance(layer);
     const geometry = getTextLayerGeometry(layer);
@@ -725,7 +725,7 @@ function getTextClasses(layer: SocialMediaLayer) {
   }
 }
 
-function SocialPreview({
+export function SocialPreview({
   draftType,
   layout,
   layers,
