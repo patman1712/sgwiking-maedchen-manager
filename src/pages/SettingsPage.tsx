@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import {
   ExternalLink,
   ImagePlus,
@@ -82,7 +82,10 @@ export default function SettingsPage() {
   const updateCustomExternalLink = useAppStore((state) => state.updateCustomExternalLink);
   const deleteCustomExternalLink = useAppStore((state) => state.deleteCustomExternalLink);
 
-  const [tab, setTab] = useState<SettingsTab>("logo");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTabFromUrl = searchParams.get("tab") === "links" ? "links" : searchParams.get("tab") === "logo" ? "logo" : null;
+
+  const [tab, setTab] = useState<SettingsTab>(initialTabFromUrl || "logo");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -128,8 +131,8 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3 rounded-3xl border border-slate-200 bg-white p-2 shadow-sm">
         {([
-          { key: "logo", label: "Vereinswappen" },
-          { key: "links", label: "Externe Links" },
+          { key: "logo", label: "Vereinswappen", badge: null as string | null },
+          { key: "links", label: "Externe Links", badge: "NEU" },
         ] as const).map((entry) => (
           <button
             key={entry.key}
@@ -137,6 +140,12 @@ export default function SettingsPage() {
             onClick={() => {
               flushMessages();
               setTab(entry.key);
+              if (entry.key === "links") {
+                searchParams.set("tab", "links");
+              } else {
+                searchParams.delete("tab");
+              }
+              setSearchParams(searchParams, { replace: true });
             }}
             className={
               "flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition " +
@@ -146,7 +155,12 @@ export default function SettingsPage() {
             }
           >
             {entry.key === "logo" ? <Shield size={18} /> : <ExternalLink size={18} />}
-            {entry.label}
+            <span>{entry.label}</span>
+            {entry.badge ? (
+              <span className="inline-flex items-center rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-amber-900">
+                {entry.badge}
+              </span>
+            ) : null}
           </button>
         ))}
       </div>
