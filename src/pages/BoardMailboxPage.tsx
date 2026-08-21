@@ -216,6 +216,7 @@ export default function BoardMailboxPage() {
       );
       const hasFullBgLayer = layers.some((l) => l.kind === "image" && l.position === "full");
       const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
+      const targetHeightPx = draft.draftType === "story" ? 1920 : 1440;
 
       let target: HTMLElement | null = document.querySelector(
         `[data-jpg-export="${CSS.escape(draft.id)}"]`,
@@ -336,16 +337,40 @@ export default function BoardMailboxPage() {
         throw new Error("Vorschau konnte nicht erstellt werden.");
       }
 
-      const scaleForExport = usedOffscreen ? 1 : (exportWidthPx / target.getBoundingClientRect().width);
-
-      const dataUrl = await htmlToImage.toJpeg(target, {
-        pixelRatio: Math.max(2, scaleForExport),
-        width: exportWidthPx,
-        quality: 0.97,
+      const pngDataUrl = await htmlToImage.toPng(target, {
+        pixelRatio: usedOffscreen ? 2 : Math.max(2, (exportWidthPx / target.getBoundingClientRect().width)),
+        width: usedOffscreen ? exportWidthPx : undefined,
         cacheBust: true,
         includeQueryParams: true,
-        backgroundColor: hasFullBgLayer ? undefined : "#ffffff",
+        backgroundColor: hasFullBgLayer ? "#ffffff" : "#ffffff",
       });
+
+      let finalDataUrl: string = pngDataUrl;
+      try {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error("PNG laden fehlgeschlagen"));
+          img.src = pngDataUrl;
+        });
+
+        const canvas = document.createElement("canvas");
+        canvas.width = exportWidthPx;
+        canvas.height = targetHeightPx;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          throw new Error("Canvas nicht verfügbar");
+        }
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        finalDataUrl = canvas.toDataURL("image/jpeg", 0.97);
+      } catch (err) {
+        console.warn("Canvas JPG Fallback fehlgeschlagen, verwende PNG DataURL direkt:", err);
+      }
 
       const slug = draft.title
         .toLowerCase()
@@ -355,7 +380,7 @@ export default function BoardMailboxPage() {
       const filename = `sg-wiking-posting-${slug || "entwurf"}-${datePart}.jpg`;
 
       const a = document.createElement("a");
-      a.href = dataUrl;
+      a.href = finalDataUrl;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
