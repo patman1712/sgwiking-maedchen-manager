@@ -154,6 +154,15 @@ function FlattenedPreviewImage(props: {
               document.fonts.ready,
               new Promise<void>((r) => setTimeout(r, 6000)),
             ]);
+            await new Promise<void>((r) => setTimeout(r, 3000));
+            try {
+              await document.fonts.load("72px \"Frauen Nummern (hohe Zahlen)\"");
+              await document.fonts.load("72px \"SG Schatten\"");
+              await document.fonts.load("72px \"SG Wiking Text\"");
+            } catch {}
+            await new Promise<void>((r) => setTimeout(r, 1500));
+          } else {
+            await new Promise<void>((r) => setTimeout(r, 7500));
           }
         } catch { /* ignore */ }
 
@@ -426,6 +435,15 @@ export default function BoardMailboxPage() {
             document.fonts.ready,
             new Promise<void>((r) => setTimeout(r, 6000)),
           ]);
+          await new Promise<void>((r) => setTimeout(r, 3000));
+          try {
+            await document.fonts.load("72px \"Frauen Nummern (hohe Zahlen)\"");
+            await document.fonts.load("72px \"SG Schatten\"");
+            await document.fonts.load("72px \"SG Wiking Text\"");
+          } catch {}
+          await new Promise<void>((r) => setTimeout(r, 1500));
+        } else {
+          await new Promise<void>((r) => setTimeout(r, 7500));
         }
       } catch {
         /* ignore */

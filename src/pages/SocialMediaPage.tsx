@@ -956,7 +956,9 @@ export function SocialPreview({
     startLetterSpacing?: number;
   } | null>(null);
   const glyphRefs = useRef<Map<string, { outer: HTMLDivElement | null; inner: HTMLDivElement | null }>>(new Map());
-  const [glyphMetrics, setGlyphMetrics] = useState<Record<string, { dx: number; dy: number; w: number; h: number }>>({});
+  const glyphMetricsRef = useRef<Record<string, { dx: number; dy: number; w: number; h: number }>>({});
+  const rafScheduledRef = useRef<number | null>(null);
+  const [glyphTick, setGlyphTick] = useState(0);
   const resolveAssetUrl = (ref?: string, altLabel?: string, positionHint?: string) => {
     const normKey = (s?: string | null) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "").trim();
 
@@ -1006,43 +1008,89 @@ export function SocialPreview({
   };
   const visibleLayers = layers.filter((layer) => layer.enabled ?? true);
 
-  useEffect(() => {
-    const nextMetrics: Record<string, { dx: number; dy: number; w: number; h: number }> = {};
-    let changed = false;
-    glyphRefs.current.forEach((refs, layerId) => {
-      if (!refs.outer || !refs.inner) return;
-      try {
-        const doc = refs.inner.ownerDocument ?? document;
-        const range = doc.createRange();
-        range.selectNodeContents(refs.inner);
-        const glyphRect = range.getBoundingClientRect();
-        const outerRect = refs.outer.getBoundingClientRect();
-        if (!glyphRect.width || !glyphRect.height || !outerRect.width || !outerRect.height) return;
-        const outerCX = outerRect.left + outerRect.width / 2;
-        const outerCY = outerRect.top + outerRect.height / 2;
-        const glyphCX = glyphRect.left + glyphRect.width / 2;
-        const glyphCY = glyphRect.top + glyphRect.height / 2;
-        const dx = outerCX - glyphCX;
-        const dy = outerCY - glyphCY;
-        const prev = glyphMetrics[layerId];
-        if (
-          !prev ||
-          Math.abs(prev.dx - dx) > 0.5 ||
-          Math.abs(prev.dy - dy) > 0.5 ||
-          Math.abs(prev.w - glyphRect.width) > 0.5 ||
-          Math.abs(prev.h - glyphRect.height) > 0.5
-        ) {
-          changed = true;
+  const scheduleGlyphMeasure = () => {
+    if (rafScheduledRef.current !== null) return;
+    rafScheduledRef.current = window.requestAnimationFrame(() => {
+      rafScheduledRef.current = window.requestAnimationFrame(() => {
+        rafScheduledRef.current = null;
+        const nextMetrics: Record<string, { dx: number; dy: number; w: number; h: number }> = {};
+        let changed = false;
+        const old = glyphMetricsRef.current;
+        glyphRefs.current.forEach((refs, layerId) => {
+          if (!refs.outer || !refs.inner) return;
+          try {
+            const doc = refs.inner.ownerDocument ?? document;
+            const range = doc.createRange();
+            range.selectNodeContents(refs.inner);
+            const glyphRect = range.getBoundingClientRect();
+            const outerRect = refs.outer.getBoundingClientRect();
+            if (!glyphRect.width || !glyphRect.height || !outerRect.width || !outerRect.height) return;
+            const outerCX = outerRect.left + outerRect.width / 2;
+            const outerCY = outerRect.top + outerRect.height / 2;
+            const glyphCX = glyphRect.left + glyphRect.width / 2;
+            const glyphCY = glyphRect.top + glyphRect.height / 2;
+            const dx = outerCX - glyphCX;
+            const dy = outerCY - glyphCY;
+            if (Math.abs(dx) > 200 || Math.abs(dy) > 200) return;
+            const w = glyphRect.width;
+            const h = glyphRect.height;
+            const prev = old[layerId];
+            if (
+              !prev ||
+              Math.abs(prev.dx - dx) > 0.75 ||
+              Math.abs(prev.dy - dy) > 0.75 ||
+              Math.abs(prev.w - w) > 0.75 ||
+              Math.abs(prev.h - h) > 0.75
+            ) {
+              changed = true;
+            }
+            nextMetrics[layerId] = { dx, dy, w, h };
+          } catch {}
+        });
+        const existingIds = Object.keys(old).sort();
+        const nextIds = Object.keys(nextMetrics).sort();
+        const idsChanged = existingIds.length !== nextIds.length || existingIds.some((id, i) => id !== nextIds[i]);
+        if (changed || idsChanged) {
+          glyphMetricsRef.current = nextMetrics;
+          setGlyphTick((t) => (t + 1) % 1_000_000);
         }
-        nextMetrics[layerId] = { dx, dy, w: glyphRect.width, h: glyphRect.height };
-      } catch {}
+      });
     });
-    const existingIds = new Set(Object.keys(glyphMetrics));
-    const nextIds = new Set(Object.keys(nextMetrics));
-    if (changed || existingIds.size !== nextIds.size) {
-      setGlyphMetrics(nextMetrics);
-    }
-  });
+  };
+
+  useEffect(() => {
+    scheduleGlyphMeasure();
+    const timeout1 = window.setTimeout(scheduleGlyphMeasure, 250);
+    const timeout2 = window.setTimeout(scheduleGlyphMeasure, 1000);
+    const timeout3 = window.setTimeout(scheduleGlyphMeasure, 3000);
+    let fontsPromise: Promise<void> | null = null;
+    try {
+      if (typeof document !== "undefined" && document.fonts && typeof document.fonts.ready !== "undefined") {
+        fontsPromise = Promise.resolve(document.fonts.ready).then(() => scheduleGlyphMeasure());
+      }
+    } catch {}
+    const resizeObserver =
+      typeof window.ResizeObserver !== "undefined"
+        ? new window.ResizeObserver(() => scheduleGlyphMeasure())
+        : null;
+    glyphRefs.current.forEach((refs) => {
+      if (refs.inner) resizeObserver?.observe(refs.inner);
+      if (refs.outer) resizeObserver?.observe(refs.outer);
+    });
+    previewRef.current && resizeObserver?.observe(previewRef.current);
+    return () => {
+      window.clearTimeout(timeout1);
+      window.clearTimeout(timeout2);
+      window.clearTimeout(timeout3);
+      resizeObserver?.disconnect();
+      void fontsPromise;
+      if (rafScheduledRef.current !== null) {
+        window.cancelAnimationFrame(rafScheduledRef.current);
+        rafScheduledRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layers.length, visibleLayers.length, activeLayerId, draftType, layout, fixedWidthPx]);
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
@@ -1300,7 +1348,10 @@ export function SocialPreview({
         const isSelected = activeLayerId === layer.id;
         const movable = canMoveLayer(layer, respectLayerLocks);
         const resizable = canResizeLayer(layer, respectLayerLocks);
-        const gm = glyphMetrics[layer.id];
+        void glyphTick;
+        const gm = glyphMetricsRef.current[layer.id];
+        const extraDx = gm?.dx ?? 0;
+        const extraDy = gm?.dy ?? 0;
         return (
           <div
             key={layer.id}
@@ -1319,7 +1370,7 @@ export function SocialPreview({
               justifyContent: "center",
               width: "max-content",
               height: "max-content",
-              transform: "translate(-50%, -50%)",
+              transform: `translate(calc(-50% + ${extraDx}px), calc(-50% + ${extraDy}px))`,
             }}
             onClick={() => onSelectLayer?.(layer.id)}
             onKeyDown={(event) => {
@@ -1364,9 +1415,6 @@ export function SocialPreview({
             )}
           >
             <div
-              ref={(el) => {
-                if (!el) return;
-              }}
               style={{
                 position: "relative",
                 width: gm?.w ?? "auto",
@@ -1390,7 +1438,6 @@ export function SocialPreview({
                   padding: 0,
                   display: "block",
                   lineHeight: String(layer.lineHeight ?? getDefaultTextAppearance(layer).lineHeight),
-                  transform: `translate(${gm?.dx ?? 0}px, ${gm?.dy ?? 0}px)`,
                 }}
               >
                 {text}
@@ -1572,6 +1619,15 @@ export default function SocialMediaPage() {
             document.fonts.ready,
             new Promise<void>((r) => setTimeout(r, 6000)),
           ]);
+          await new Promise<void>((r) => setTimeout(r, 3000));
+          try {
+            await document.fonts.load("72px \"Frauen Nummern (hohe Zahlen)\"");
+            await document.fonts.load("72px \"SG Schatten\"");
+            await document.fonts.load("72px \"SG Wiking Text\"");
+          } catch {}
+          await new Promise<void>((r) => setTimeout(r, 1500));
+        } else {
+          await new Promise<void>((r) => setTimeout(r, 7500));
         }
       } catch {
         /* ignore */
