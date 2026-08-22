@@ -209,6 +209,9 @@ export default function BoardMailboxPage() {
     let wrap: HTMLDivElement | null = null;
     let root: Root | null = null;
     try {
+      const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
+      const targetHeightPx = draft.draftType === "story" ? 1920 : 1440;
+
       try {
         if (document.fonts && typeof document.fonts.ready !== "undefined") {
           await Promise.race([
@@ -223,6 +226,8 @@ export default function BoardMailboxPage() {
       let target: HTMLElement | null = document.querySelector(
         `[data-jpg-export="${CSS.escape(draft.id)}"]`,
       );
+
+      const useScale = exportWidthPx / 400; // SocialPreview ist IMMER 400px breit!
 
       if (!target) {
         const previewLayers = (
@@ -251,7 +256,7 @@ export default function BoardMailboxPage() {
         target = await new Promise<HTMLElement>((resolveRender, rejectRender) => {
           const renderTimeout = window.setTimeout(() => {
             try {
-              const candidate = wrap?.querySelector<HTMLElement>("[class*='aspect-']") ??
+              const candidate = wrap?.querySelector<HTMLElement>("[class*='overflow-hidden']") ??
                 (wrap?.firstElementChild as HTMLElement | null);
               if (candidate) resolveRender(candidate);
               else rejectRender(new Error("Render timeout"));
@@ -269,7 +274,7 @@ export default function BoardMailboxPage() {
                       requestAnimationFrame(() => {
                         requestAnimationFrame(() => {
                           try {
-                            const candidate = el.querySelector<HTMLElement>("[class*='aspect-']") ??
+                            const candidate = el.querySelector<HTMLElement>("[class*='overflow-hidden']") ??
                               (el.firstElementChild as HTMLElement | null);
                             if (candidate) {
                               candidate.style.width = `${sourcePreviewWidthPx}px`;
@@ -299,6 +304,7 @@ export default function BoardMailboxPage() {
                   assets={previewAssets}
                   logoUrl={clubLogoUrl ?? null}
                   respectLayerLocks={false}
+                  fixedWidthPx={sourcePreviewWidthPx}
                 />
               </div>,
             );
@@ -337,7 +343,7 @@ export default function BoardMailboxPage() {
 
       const canvasRaw = await html2canvas(target, {
         backgroundColor: "#ffffff",
-        scale: 1,
+        scale: useScale,
         useCORS: true,
         allowTaint: true,
         logging: false,
@@ -345,7 +351,28 @@ export default function BoardMailboxPage() {
         removeContainer: true,
       });
 
-      const finalDataUrl = canvasRaw.toDataURL("image/jpeg", 0.97);
+      const finalCanvas = document.createElement("canvas");
+      finalCanvas.width = exportWidthPx;
+      finalCanvas.height = targetHeightPx;
+      const ctx = finalCanvas.getContext("2d");
+      if (!ctx) {
+        throw new Error("Canvas Context nicht verfügbar");
+      }
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      {
+        const rawW = Math.max(1, canvasRaw.width);
+        const rawH = Math.max(1, canvasRaw.height);
+        const drawW = Math.min(finalCanvas.width, rawW);
+        const drawH = Math.min(finalCanvas.height, rawH);
+        const drawX = (finalCanvas.width - drawW) / 2;
+        const drawY = (finalCanvas.height - drawH) / 2;
+        ctx.drawImage(canvasRaw, drawX, drawY, drawW, drawH);
+      }
+
+      const finalDataUrl = finalCanvas.toDataURL("image/jpeg", 0.97);
 
       const slug = draft.title
         .toLowerCase()

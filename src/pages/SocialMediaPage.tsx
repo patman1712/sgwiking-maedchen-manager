@@ -908,6 +908,7 @@ export function SocialPreview({
   respectLayerLocks = false,
   dataJpgExportId,
   noChrome = false,
+  fixedWidthPx = 400,
 }: {
   draftType: SocialMediaDraftType;
   layout: string;
@@ -920,9 +921,14 @@ export function SocialPreview({
   respectLayerLocks?: boolean;
   dataJpgExportId?: string;
   noChrome?: boolean;
+  fixedWidthPx?: number;
 }) {
   const layoutLabel =
     fallbackLayoutOptions.find((option) => option.value === layout)?.label ?? "Vorlage";
+  const fixedHeightPx =
+    draftType === "story"
+      ? fixedWidthPx * (1920 / 1080)
+      : fixedWidthPx * (1440 / 1080);
 
   const previewRef = useRef<HTMLDivElement | null>(null);
   const interactionRef = useRef<{
@@ -1093,12 +1099,12 @@ export function SocialPreview({
       ref={previewRef}
       data-jpg-export={dataJpgExportId}
       className={cn(
-        "relative overflow-hidden",
+        "relative overflow-hidden shrink-0",
         noChrome
           ? "rounded-none border-0 bg-transparent text-slate-900 shadow-none"
           : "rounded-[2.25rem] border border-slate-200 bg-white text-slate-900 shadow-[0_28px_90px_rgba(15,23,42,0.14)]",
-        draftType === "story" ? "aspect-[9/16]" : "aspect-[3/4]",
       )}
+      style={{ width: `${fixedWidthPx}px`, height: `${fixedHeightPx}px`, aspectRatio: "unset" }}
     >
       {visibleLayers.map((layer, index) => {
         const zStyle = { zIndex: index + 5 };
@@ -1489,7 +1495,7 @@ export default function SocialMediaPage() {
       const target = await new Promise<HTMLElement>((resolveRender, rejectRender) => {
         const renderTimeout = window.setTimeout(() => {
           try {
-            const candidate = wrap?.querySelector<HTMLElement>("[class*='aspect-']") ??
+            const candidate = wrap?.querySelector<HTMLElement>("[class*='overflow-hidden']") ??
               (wrap?.firstElementChild as HTMLElement | null);
             if (candidate) resolveRender(candidate);
             else rejectRender(new Error("Render timeout"));
@@ -1507,7 +1513,7 @@ export default function SocialMediaPage() {
                     requestAnimationFrame(() => {
                       requestAnimationFrame(() => {
                         try {
-                          const candidate = el.querySelector<HTMLElement>("[class*='aspect-']") ??
+                          const candidate = el.querySelector<HTMLElement>("[class*='overflow-hidden']") ??
                             (el.firstElementChild as HTMLElement | null);
                           if (candidate) {
                             candidate.style.width = `${sourcePreviewWidthPx}px`;
@@ -1537,6 +1543,7 @@ export default function SocialMediaPage() {
                 assets={previewAssets}
                 logoUrl={settings.logoUrl ?? null}
                 respectLayerLocks={false}
+                fixedWidthPx={sourcePreviewWidthPx}
               />
             </div>,
           );
@@ -1576,8 +1583,6 @@ export default function SocialMediaPage() {
         logging: false,
         imageTimeout: 0,
         removeContainer: true,
-        windowWidth: sourcePreviewWidthPx * upscale * 2,
-        windowHeight: sourcePreviewHeightPx * upscale * 2,
       });
 
       const finalCanvas = document.createElement("canvas");
@@ -1591,7 +1596,15 @@ export default function SocialMediaPage() {
       ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(canvasRaw, 0, 0, finalCanvas.width, finalCanvas.height);
+      {
+        const rawW = Math.max(1, canvasRaw.width);
+        const rawH = Math.max(1, canvasRaw.height);
+        const drawW = Math.min(finalCanvas.width, rawW);
+        const drawH = Math.min(finalCanvas.height, rawH);
+        const drawX = (finalCanvas.width - drawW) / 2;
+        const drawY = (finalCanvas.height - drawH) / 2;
+        ctx.drawImage(canvasRaw, drawX, drawY, drawW, drawH);
+      }
 
       const finalDataUrl = finalCanvas.toDataURL("image/jpeg", 0.97);
 
