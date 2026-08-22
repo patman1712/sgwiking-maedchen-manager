@@ -1269,11 +1269,9 @@ export function SocialPreview({
               ...zStyle,
               left: `${geometry.centerX}%`,
               top: `${geometry.centerY}%`,
-              display: "block",
+              display: "inline-block",
               width: "max-content",
               height: "max-content",
-              maxWidth: `${geometry.widthPercent}%`,
-              maxHeight: `${geometry.heightPercent}%`,
               transform: "translate(-50%, -50%)",
             }}
             onClick={() => onSelectLayer?.(layer.id)}
@@ -1318,7 +1316,19 @@ export function SocialPreview({
               getTextWrapperClasses(layer, draftType, isSelected),
             )}
           >
-            <div className={cn(getTextClasses(layer), getTextSelectRingClasses(isSelected))} style={getTextInlineStyle(layer)}>
+            <div
+              className={cn(
+                getTextClasses(layer),
+                getTextSelectRingClasses(isSelected),
+                "inline-block leading-none m-0 p-0 whitespace-pre-wrap break-words w-auto h-auto",
+              )}
+              style={{
+                ...getTextInlineStyle(layer),
+                margin: 0,
+                padding: 0,
+                display: "inline-block",
+              }}
+            >
               {text}
             </div>
             {isSelected && onUpdateLayer ? (

@@ -258,6 +258,7 @@ const remapLayerImageRefs = (
 
 const deleteDraftImages = (imageUrls: string[]) => {
   imageUrls.forEach((imageUrl) => {
+    if (isSharedSocialAssetUrl(imageUrl)) return;
     const filePath = path.join(uploadDir, path.basename(imageUrl))
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath)
