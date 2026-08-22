@@ -955,10 +955,6 @@ export function SocialPreview({
     startFontSize?: number;
     startLetterSpacing?: number;
   } | null>(null);
-  const glyphRefs = useRef<Map<string, { outer: HTMLDivElement | null; inner: HTMLDivElement | null }>>(new Map());
-  const glyphMetricsRef = useRef<Record<string, { dx: number; dy: number; w: number; h: number }>>({});
-  const rafScheduledRef = useRef<number | null>(null);
-  const [glyphTick, setGlyphTick] = useState(0);
   const resolveAssetUrl = (ref?: string, altLabel?: string, positionHint?: string) => {
     const normKey = (s?: string | null) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "").trim();
 
@@ -1008,89 +1004,38 @@ export function SocialPreview({
   };
   const visibleLayers = layers.filter((layer) => layer.enabled ?? true);
 
-  const scheduleGlyphMeasure = () => {
-    if (rafScheduledRef.current !== null) return;
-    rafScheduledRef.current = window.requestAnimationFrame(() => {
-      rafScheduledRef.current = window.requestAnimationFrame(() => {
-        rafScheduledRef.current = null;
-        const nextMetrics: Record<string, { dx: number; dy: number; w: number; h: number }> = {};
-        let changed = false;
-        const old = glyphMetricsRef.current;
-        glyphRefs.current.forEach((refs, layerId) => {
-          if (!refs.outer || !refs.inner) return;
-          try {
-            const doc = refs.inner.ownerDocument ?? document;
-            const range = doc.createRange();
-            range.selectNodeContents(refs.inner);
-            const glyphRect = range.getBoundingClientRect();
-            const outerRect = refs.outer.getBoundingClientRect();
-            if (!glyphRect.width || !glyphRect.height || !outerRect.width || !outerRect.height) return;
-            const outerCX = outerRect.left + outerRect.width / 2;
-            const outerCY = outerRect.top + outerRect.height / 2;
-            const glyphCX = glyphRect.left + glyphRect.width / 2;
-            const glyphCY = glyphRect.top + glyphRect.height / 2;
-            const dx = outerCX - glyphCX;
-            const dy = outerCY - glyphCY;
-            if (Math.abs(dx) > 200 || Math.abs(dy) > 200) return;
-            const w = glyphRect.width;
-            const h = glyphRect.height;
-            const prev = old[layerId];
-            if (
-              !prev ||
-              Math.abs(prev.dx - dx) > 0.75 ||
-              Math.abs(prev.dy - dy) > 0.75 ||
-              Math.abs(prev.w - w) > 0.75 ||
-              Math.abs(prev.h - h) > 0.75
-            ) {
-              changed = true;
-            }
-            nextMetrics[layerId] = { dx, dy, w, h };
-          } catch {}
-        });
-        const existingIds = Object.keys(old).sort();
-        const nextIds = Object.keys(nextMetrics).sort();
-        const idsChanged = existingIds.length !== nextIds.length || existingIds.some((id, i) => id !== nextIds[i]);
-        if (changed || idsChanged) {
-          glyphMetricsRef.current = nextMetrics;
-          setGlyphTick((t) => (t + 1) % 1_000_000);
-        }
-      });
-    });
-  };
-
   useEffect(() => {
-    scheduleGlyphMeasure();
-    const timeout1 = window.setTimeout(scheduleGlyphMeasure, 250);
-    const timeout2 = window.setTimeout(scheduleGlyphMeasure, 1000);
-    const timeout3 = window.setTimeout(scheduleGlyphMeasure, 3000);
-    let fontsPromise: Promise<void> | null = null;
-    try {
-      if (typeof document !== "undefined" && document.fonts && typeof document.fonts.ready !== "undefined") {
-        fontsPromise = Promise.resolve(document.fonts.ready).then(() => scheduleGlyphMeasure());
-      }
-    } catch {}
-    const resizeObserver =
-      typeof window.ResizeObserver !== "undefined"
-        ? new window.ResizeObserver(() => scheduleGlyphMeasure())
-        : null;
-    glyphRefs.current.forEach((refs) => {
-      if (refs.inner) resizeObserver?.observe(refs.inner);
-      if (refs.outer) resizeObserver?.observe(refs.outer);
-    });
-    previewRef.current && resizeObserver?.observe(previewRef.current);
+    if (typeof window === "undefined") return;
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    (async () => {
+      try {
+        if (typeof document !== "undefined" && document.fonts && typeof document.fonts.ready !== "undefined") {
+          await Promise.race([
+            document.fonts.ready,
+            new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+          ]);
+          try {
+            await Promise.all([
+              document.fonts.load(`72px "Frauen Nummern (hohe Zahlen)`),
+              document.fonts.load(`72px "SG Schatten"`),
+              document.fonts.load(`72px "SG Wiking Text"`),
+              document.fonts.load(`120px "Frauen Nummern (hohe Zahlen)"`),
+              document.fonts.load(`120px "SG Schatten"`),
+            ]);
+          } catch {}
+          if (cancelled) return;
+          await new Promise<void>((resolve) => {
+            timeoutId = setTimeout(resolve, 1200);
+          });
+        }
+      } catch {}
+    })();
     return () => {
-      window.clearTimeout(timeout1);
-      window.clearTimeout(timeout2);
-      window.clearTimeout(timeout3);
-      resizeObserver?.disconnect();
-      void fontsPromise;
-      if (rafScheduledRef.current !== null) {
-        window.cancelAnimationFrame(rafScheduledRef.current);
-        rafScheduledRef.current = null;
-      }
+      cancelled = true;
+      if (timeoutId) window.clearTimeout(timeoutId);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layers.length, visibleLayers.length, activeLayerId, draftType, layout, fixedWidthPx]);
+  }, [layers.length, visibleLayers.length, draftType, layout, fixedWidthPx]);
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
@@ -1348,29 +1293,19 @@ export function SocialPreview({
         const isSelected = activeLayerId === layer.id;
         const movable = canMoveLayer(layer, respectLayerLocks);
         const resizable = canResizeLayer(layer, respectLayerLocks);
-        void glyphTick;
-        const gm = glyphMetricsRef.current[layer.id];
-        const extraDx = gm?.dx ?? 0;
-        const extraDy = gm?.dy ?? 0;
         return (
           <div
             key={layer.id}
             role="button"
             tabIndex={0}
-            ref={(el) => {
-              const existing = glyphRefs.current.get(layer.id) ?? { inner: null, outer: null };
-              glyphRefs.current.set(layer.id, { ...existing, outer: el });
-            }}
             style={{
               ...zStyle,
               left: `${geometry.centerX}%`,
               top: `${geometry.centerY}%`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "max-content",
-              height: "max-content",
-              transform: `translate(calc(-50% + ${extraDx}px), calc(-50% + ${extraDy}px))`,
+              width: "auto",
+              height: "auto",
+              transform: "translate(-50%, -50%)",
+              lineHeight: "1",
             }}
             onClick={() => onSelectLayer?.(layer.id)}
             onKeyDown={(event) => {
@@ -1398,97 +1333,84 @@ export function SocialPreview({
                 startCenterY: geometry.centerY,
                 startWidthPercent:
                   previewRect && previewRect.width
-                    ? ((gm?.w ?? targetRect.width) / previewRect.width) * 100
+                    ? (targetRect.width / previewRect.width) * 100
                     : geometry.widthPercent,
                 startHeightPercent:
                   previewRect && previewRect.height
-                    ? ((gm?.h ?? targetRect.height) / previewRect.height) * 100
+                    ? (targetRect.height / previewRect.height) * 100
                     : geometry.heightPercent,
                 startFontSize: layer.fontSize ?? getDefaultTextAppearance(layer).fontSize,
                 startLetterSpacing: layer.letterSpacing ?? getDefaultTextAppearance(layer).letterSpacing,
               };
             }}
             className={cn(
-              "absolute touch-none",
+              "absolute touch-none select-none",
               movable ? "cursor-grab active:cursor-grabbing" : "cursor-default",
-              getTextWrapperClasses(layer, draftType, isSelected),
+              getTextWrapperClasses(layer, draftType, false),
+              getTextSelectRingClasses(isSelected),
             )}
           >
             <div
+              className={cn(
+                getTextClasses(layer),
+                "m-0 p-0 whitespace-pre-wrap break-words w-auto h-auto",
+              )}
               style={{
-                position: "relative",
-                width: gm?.w ?? "auto",
-                height: gm?.h ?? "auto",
+                ...getTextInlineStyle(layer),
+                margin: 0,
+                padding: 0,
+                lineHeight: "1",
                 display: "block",
               }}
-              className={getTextSelectRingClasses(isSelected)}
             >
-              <div
-                ref={(el) => {
-                  const existing = glyphRefs.current.get(layer.id) ?? { inner: null, outer: null };
-                  glyphRefs.current.set(layer.id, { ...existing, inner: el });
-                }}
+              {text}
+            </div>
+            {isSelected && onUpdateLayer ? (
+              <button
+                type="button"
+                aria-label="Textgroesse anpassen"
+                disabled={!resizable}
                 className={cn(
-                  getTextClasses(layer),
-                  "block m-0 p-0 whitespace-pre-wrap break-words w-auto h-auto",
+                  "absolute h-6 w-6 rounded-full border border-slate-200 shadow-lg shadow-slate-500/20",
+                  resizable
+                    ? "bg-sky-400"
+                    : "cursor-not-allowed bg-slate-300 opacity-75",
                 )}
                 style={{
-                  ...getTextInlineStyle(layer),
-                  margin: 0,
-                  padding: 0,
-                  display: "block",
-                  lineHeight: String(layer.lineHeight ?? getDefaultTextAppearance(layer).lineHeight),
+                  bottom: "-0.55rem",
+                  right: "-0.55rem",
                 }}
-              >
-                {text}
-              </div>
-              {isSelected && onUpdateLayer ? (
-                <button
-                  type="button"
-                  aria-label="Textgroesse anpassen"
-                  disabled={!resizable}
-                  className={cn(
-                    "absolute h-6 w-6 rounded-full border border-slate-200 shadow-lg shadow-slate-500/20",
-                    resizable
-                      ? "bg-sky-400"
-                      : "cursor-not-allowed bg-slate-300 opacity-75",
-                  )}
-                  style={{
-                    bottom: "-0.55rem",
-                    right: "-0.55rem",
-                  }}
-                  onPointerDown={(event) => {
-                    if (!resizable) {
-                      return;
-                    }
-                    const previewRect = previewRef.current?.getBoundingClientRect();
-                    const parentRect = event.currentTarget.parentElement?.getBoundingClientRect();
-                    event.preventDefault();
-                    event.stopPropagation();
-                    onSelectLayer?.(layer.id);
-                    interactionRef.current = {
-                      layerId: layer.id,
-                      layerKind: layer.kind,
-                      mode: "resize",
-                      startX: event.clientX,
-                      startY: event.clientY,
-                      startCenterX: geometry.centerX,
-                      startCenterY: geometry.centerY,
-                      startWidthPercent:
-                        previewRect && previewRect.width && parentRect
-                          ? (parentRect.width / previewRect.width) * 100
-                          : geometry.widthPercent,
-                      startHeightPercent:
-                        previewRect && previewRect.height && parentRect
-                          ? (parentRect.height / previewRect.height) * 100
-                          : geometry.heightPercent,
-                      startFontSize: layer.fontSize ?? getDefaultTextAppearance(layer).fontSize,
-                      startLetterSpacing: layer.letterSpacing ?? getDefaultTextAppearance(layer).letterSpacing,
-                    };
-                  }}
-                />
-              ) : null}
-            </div>
+                onPointerDown={(event) => {
+                  if (!resizable) {
+                    return;
+                  }
+                  const previewRect = previewRef.current?.getBoundingClientRect();
+                  const parentRect = event.currentTarget.parentElement?.getBoundingClientRect();
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onSelectLayer?.(layer.id);
+                  interactionRef.current = {
+                    layerId: layer.id,
+                    layerKind: layer.kind,
+                    mode: "resize",
+                    startX: event.clientX,
+                    startY: event.clientY,
+                    startCenterX: geometry.centerX,
+                    startCenterY: geometry.centerY,
+                    startWidthPercent:
+                      previewRect && previewRect.width && parentRect
+                        ? (parentRect.width / previewRect.width) * 100
+                        : geometry.widthPercent,
+                    startHeightPercent:
+                      previewRect && previewRect.height && parentRect
+                        ? (parentRect.height / previewRect.height) * 100
+                        : geometry.heightPercent,
+                    startFontSize: layer.fontSize ?? getDefaultTextAppearance(layer).fontSize,
+                    startLetterSpacing: layer.letterSpacing ?? getDefaultTextAppearance(layer).letterSpacing,
+                  };
+                }}
+              />
+            ) : null}
           </div>
         );
       })}
