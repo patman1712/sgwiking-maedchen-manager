@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { useNavigate } from "react-router-dom";
 import {
@@ -106,6 +106,214 @@ function DebugAssetInfo(props: {
       <div>4. Resolved Assets ({assets.length}): {JSON.stringify(resolvedAssetsShort).slice(0, 500)}</div>
       <div>5. Draft.layers: {JSON.stringify(layersShort).slice(0, 500)}</div>
       <div>6. Match Testergebnis (Bild-Layer): {JSON.stringify(matchTests)}</div>
+    </div>
+  );
+}
+
+function FlattenedPreviewImage(props: {
+  draft: SocialMediaDraft;
+  layers: ReturnType<typeof normalizeLayer>[];
+  assets: EditorAsset[];
+  clubLogoUrl: string | null;
+  socialMediaCrests: SocialMediaCrest[];
+  socialMediaAssets: SocialMediaAsset[];
+}) {
+  const { draft, layers, assets, clubLogoUrl } = props;
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
+  const [isRendering, setIsRendering] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<Root | null>(null);
+  const key = `${draft.id}-${draft.updatedAt ?? draft.createdAt ?? draft.id}`;
+  const sourcePreviewWidthPx = 400;
+  const sourcePreviewHeightPx =
+    draft.draftType === "story"
+      ? sourcePreviewWidthPx * (1920 / 1080)
+      : sourcePreviewWidthPx * (1440 / 1080);
+  const useScale = (draft.draftType === "story" ? 1080 : 1080) / sourcePreviewWidthPx;
+
+  useEffect(() => {
+    let cancelled = false;
+    const cleanup = () => {
+      if (rootRef.current) {
+        try { rootRef.current.unmount(); } catch { /* ignore */ }
+        rootRef.current = null;
+      }
+      if (wrapRef.current && wrapRef.current.parentNode) {
+        wrapRef.current.parentNode.removeChild(wrapRef.current);
+        wrapRef.current = null;
+      }
+    };
+    const render = async () => {
+      setIsRendering(true);
+      setError(null);
+      try {
+        try {
+          if (document.fonts && typeof document.fonts.ready !== "undefined") {
+            await Promise.race([
+              document.fonts.ready,
+              new Promise<void>((r) => setTimeout(r, 6000)),
+            ]);
+          }
+        } catch { /* ignore */ }
+
+        if (cancelled) return;
+
+        const wrap = document.createElement("div");
+        wrap.style.position = "fixed";
+        wrap.style.left = "0";
+        wrap.style.top = "0";
+        wrap.style.pointerEvents = "none";
+        wrap.style.opacity = "0.001";
+        wrap.style.zIndex = "-1";
+        wrap.style.width = `${sourcePreviewWidthPx}px`;
+        wrap.style.height = `${sourcePreviewHeightPx}px`;
+        wrap.style.overflow = "visible";
+        document.body.appendChild(wrap);
+        wrapRef.current = wrap;
+
+        const target = await new Promise<HTMLElement>((resolveRender, rejectRender) => {
+          const renderTimeout = window.setTimeout(() => {
+            try {
+              const candidate = wrap.querySelector<HTMLElement>("[class*='overflow-hidden']") ??
+                (wrap.firstElementChild as HTMLElement | null);
+              if (candidate) resolveRender(candidate);
+              else rejectRender(new Error("Render timeout"));
+            } catch (err) {
+              rejectRender(err);
+            }
+          }, 15000);
+          try {
+            const r = createRoot(wrap);
+            rootRef.current = r;
+            r.render(
+              <div
+                ref={(el) => {
+                  if (el) {
+                    requestAnimationFrame(() => {
+                      requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                          try {
+                            const candidate = el.querySelector<HTMLElement>("[class*='overflow-hidden']") ??
+                              (el.firstElementChild as HTMLElement | null);
+                            if (candidate) {
+                              candidate.style.width = `${sourcePreviewWidthPx}px`;
+                              candidate.style.height = `${sourcePreviewHeightPx}px`;
+                              candidate.style.aspectRatio = "unset";
+                              window.clearTimeout(renderTimeout);
+                              resolveRender(candidate);
+                            }
+                          } catch {
+                            /* ignore */
+                          }
+                        });
+                      });
+                    });
+                  }
+                }}
+                style={{
+                  width: `${sourcePreviewWidthPx}px`,
+                  height: `${sourcePreviewHeightPx}px`,
+                }}
+              >
+                <SocialPreview
+                  noChrome={true}
+                  draftType={draft.draftType as "feed" | "story"}
+                  layout={draft.layout}
+                  layers={layers}
+                  assets={assets}
+                  logoUrl={clubLogoUrl}
+                  respectLayerLocks={false}
+                  fixedWidthPx={sourcePreviewWidthPx}
+                />
+              </div>,
+            );
+          } catch (error) {
+            rejectRender(error);
+          }
+        });
+
+        if (cancelled) return;
+        await new Promise<void>((r) => setTimeout(r, 1800));
+        const imgs = Array.from(target.querySelectorAll("img"));
+        await Promise.all(
+          imgs.map(async (imgEl) => {
+            try {
+              if (imgEl.complete && imgEl.naturalWidth > 0) return;
+              await new Promise<void>((res) => {
+                const to = window.setTimeout(res, 2500);
+                imgEl.addEventListener("load", () => {
+                  window.clearTimeout(to);
+                  res();
+                });
+                imgEl.addEventListener("error", () => {
+                  window.clearTimeout(to);
+                  res();
+                });
+              });
+            } catch {
+              /* ignore */
+            }
+          }),
+        );
+
+        if (cancelled) return;
+        const canvasRaw = await html2canvas(target, {
+          backgroundColor: "#ffffff",
+          scale: useScale,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          imageTimeout: 0,
+          removeContainer: false,
+        });
+
+        if (cancelled) return;
+        const dataUrl = canvasRaw.toDataURL("image/jpeg", 0.95);
+        setImageDataUrl(dataUrl);
+        setIsRendering(false);
+      } catch (err) {
+        if (!cancelled) {
+          console.error(err);
+          setError("Vorschau konnte nicht geladen werden.");
+          setIsRendering(false);
+        }
+      }
+    };
+
+    render();
+    return () => {
+      cancelled = true;
+      cleanup();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  return (
+    <div
+      className={cn(
+        "relative w-full flex flex-col items-center justify-center overflow-hidden bg-slate-200",
+        draft.draftType === "story" ? "aspect-[9/16]" : "aspect-[3/4]",
+      )}
+    >
+      {isRendering && (
+        <div className="absolute inset-0 flex items-center justify-center text-slate-500">
+          <div className="animate-pulse text-sm font-medium">Vorschau wird geladen…</div>
+        </div>
+      )}
+      {error && !isRendering && (
+        <div className="absolute inset-0 flex items-center justify-center p-3 text-rose-700 text-center">
+          <p className="text-sm">{error}</p>
+        </div>
+      )}
+      {imageDataUrl && !isRendering && (
+        <img
+          src={imageDataUrl}
+          alt={`Vorschau ${draft.title}`}
+          className="w-full h-full object-cover select-none pointer-events-none"
+          draggable={false}
+        />
+      )}
     </div>
   );
 }
@@ -223,96 +431,89 @@ export default function BoardMailboxPage() {
         /* ignore */
       }
 
-      let target: HTMLElement | null = document.querySelector(
-        `[data-jpg-export="${CSS.escape(draft.id)}"]`,
-      );
+      const previewLayers = (
+        draft.layers.length ? draft.layers : buildFallbackLayers(draft)
+      ).map(normalizeLayer);
+      const previewAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
+      const sourcePreviewWidthPx = 400;
+      const sourcePreviewHeightPx =
+        draft.draftType === "story"
+          ? sourcePreviewWidthPx * (1920 / 1080)
+          : sourcePreviewWidthPx * (1440 / 1080);
+      const useScale = exportWidthPx / sourcePreviewWidthPx;
 
-      const useScale = exportWidthPx / 400; // SocialPreview ist IMMER 400px breit!
+      wrap = document.createElement("div");
+      wrap.style.position = "fixed";
+      wrap.style.left = "0";
+      wrap.style.top = "0";
+      wrap.style.pointerEvents = "none";
+      wrap.style.opacity = "0.001";
+      wrap.style.zIndex = "999999";
+      wrap.style.width = `${sourcePreviewWidthPx}px`;
+      wrap.style.height = `${sourcePreviewHeightPx}px`;
+      wrap.style.overflow = "visible";
+      document.body.appendChild(wrap);
 
-      if (!target) {
-        const previewLayers = (
-          draft.layers.length ? draft.layers : buildFallbackLayers(draft)
-        ).map(normalizeLayer);
-        const previewAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
-        const sourcePreviewWidthPx = 400;
-        const sourcePreviewHeightPx =
-          draft.draftType === "story"
-            ? sourcePreviewWidthPx * (1920 / 1080)
-            : sourcePreviewWidthPx * (1440 / 1080);
-
-        wrap = document.createElement("div");
-        wrap.style.position = "fixed";
-        wrap.style.left = "0";
-        wrap.style.top = "0";
-        wrap.style.pointerEvents = "none";
-        wrap.style.opacity = "0.001";
-        wrap.style.zIndex = "999999";
-        wrap.style.width = `${sourcePreviewWidthPx}px`;
-        wrap.style.height = `${sourcePreviewHeightPx}px`;
-        wrap.style.overflow = "visible";
-        document.body.appendChild(wrap);
-
-        root = createRoot(wrap);
-        target = await new Promise<HTMLElement>((resolveRender, rejectRender) => {
-          const renderTimeout = window.setTimeout(() => {
-            try {
-              const candidate = wrap?.querySelector<HTMLElement>("[class*='overflow-hidden']") ??
-                (wrap?.firstElementChild as HTMLElement | null);
-              if (candidate) resolveRender(candidate);
-              else rejectRender(new Error("Render timeout"));
-            } catch (err) {
-              rejectRender(err);
-            }
-          }, 20000);
-
+      root = createRoot(wrap);
+      const target = await new Promise<HTMLElement>((resolveRender, rejectRender) => {
+        const renderTimeout = window.setTimeout(() => {
           try {
-            root!.render(
-              <div
-                ref={(el) => {
-                  if (el) {
+            const candidate = wrap?.querySelector<HTMLElement>("[class*='overflow-hidden']") ??
+              (wrap?.firstElementChild as HTMLElement | null);
+            if (candidate) resolveRender(candidate);
+            else rejectRender(new Error("Render timeout"));
+          } catch (err) {
+            rejectRender(err);
+          }
+        }, 20000);
+
+        try {
+          root!.render(
+            <div
+              ref={(el) => {
+                if (el) {
+                  requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
                       requestAnimationFrame(() => {
-                        requestAnimationFrame(() => {
-                          try {
-                            const candidate = el.querySelector<HTMLElement>("[class*='overflow-hidden']") ??
-                              (el.firstElementChild as HTMLElement | null);
-                            if (candidate) {
-                              candidate.style.width = `${sourcePreviewWidthPx}px`;
-                              candidate.style.height = `${sourcePreviewHeightPx}px`;
-                              candidate.style.aspectRatio = "unset";
-                              window.clearTimeout(renderTimeout);
-                              resolveRender(candidate);
-                            }
-                          } catch {
-                            /* ignore */
+                        try {
+                          const candidate = el.querySelector<HTMLElement>("[class*='overflow-hidden']") ??
+                            (el.firstElementChild as HTMLElement | null);
+                          if (candidate) {
+                            candidate.style.width = `${sourcePreviewWidthPx}px`;
+                            candidate.style.height = `${sourcePreviewHeightPx}px`;
+                            candidate.style.aspectRatio = "unset";
+                            window.clearTimeout(renderTimeout);
+                            resolveRender(candidate);
                           }
-                        });
+                        } catch {
+                          /* ignore */
+                        }
                       });
                     });
-                  }
-                }}
-                style={{
-                  width: `${sourcePreviewWidthPx}px`,
-                  height: `${sourcePreviewHeightPx}px`,
-                }}
-              >
-                <SocialPreview
-                  noChrome={true}
-                  draftType={draft.draftType as "feed" | "story"}
-                  layout={draft.layout}
-                  layers={previewLayers}
-                  assets={previewAssets}
-                  logoUrl={clubLogoUrl ?? null}
-                  respectLayerLocks={false}
-                  fixedWidthPx={sourcePreviewWidthPx}
-                />
-              </div>,
-            );
-          } catch (error) {
-            rejectRender(error);
-          }
-        });
-      }
+                  });
+                }
+              }}
+              style={{
+                width: `${sourcePreviewWidthPx}px`,
+                height: `${sourcePreviewHeightPx}px`,
+              }}
+            >
+              <SocialPreview
+                noChrome={true}
+                draftType={draft.draftType as "feed" | "story"}
+                layout={draft.layout}
+                layers={previewLayers}
+                assets={previewAssets}
+                logoUrl={clubLogoUrl ?? null}
+                respectLayerLocks={false}
+                fixedWidthPx={sourcePreviewWidthPx}
+              />
+            </div>,
+          );
+        } catch (error) {
+          rejectRender(error);
+        }
+      });
 
       if (!target) {
         throw new Error("Vorschau konnte nicht erstellt werden.");
@@ -521,17 +722,16 @@ export default function BoardMailboxPage() {
                         <div className="relative flex items-start justify-center">
                           <div
                             className={cn(
-                              "w-full max-w-[360px]",
+                              "w-full max-w-[420px]",
                             )}
                           >
-                            <SocialPreview
-                              noChrome={true}
-                              dataJpgExportId={draft.id}
-                              draftType={draft.draftType as "feed" | "story"}
-                              layout={draft.layout}
+                            <FlattenedPreviewImage
+                              draft={draft}
                               layers={layers}
                               assets={assets}
-                              logoUrl={clubLogoUrl ?? null}
+                              clubLogoUrl={clubLogoUrl ?? null}
+                              socialMediaCrests={socialMediaCrests}
+                              socialMediaAssets={socialMediaAssets}
                             />
                             <DebugAssetInfo
                               draft={draft}
