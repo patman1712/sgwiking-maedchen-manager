@@ -1450,6 +1450,8 @@ export default function SocialMediaPage() {
     try {
       const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
       const targetHeightPx = draft.draftType === "story" ? 1920 : 1440;
+      const sourcePreviewWidthPx = 400;
+      const upscale = exportWidthPx / sourcePreviewWidthPx;
       const previewLayers = (
         draft.layers.length ? draft.layers : buildFallbackLayers(draft)
       ).map(normalizeLayer);
@@ -1462,8 +1464,7 @@ export default function SocialMediaPage() {
       wrap.style.pointerEvents = "none";
       wrap.style.opacity = "0.001";
       wrap.style.zIndex = "999999";
-      wrap.style.width = `${exportWidthPx}px`;
-      wrap.style.height = `${targetHeightPx}px`;
+      wrap.style.width = `${sourcePreviewWidthPx}px`;
       wrap.style.overflow = "visible";
       document.body.appendChild(wrap);
 
@@ -1503,7 +1504,7 @@ export default function SocialMediaPage() {
                   });
                 }
               }}
-              style={{ width: `${exportWidthPx}px`, height: `${targetHeightPx}px` }}
+              style={{ width: `${sourcePreviewWidthPx}px` }}
             >
               <SocialPreview
                 noChrome={true}
@@ -1546,14 +1547,14 @@ export default function SocialMediaPage() {
 
       const canvasRaw = await html2canvas(target, {
         backgroundColor: "#ffffff",
-        scale: 1,
+        scale: upscale,
         useCORS: true,
         allowTaint: true,
         logging: false,
         imageTimeout: 0,
         removeContainer: true,
-        windowWidth: exportWidthPx * 2,
-        windowHeight: targetHeightPx * 2,
+        windowWidth: Math.max(window.innerWidth, sourcePreviewWidthPx * upscale * 2),
+        windowHeight: Math.max(window.innerHeight, sourcePreviewWidthPx * upscale * 2),
       });
 
       const finalCanvas = document.createElement("canvas");
@@ -1565,8 +1566,20 @@ export default function SocialMediaPage() {
       }
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(canvasRaw, 0, 0, finalCanvas.width, finalCanvas.height);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      {
+        const rawW = Math.max(1, canvasRaw.width);
+        const rawH = Math.max(1, canvasRaw.height);
+        const scaleW = finalCanvas.width / rawW;
+        const scaleH = finalCanvas.height / rawH;
+        const drawScale = Math.min(scaleW, scaleH);
+        const drawW = rawW * drawScale;
+        const drawH = rawH * drawScale;
+        const drawX = (finalCanvas.width - drawW) / 2;
+        const drawY = (finalCanvas.height - drawH) / 2;
+        ctx.drawImage(canvasRaw, drawX, drawY, drawW, drawH);
+      }
 
       const finalDataUrl = finalCanvas.toDataURL("image/jpeg", 0.97);
 
