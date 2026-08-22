@@ -1269,10 +1269,11 @@ export function SocialPreview({
               ...zStyle,
               left: `${geometry.centerX}%`,
               top: `${geometry.centerY}%`,
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
+              display: "block",
+              width: "max-content",
+              height: "max-content",
               maxWidth: `${geometry.widthPercent}%`,
+              maxHeight: `${geometry.heightPercent}%`,
               transform: "translate(-50%, -50%)",
             }}
             onClick={() => onSelectLayer?.(layer.id)}
