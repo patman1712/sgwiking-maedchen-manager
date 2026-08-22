@@ -849,7 +849,15 @@ function getTextWrapperClasses(
   _draftType: SocialMediaDraftType,
   isSelected: boolean,
 ) {
-  return isSelected ? "ring-2 ring-sky-300 ring-offset-2 ring-offset-transparent" : "";
+  return isSelected
+    ? "relative"
+    : "";
+}
+
+function getTextSelectRingClasses(isSelected: boolean) {
+  return isSelected
+    ? "ring-2 ring-sky-300 ring-offset-2 ring-offset-transparent rounded-sm"
+    : "";
 }
 
 function getTextClasses(layer: SocialMediaLayer) {
@@ -1261,7 +1269,9 @@ export function SocialPreview({
               ...zStyle,
               left: `${geometry.centerX}%`,
               top: `${geometry.centerY}%`,
-              width: "fit-content",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
               maxWidth: `${geometry.widthPercent}%`,
               transform: "translate(-50%, -50%)",
             }}
@@ -1307,7 +1317,7 @@ export function SocialPreview({
               getTextWrapperClasses(layer, draftType, isSelected),
             )}
           >
-            <div className={getTextClasses(layer)} style={getTextInlineStyle(layer)}>
+            <div className={cn(getTextClasses(layer), getTextSelectRingClasses(isSelected))} style={getTextInlineStyle(layer)}>
               {text}
             </div>
             {isSelected && onUpdateLayer ? (
