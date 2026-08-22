@@ -296,7 +296,7 @@ export default function BoardMailboxPage() {
       const boundingRect = target.getBoundingClientRect();
       const isVisible = boundingRect.width > 50 && boundingRect.height > 50;
       const scale = isVisible
-        ? Math.max(2, Math.min(4, exportWidthPx / Math.max(1, boundingRect.width)))
+        ? Math.max(2, Math.min(3, exportWidthPx / Math.max(1, boundingRect.width)))
         : 1;
 
       const canvasRaw = await html2canvas(target, {
@@ -322,7 +322,18 @@ export default function BoardMailboxPage() {
       ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(canvasRaw, 0, 0, finalCanvas.width, finalCanvas.height);
+      {
+        const rawW = Math.max(1, canvasRaw.width);
+        const rawH = Math.max(1, canvasRaw.height);
+        const scaleW = finalCanvas.width / rawW;
+        const scaleH = finalCanvas.height / rawH;
+        const drawScale = Math.min(scaleW, scaleH);
+        const drawW = rawW * drawScale;
+        const drawH = rawH * drawScale;
+        const drawX = (finalCanvas.width - drawW) / 2;
+        const drawY = (finalCanvas.height - drawH) / 2;
+        ctx.drawImage(canvasRaw, drawX, drawY, drawW, drawH);
+      }
 
       const finalDataUrl = finalCanvas.toDataURL("image/jpeg", 0.97);
 
