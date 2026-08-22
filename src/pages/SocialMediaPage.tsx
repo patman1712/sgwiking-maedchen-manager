@@ -892,7 +892,7 @@ function getTextClasses(layer: SocialMediaLayer) {
             : "rounded-[1.75rem] border border-slate-200 bg-slate-50 text-slate-800 px-4 py-4 md:px-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)]",
       );
     default:
-      return "text-sm text-slate-900";
+      return "text-slate-900 leading-none p-0 m-0 whitespace-pre-wrap break-words";
   }
 }
 
@@ -1173,20 +1173,30 @@ export function SocialPreview({
               }}
             >
               {assetUrl ? (
-                <img
-                  src={assetUrl}
-                  alt={layer.label}
-                  crossOrigin="anonymous"
-                  loading="eager"
-                  referrerPolicy="no-referrer"
-                  decoding="async"
+                <div
                   className={cn(
-                    "h-full w-full",
-                    getImageStyleClasses(layer.style, layer.position === "full"),
-                    isSelected && isOriginalStyle &&
-                      "ring-2 ring-sky-300 ring-offset-2 ring-offset-transparent rounded-[1.5rem]",
+                    "absolute inset-0 flex items-center justify-center bg-transparent",
+                    isOriginalStyle ? "" : "overflow-hidden",
                   )}
-                />
+                >
+                  <img
+                    src={assetUrl}
+                    alt={layer.label}
+                    crossOrigin="anonymous"
+                    loading="eager"
+                    referrerPolicy="no-referrer"
+                    decoding="async"
+                    className={cn(
+                      isOriginalStyle
+                        ? "max-w-full max-h-full w-auto h-auto object-contain select-none"
+                        : "h-full w-full",
+                      getImageStyleClasses(layer.style, layer.position === "full"),
+                      isSelected && isOriginalStyle &&
+                        "ring-2 ring-sky-300 ring-offset-2 ring-offset-transparent rounded-[1.5rem]",
+                    )}
+                    draggable={false}
+                  />
+                </div>
               ) : (
                 <div
                   className={cn(
