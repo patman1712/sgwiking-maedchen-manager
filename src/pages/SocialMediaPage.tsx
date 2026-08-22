@@ -955,6 +955,8 @@ export function SocialPreview({
     startFontSize?: number;
     startLetterSpacing?: number;
   } | null>(null);
+  const glyphRefs = useRef<Map<string, { outer: HTMLDivElement | null; inner: HTMLDivElement | null }>>(new Map());
+  const [glyphMetrics, setGlyphMetrics] = useState<Record<string, { dx: number; dy: number; w: number; h: number }>>({});
   const resolveAssetUrl = (ref?: string, altLabel?: string, positionHint?: string) => {
     const normKey = (s?: string | null) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "").trim();
 
@@ -1003,6 +1005,44 @@ export function SocialPreview({
     );
   };
   const visibleLayers = layers.filter((layer) => layer.enabled ?? true);
+
+  useEffect(() => {
+    const nextMetrics: Record<string, { dx: number; dy: number; w: number; h: number }> = {};
+    let changed = false;
+    glyphRefs.current.forEach((refs, layerId) => {
+      if (!refs.outer || !refs.inner) return;
+      try {
+        const doc = refs.inner.ownerDocument ?? document;
+        const range = doc.createRange();
+        range.selectNodeContents(refs.inner);
+        const glyphRect = range.getBoundingClientRect();
+        const outerRect = refs.outer.getBoundingClientRect();
+        if (!glyphRect.width || !glyphRect.height || !outerRect.width || !outerRect.height) return;
+        const outerCX = outerRect.left + outerRect.width / 2;
+        const outerCY = outerRect.top + outerRect.height / 2;
+        const glyphCX = glyphRect.left + glyphRect.width / 2;
+        const glyphCY = glyphRect.top + glyphRect.height / 2;
+        const dx = outerCX - glyphCX;
+        const dy = outerCY - glyphCY;
+        const prev = glyphMetrics[layerId];
+        if (
+          !prev ||
+          Math.abs(prev.dx - dx) > 0.5 ||
+          Math.abs(prev.dy - dy) > 0.5 ||
+          Math.abs(prev.w - glyphRect.width) > 0.5 ||
+          Math.abs(prev.h - glyphRect.height) > 0.5
+        ) {
+          changed = true;
+        }
+        nextMetrics[layerId] = { dx, dy, w: glyphRect.width, h: glyphRect.height };
+      } catch {}
+    });
+    const existingIds = new Set(Object.keys(glyphMetrics));
+    const nextIds = new Set(Object.keys(nextMetrics));
+    if (changed || existingIds.size !== nextIds.size) {
+      setGlyphMetrics(nextMetrics);
+    }
+  });
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
@@ -1260,11 +1300,16 @@ export function SocialPreview({
         const isSelected = activeLayerId === layer.id;
         const movable = canMoveLayer(layer, respectLayerLocks);
         const resizable = canResizeLayer(layer, respectLayerLocks);
+        const gm = glyphMetrics[layer.id];
         return (
           <div
             key={layer.id}
             role="button"
             tabIndex={0}
+            ref={(el) => {
+              const existing = glyphRefs.current.get(layer.id) ?? { inner: null, outer: null };
+              glyphRefs.current.set(layer.id, { ...existing, outer: el });
+            }}
             style={{
               ...zStyle,
               left: `${geometry.centerX}%`,
@@ -1302,11 +1347,11 @@ export function SocialPreview({
                 startCenterY: geometry.centerY,
                 startWidthPercent:
                   previewRect && previewRect.width
-                    ? (targetRect.width / previewRect.width) * 100
+                    ? ((gm?.w ?? targetRect.width) / previewRect.width) * 100
                     : geometry.widthPercent,
                 startHeightPercent:
                   previewRect && previewRect.height
-                    ? (targetRect.height / previewRect.height) * 100
+                    ? ((gm?.h ?? targetRect.height) / previewRect.height) * 100
                     : geometry.heightPercent,
                 startFontSize: layer.fontSize ?? getDefaultTextAppearance(layer).fontSize,
                 startLetterSpacing: layer.letterSpacing ?? getDefaultTextAppearance(layer).letterSpacing,
@@ -1319,63 +1364,84 @@ export function SocialPreview({
             )}
           >
             <div
-              className={cn(
-                getTextClasses(layer),
-                getTextSelectRingClasses(isSelected),
-                "block leading-[0.85] m-0 p-0 whitespace-pre-wrap break-words w-auto h-auto",
-              )}
-              style={{
-                ...getTextInlineStyle(layer),
-                margin: 0,
-                padding: 0,
-                display: "block",
-                lineHeight: String(layer.lineHeight ?? getDefaultTextAppearance(layer).lineHeight),
+              ref={(el) => {
+                if (!el) return;
               }}
+              style={{
+                position: "relative",
+                width: gm?.w ?? "auto",
+                height: gm?.h ?? "auto",
+                display: "block",
+              }}
+              className={getTextSelectRingClasses(isSelected)}
             >
-              {text}
-            </div>
-            {isSelected && onUpdateLayer ? (
-              <button
-                type="button"
-                aria-label="Textgroesse anpassen"
-                disabled={!resizable}
-                className={cn(
-                  "absolute bottom-[-0.55rem] right-[-0.55rem] h-6 w-6 rounded-full border border-slate-200 shadow-lg shadow-slate-500/20",
-                  resizable
-                    ? "bg-sky-400"
-                    : "cursor-not-allowed bg-slate-300 opacity-75",
-                )}
-                onPointerDown={(event) => {
-                  if (!resizable) {
-                    return;
-                  }
-                  const previewRect = previewRef.current?.getBoundingClientRect();
-                  const parentRect = event.currentTarget.parentElement?.getBoundingClientRect();
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onSelectLayer?.(layer.id);
-                  interactionRef.current = {
-                    layerId: layer.id,
-                    layerKind: layer.kind,
-                    mode: "resize",
-                    startX: event.clientX,
-                    startY: event.clientY,
-                    startCenterX: geometry.centerX,
-                    startCenterY: geometry.centerY,
-                    startWidthPercent:
-                      previewRect && previewRect.width && parentRect
-                        ? (parentRect.width / previewRect.width) * 100
-                        : geometry.widthPercent,
-                    startHeightPercent:
-                      previewRect && previewRect.height && parentRect
-                        ? (parentRect.height / previewRect.height) * 100
-                        : geometry.heightPercent,
-                    startFontSize: layer.fontSize ?? getDefaultTextAppearance(layer).fontSize,
-                    startLetterSpacing: layer.letterSpacing ?? getDefaultTextAppearance(layer).letterSpacing,
-                  };
+              <div
+                ref={(el) => {
+                  const existing = glyphRefs.current.get(layer.id) ?? { inner: null, outer: null };
+                  glyphRefs.current.set(layer.id, { ...existing, inner: el });
                 }}
-              />
-            ) : null}
+                className={cn(
+                  getTextClasses(layer),
+                  "block m-0 p-0 whitespace-pre-wrap break-words w-auto h-auto",
+                )}
+                style={{
+                  ...getTextInlineStyle(layer),
+                  margin: 0,
+                  padding: 0,
+                  display: "block",
+                  lineHeight: String(layer.lineHeight ?? getDefaultTextAppearance(layer).lineHeight),
+                  transform: `translate(${gm?.dx ?? 0}px, ${gm?.dy ?? 0}px)`,
+                }}
+              >
+                {text}
+              </div>
+              {isSelected && onUpdateLayer ? (
+                <button
+                  type="button"
+                  aria-label="Textgroesse anpassen"
+                  disabled={!resizable}
+                  className={cn(
+                    "absolute h-6 w-6 rounded-full border border-slate-200 shadow-lg shadow-slate-500/20",
+                    resizable
+                      ? "bg-sky-400"
+                      : "cursor-not-allowed bg-slate-300 opacity-75",
+                  )}
+                  style={{
+                    bottom: "-0.55rem",
+                    right: "-0.55rem",
+                  }}
+                  onPointerDown={(event) => {
+                    if (!resizable) {
+                      return;
+                    }
+                    const previewRect = previewRef.current?.getBoundingClientRect();
+                    const parentRect = event.currentTarget.parentElement?.getBoundingClientRect();
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onSelectLayer?.(layer.id);
+                    interactionRef.current = {
+                      layerId: layer.id,
+                      layerKind: layer.kind,
+                      mode: "resize",
+                      startX: event.clientX,
+                      startY: event.clientY,
+                      startCenterX: geometry.centerX,
+                      startCenterY: geometry.centerY,
+                      startWidthPercent:
+                        previewRect && previewRect.width && parentRect
+                          ? (parentRect.width / previewRect.width) * 100
+                          : geometry.widthPercent,
+                      startHeightPercent:
+                        previewRect && previewRect.height && parentRect
+                          ? (parentRect.height / previewRect.height) * 100
+                          : geometry.heightPercent,
+                      startFontSize: layer.fontSize ?? getDefaultTextAppearance(layer).fontSize,
+                      startLetterSpacing: layer.letterSpacing ?? getDefaultTextAppearance(layer).letterSpacing,
+                    };
+                  }}
+                />
+              ) : null}
+            </div>
           </div>
         );
       })}
