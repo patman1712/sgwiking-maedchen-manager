@@ -955,6 +955,8 @@ export function SocialPreview({
     startFontSize?: number;
     startLetterSpacing?: number;
   } | null>(null);
+  const glyphLayerRefs = useRef<Map<string, { outer: HTMLDivElement | null; inner: HTMLDivElement | null }>>(new Map());
+  const [stableGlyphMetrics, setStableGlyphMetrics] = useState<Record<string, { dx: number; dy: number; w: number; h: number }>>({});
   const resolveAssetUrl = (ref?: string, altLabel?: string, positionHint?: string) => {
     const normKey = (s?: string | null) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "").trim();
 
@@ -1007,13 +1009,15 @@ export function SocialPreview({
   useEffect(() => {
     if (typeof window === "undefined") return;
     let cancelled = false;
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let timeoutId1: ReturnType<typeof setTimeout> | null = null;
+    let timeoutId2: ReturnType<typeof setTimeout> | null = null;
+    let timeoutId3: ReturnType<typeof setTimeout> | null = null;
     (async () => {
       try {
         if (typeof document !== "undefined" && document.fonts && typeof document.fonts.ready !== "undefined") {
           await Promise.race([
             document.fonts.ready,
-            new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+            new Promise<void>((resolve) => { timeoutId1 = setTimeout(resolve, 5000); }),
           ]);
           try {
             await Promise.all([
@@ -1025,16 +1029,56 @@ export function SocialPreview({
             ]);
           } catch {}
           if (cancelled) return;
-          await new Promise<void>((resolve) => {
-            timeoutId = setTimeout(resolve, 1200);
-          });
+          await new Promise<void>((resolve) => { timeoutId2 = setTimeout(resolve, 1800); });
+          if (cancelled) return;
+        } else {
+          await new Promise<void>((resolve) => { timeoutId3 = setTimeout(resolve, 5000); });
         }
       } catch {}
+
+      if (cancelled) return;
+      const metrics: Record<string, { dx: number; dy: number; w: number; h: number }> = {};
+      glyphLayerRefs.current.forEach((refs, layerId) => {
+        if (!refs.outer || !refs.inner) return;
+        try {
+          const doc = refs.inner.ownerDocument ?? document;
+          const range = doc.createRange();
+          range.selectNodeContents(refs.inner);
+          const glyphRect = range.getBoundingClientRect();
+          const outerRect = refs.outer.getBoundingClientRect();
+          if (!glyphRect.width || !glyphRect.height || !outerRect.width || !outerRect.height) return;
+          const outerCX = outerRect.left + outerRect.width / 2;
+          const outerCY = outerRect.top + outerRect.height / 2;
+          const glyphCX = glyphRect.left + glyphRect.width / 2;
+          const glyphCY = glyphRect.top + glyphRect.height / 2;
+          const dx = outerCX - glyphCX;
+          const dy = outerCY - glyphCY;
+          if (Math.abs(dx) > 300 || Math.abs(dy) > 300) return;
+          metrics[layerId] = { dx, dy, w: glyphRect.width, h: glyphRect.height };
+        } catch {}
+      });
+      const existingKeys = Object.keys(stableGlyphMetrics).sort().join("|");
+      const nextKeys = Object.keys(metrics).sort().join("|");
+      let changed = existingKeys !== nextKeys;
+      if (!changed) {
+        for (const k of Object.keys(metrics)) {
+          const a = stableGlyphMetrics[k];
+          const b = metrics[k];
+          if (!a || Math.abs(a.dx - b.dx) > 0.5 || Math.abs(a.dy - b.dy) > 0.5 || Math.abs(a.w - b.w) > 0.5 || Math.abs(a.h - b.h) > 0.5) {
+            changed = true;
+            break;
+          }
+        }
+      }
+      if (changed) setStableGlyphMetrics(metrics);
     })();
     return () => {
       cancelled = true;
-      if (timeoutId) window.clearTimeout(timeoutId);
+      if (timeoutId1) window.clearTimeout(timeoutId1);
+      if (timeoutId2) window.clearTimeout(timeoutId2);
+      if (timeoutId3) window.clearTimeout(timeoutId3);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layers.length, visibleLayers.length, draftType, layout, fixedWidthPx]);
 
   useEffect(() => {
@@ -1293,19 +1337,25 @@ export function SocialPreview({
         const isSelected = activeLayerId === layer.id;
         const movable = canMoveLayer(layer, respectLayerLocks);
         const resizable = canResizeLayer(layer, respectLayerLocks);
+        const gm = stableGlyphMetrics[layer.id];
+        const dx = gm?.dx ?? 0;
+        const dy = gm?.dy ?? 0;
         return (
           <div
             key={layer.id}
             role="button"
             tabIndex={0}
+            ref={(el) => {
+              const existing = glyphLayerRefs.current.get(layer.id) ?? { inner: null, outer: null };
+              glyphLayerRefs.current.set(layer.id, { ...existing, outer: el });
+            }}
             style={{
               ...zStyle,
               left: `${geometry.centerX}%`,
               top: `${geometry.centerY}%`,
               width: "auto",
               height: "auto",
-              transform: "translate(-50%, -50%)",
-              lineHeight: "1",
+              transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`,
             }}
             onClick={() => onSelectLayer?.(layer.id)}
             onKeyDown={(event) => {
@@ -1320,6 +1370,8 @@ export function SocialPreview({
               }
               const previewRect = previewRef.current?.getBoundingClientRect();
               const targetRect = event.currentTarget.getBoundingClientRect();
+              const realW = (gm?.w && gm?.w > 5) ? gm.w : targetRect.width;
+              const realH = (gm?.h && gm?.h > 5) ? gm.h : targetRect.height;
               event.preventDefault();
               event.stopPropagation();
               onSelectLayer?.(layer.id);
@@ -1333,11 +1385,11 @@ export function SocialPreview({
                 startCenterY: geometry.centerY,
                 startWidthPercent:
                   previewRect && previewRect.width
-                    ? (targetRect.width / previewRect.width) * 100
+                    ? (realW / previewRect.width) * 100
                     : geometry.widthPercent,
                 startHeightPercent:
                   previewRect && previewRect.height
-                    ? (targetRect.height / previewRect.height) * 100
+                    ? (realH / previewRect.height) * 100
                     : geometry.heightPercent,
                 startFontSize: layer.fontSize ?? getDefaultTextAppearance(layer).fontSize,
                 startLetterSpacing: layer.letterSpacing ?? getDefaultTextAppearance(layer).letterSpacing,
@@ -1347,70 +1399,83 @@ export function SocialPreview({
               "absolute touch-none select-none",
               movable ? "cursor-grab active:cursor-grabbing" : "cursor-default",
               getTextWrapperClasses(layer, draftType, false),
-              getTextSelectRingClasses(isSelected),
             )}
           >
             <div
-              className={cn(
-                getTextClasses(layer),
-                "m-0 p-0 whitespace-pre-wrap break-words w-auto h-auto",
-              )}
               style={{
-                ...getTextInlineStyle(layer),
-                margin: 0,
-                padding: 0,
-                lineHeight: "1",
+                position: "relative",
+                width: gm?.w ? `${gm.w}px` : "auto",
+                height: gm?.h ? `${gm.h}px` : "auto",
                 display: "block",
               }}
+              className={getTextSelectRingClasses(isSelected)}
             >
-              {text}
-            </div>
-            {isSelected && onUpdateLayer ? (
-              <button
-                type="button"
-                aria-label="Textgroesse anpassen"
-                disabled={!resizable}
+              <div
+                ref={(el) => {
+                  const existing = glyphLayerRefs.current.get(layer.id) ?? { inner: null, outer: null };
+                  glyphLayerRefs.current.set(layer.id, { ...existing, inner: el });
+                }}
                 className={cn(
-                  "absolute h-6 w-6 rounded-full border border-slate-200 shadow-lg shadow-slate-500/20",
-                  resizable
-                    ? "bg-sky-400"
-                    : "cursor-not-allowed bg-slate-300 opacity-75",
+                  getTextClasses(layer),
+                  "block m-0 p-0 whitespace-pre-wrap break-words w-auto h-auto",
                 )}
                 style={{
-                  bottom: "-0.55rem",
-                  right: "-0.55rem",
+                  ...getTextInlineStyle(layer),
+                  margin: 0,
+                  padding: 0,
+                  display: "block",
+                  lineHeight: "1",
                 }}
-                onPointerDown={(event) => {
-                  if (!resizable) {
-                    return;
-                  }
-                  const previewRect = previewRef.current?.getBoundingClientRect();
-                  const parentRect = event.currentTarget.parentElement?.getBoundingClientRect();
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onSelectLayer?.(layer.id);
-                  interactionRef.current = {
-                    layerId: layer.id,
-                    layerKind: layer.kind,
-                    mode: "resize",
-                    startX: event.clientX,
-                    startY: event.clientY,
-                    startCenterX: geometry.centerX,
-                    startCenterY: geometry.centerY,
-                    startWidthPercent:
-                      previewRect && previewRect.width && parentRect
-                        ? (parentRect.width / previewRect.width) * 100
-                        : geometry.widthPercent,
-                    startHeightPercent:
-                      previewRect && previewRect.height && parentRect
-                        ? (parentRect.height / previewRect.height) * 100
-                        : geometry.heightPercent,
-                    startFontSize: layer.fontSize ?? getDefaultTextAppearance(layer).fontSize,
-                    startLetterSpacing: layer.letterSpacing ?? getDefaultTextAppearance(layer).letterSpacing,
-                  };
-                }}
-              />
-            ) : null}
+              >
+                {text}
+              </div>
+              {isSelected && onUpdateLayer ? (
+                <button
+                  type="button"
+                  aria-label="Textgroesse anpassen"
+                  disabled={!resizable}
+                  className={cn(
+                    "absolute h-6 w-6 rounded-full border border-slate-200 shadow-lg shadow-slate-500/20",
+                    resizable
+                      ? "bg-sky-400"
+                      : "cursor-not-allowed bg-slate-300 opacity-75",
+                  )}
+                  style={{
+                    bottom: "-0.55rem",
+                    right: "-0.55rem",
+                  }}
+                  onPointerDown={(event) => {
+                    if (!resizable) {
+                      return;
+                    }
+                    const previewRect = previewRef.current?.getBoundingClientRect();
+                    const parentRect = event.currentTarget.parentElement?.getBoundingClientRect();
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onSelectLayer?.(layer.id);
+                    interactionRef.current = {
+                      layerId: layer.id,
+                      layerKind: layer.kind,
+                      mode: "resize",
+                      startX: event.clientX,
+                      startY: event.clientY,
+                      startCenterX: geometry.centerX,
+                      startCenterY: geometry.centerY,
+                      startWidthPercent:
+                        previewRect && previewRect.width && parentRect
+                          ? (parentRect.width / previewRect.width) * 100
+                          : geometry.widthPercent,
+                      startHeightPercent:
+                        previewRect && previewRect.height && parentRect
+                          ? (parentRect.height / previewRect.height) * 100
+                          : geometry.heightPercent,
+                      startFontSize: layer.fontSize ?? getDefaultTextAppearance(layer).fontSize,
+                      startLetterSpacing: layer.letterSpacing ?? getDefaultTextAppearance(layer).letterSpacing,
+                    };
+                  }}
+                />
+              ) : null}
+            </div>
           </div>
         );
       })}
