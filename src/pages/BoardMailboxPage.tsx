@@ -208,6 +208,8 @@ export default function BoardMailboxPage() {
     setExportingJpgId(draft.id);
     let wrap: HTMLDivElement | null = null;
     let root: Root | null = null;
+    let target: HTMLElement | null = null;
+    const restore: Array<() => void> = [];
     try {
       const layers = (draft.layers.length ? draft.layers : buildFallbackLayers(draft)).map(
         normalizeLayer,
@@ -215,9 +217,47 @@ export default function BoardMailboxPage() {
       const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
       const targetHeightPx = draft.draftType === "story" ? 1920 : 1440;
 
-      let target: HTMLElement | null = document.querySelector(
+      target = document.querySelector(
         `[data-jpg-export="${CSS.escape(draft.id)}"]`,
       );
+
+      if (target) {
+        const originalCssText = target.style.cssText;
+        const originalParentCssText = target.parentElement
+          ? target.parentElement.style.cssText
+          : "";
+        const actualWidth = Math.max(1, target.getBoundingClientRect().width || 360);
+        const displayScale = actualWidth / exportWidthPx;
+        const parentEl = target.parentElement;
+
+        if (parentEl) {
+          restore.push(() => {
+            parentEl.style.cssText = originalParentCssText;
+          });
+          parentEl.style.setProperty("overflow", "visible", "important");
+          parentEl.style.setProperty("width", `${exportWidthPx * displayScale}px`);
+          parentEl.style.setProperty("height", `${targetHeightPx * displayScale}px`);
+          parentEl.style.setProperty("display", "block");
+        }
+
+        restore.push(() => {
+          target!.style.cssText = originalCssText;
+        });
+        target.style.setProperty("width", `${exportWidthPx}px`, "important");
+        target.style.setProperty("height", `${targetHeightPx}px`, "important");
+        target.style.setProperty("aspect-ratio", "unset", "important");
+        target.style.setProperty("transform-origin", "top left", "important");
+        target.style.setProperty("transform", `scale(${displayScale})`, "important");
+        target.style.setProperty("border-radius", "0 !important", "important");
+        target.style.setProperty("border", "0 !important", "important");
+        target.style.setProperty("box-shadow", "none !important", "important");
+        target.style.setProperty("background", "transparent !important", "important");
+        target.style.setProperty("overflow", "hidden", "important");
+        target.style.setProperty("contain", "unset", "important");
+        target.style.setProperty("display", "block");
+
+        await new Promise<void>((r) => setTimeout(r, 450));
+      }
 
       if (!target) {
         const baseAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
@@ -227,8 +267,8 @@ export default function BoardMailboxPage() {
         wrap.style.left = "0";
         wrap.style.top = "0";
         wrap.style.pointerEvents = "none";
-        wrap.style.opacity = "0.0001";
-        wrap.style.zIndex = "-9999";
+        wrap.style.opacity = "0.001";
+        wrap.style.zIndex = "999999";
         wrap.style.width = `${exportWidthPx}px`;
         wrap.style.height = `${targetHeightPx}px`;
         wrap.style.overflow = "visible";
@@ -265,7 +305,7 @@ export default function BoardMailboxPage() {
           );
         });
 
-        await new Promise<void>((r) => setTimeout(r, 3600));
+        await new Promise<void>((r) => setTimeout(r, 3800));
         const wrapImgs = Array.from(wrap.querySelectorAll("img"));
         await Promise.all(
           wrapImgs.map(async (imgEl) => {
@@ -293,22 +333,18 @@ export default function BoardMailboxPage() {
         throw new Error("Vorschau konnte nicht erstellt werden.");
       }
 
-      const boundingRect = target.getBoundingClientRect();
-      const isVisible = boundingRect.width > 50 && boundingRect.height > 50;
-      const scale = isVisible
-        ? Math.max(2, Math.min(3, exportWidthPx / Math.max(1, boundingRect.width)))
-        : 1;
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
 
       const canvasRaw = await html2canvas(target, {
         backgroundColor: "#ffffff",
-        scale: scale,
+        scale: 1,
         useCORS: true,
         allowTaint: true,
         logging: false,
         imageTimeout: 0,
         removeContainer: true,
-        windowWidth: Math.max(window.innerWidth, Math.ceil((boundingRect.width || exportWidthPx) * scale * 2)),
-        windowHeight: Math.max(window.innerHeight, Math.ceil((boundingRect.height || targetHeightPx) * scale * 2)),
+        windowWidth: Math.max(window.innerWidth, exportWidthPx),
+        windowHeight: Math.max(window.innerHeight, targetHeightPx),
       });
 
       const finalCanvas = document.createElement("canvas");
@@ -320,20 +356,8 @@ export default function BoardMailboxPage() {
       }
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-      {
-        const rawW = Math.max(1, canvasRaw.width);
-        const rawH = Math.max(1, canvasRaw.height);
-        const scaleW = finalCanvas.width / rawW;
-        const scaleH = finalCanvas.height / rawH;
-        const drawScale = Math.min(scaleW, scaleH);
-        const drawW = rawW * drawScale;
-        const drawH = rawH * drawScale;
-        const drawX = (finalCanvas.width - drawW) / 2;
-        const drawY = (finalCanvas.height - drawH) / 2;
-        ctx.drawImage(canvasRaw, drawX, drawY, drawW, drawH);
-      }
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(canvasRaw, 0, 0, finalCanvas.width, finalCanvas.height);
 
       const finalDataUrl = finalCanvas.toDataURL("image/jpeg", 0.97);
 
@@ -354,6 +378,14 @@ export default function BoardMailboxPage() {
       console.error(err);
       setError("JPG Export fehlgeschlagen. Bitte versuche es im Social-Media-Bereich.");
     } finally {
+      while (restore.length) {
+        try {
+          const fn = restore.pop()!;
+          fn();
+        } catch {
+          /* ignore */
+        }
+      }
       if (root) {
         try {
           root.unmount();
