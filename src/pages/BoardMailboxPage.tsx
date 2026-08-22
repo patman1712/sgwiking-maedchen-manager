@@ -310,7 +310,7 @@ function FlattenedPreviewImage(props: {
         <img
           src={imageDataUrl}
           alt={`Vorschau ${draft.title}`}
-          className="w-full h-full object-cover select-none pointer-events-none"
+          className="w-full h-full object-contain select-none pointer-events-none bg-slate-900"
           draggable={false}
         />
       )}

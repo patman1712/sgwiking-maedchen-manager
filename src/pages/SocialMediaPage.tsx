@@ -5077,6 +5077,7 @@ export default function SocialMediaPage() {
                     onSelectLayer={setActiveLayerId}
                     onUpdateLayer={updateLayer}
                     respectLayerLocks={respectEditorLayerLocks}
+                    fixedWidthPx={400}
                   />
                   <p className="mt-3 text-xs text-slate-500">
                     {editorIsTemplate
