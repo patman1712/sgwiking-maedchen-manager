@@ -208,74 +208,40 @@ export default function BoardMailboxPage() {
     setExportingJpgId(draft.id);
     let wrap: HTMLDivElement | null = null;
     let root: Root | null = null;
-    let target: HTMLElement | null = null;
-    const restore: Array<() => void> = [];
     try {
-      const layers = (draft.layers.length ? draft.layers : buildFallbackLayers(draft)).map(
-        normalizeLayer,
-      );
       const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
       const targetHeightPx = draft.draftType === "story" ? 1920 : 1440;
+      const previewLayers = (
+        draft.layers.length ? draft.layers : buildFallbackLayers(draft)
+      ).map(normalizeLayer);
+      const previewAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
 
-      target = document.querySelector(
-        `[data-jpg-export="${CSS.escape(draft.id)}"]`,
-      );
+      wrap = document.createElement("div");
+      wrap.style.position = "fixed";
+      wrap.style.left = "0";
+      wrap.style.top = "0";
+      wrap.style.pointerEvents = "none";
+      wrap.style.opacity = "0.001";
+      wrap.style.zIndex = "999999";
+      wrap.style.width = `${exportWidthPx}px`;
+      wrap.style.height = `${targetHeightPx}px`;
+      wrap.style.overflow = "visible";
+      document.body.appendChild(wrap);
 
-      if (target) {
-        const originalCssText = target.style.cssText;
-        const originalParentCssText = target.parentElement
-          ? target.parentElement.style.cssText
-          : "";
-        const actualWidth = Math.max(1, target.getBoundingClientRect().width || 360);
-        const displayScale = actualWidth / exportWidthPx;
-        const parentEl = target.parentElement;
+      root = createRoot(wrap);
+      const target = await new Promise<HTMLElement>((resolveRender, rejectRender) => {
+        const renderTimeout = window.setTimeout(() => {
+          try {
+            const candidate = wrap?.querySelector<HTMLElement>("[class*='aspect-']") ??
+              (wrap?.firstElementChild as HTMLElement | null);
+            if (candidate) resolveRender(candidate);
+            else rejectRender(new Error("Render timeout"));
+          } catch (err) {
+            rejectRender(err);
+          }
+        }, 20000);
 
-        if (parentEl) {
-          restore.push(() => {
-            parentEl.style.cssText = originalParentCssText;
-          });
-          parentEl.style.setProperty("overflow", "visible", "important");
-          parentEl.style.setProperty("width", `${exportWidthPx * displayScale}px`);
-          parentEl.style.setProperty("height", `${targetHeightPx * displayScale}px`);
-          parentEl.style.setProperty("display", "block");
-        }
-
-        restore.push(() => {
-          target!.style.cssText = originalCssText;
-        });
-        target.style.setProperty("width", `${exportWidthPx}px`, "important");
-        target.style.setProperty("height", `${targetHeightPx}px`, "important");
-        target.style.setProperty("aspect-ratio", "unset", "important");
-        target.style.setProperty("transform-origin", "top left", "important");
-        target.style.setProperty("transform", `scale(${displayScale})`, "important");
-        target.style.setProperty("border-radius", "0 !important", "important");
-        target.style.setProperty("border", "0 !important", "important");
-        target.style.setProperty("box-shadow", "none !important", "important");
-        target.style.setProperty("background", "transparent !important", "important");
-        target.style.setProperty("overflow", "hidden", "important");
-        target.style.setProperty("contain", "unset", "important");
-        target.style.setProperty("display", "block");
-
-        await new Promise<void>((r) => setTimeout(r, 450));
-      }
-
-      if (!target) {
-        const baseAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
-        const finalLogoUrl = clubLogoUrl ?? null;
-        wrap = document.createElement("div");
-        wrap.style.position = "fixed";
-        wrap.style.left = "0";
-        wrap.style.top = "0";
-        wrap.style.pointerEvents = "none";
-        wrap.style.opacity = "0.001";
-        wrap.style.zIndex = "999999";
-        wrap.style.width = `${exportWidthPx}px`;
-        wrap.style.height = `${targetHeightPx}px`;
-        wrap.style.overflow = "visible";
-        document.body.appendChild(wrap);
-
-        root = createRoot(wrap);
-        target = await new Promise<HTMLElement>((resolveRender) => {
+        try {
           root!.render(
             <div
               ref={(el) => {
@@ -283,57 +249,61 @@ export default function BoardMailboxPage() {
                   requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
                       requestAnimationFrame(() => {
-                        const candidate = el.querySelector<HTMLElement>("[class*='aspect-']") ??
-                          (el.firstElementChild as HTMLElement | null);
-                        if (candidate) resolveRender(candidate);
+                        try {
+                          const candidate = el.querySelector<HTMLElement>("[class*='aspect-']") ??
+                            (el.firstElementChild as HTMLElement | null);
+                          if (candidate) {
+                            window.clearTimeout(renderTimeout);
+                            resolveRender(candidate);
+                          }
+                        } catch {
+                          /* ignore */
+                        }
                       });
                     });
                   });
                 }
               }}
-              style={{ width: `${exportWidthPx}px` }}
+              style={{ width: `${exportWidthPx}px`, height: `${targetHeightPx}px` }}
             >
               <SocialPreview
                 noChrome={true}
                 draftType={draft.draftType as "feed" | "story"}
                 layout={draft.layout}
-                layers={layers}
-                assets={baseAssets}
-                logoUrl={finalLogoUrl}
+                layers={previewLayers}
+                assets={previewAssets}
+                logoUrl={clubLogoUrl ?? null}
+                respectLayerLocks={false}
               />
             </div>,
           );
-        });
+        } catch (error) {
+          rejectRender(error);
+        }
+      });
 
-        await new Promise<void>((r) => setTimeout(r, 3800));
-        const wrapImgs = Array.from(wrap.querySelectorAll("img"));
-        await Promise.all(
-          wrapImgs.map(async (imgEl) => {
-            try {
-              if (imgEl.complete && imgEl.naturalWidth > 0) return;
-              await new Promise<void>((res) => {
-                const to = window.setTimeout(res, 3500);
-                imgEl.addEventListener("load", () => {
-                  window.clearTimeout(to);
-                  res();
-                });
-                imgEl.addEventListener("error", () => {
-                  window.clearTimeout(to);
-                  res();
-                });
+      await new Promise<void>((r) => setTimeout(r, 3800));
+      const wrapImgs = Array.from(wrap.querySelectorAll("img"));
+      await Promise.all(
+        wrapImgs.map(async (imgEl) => {
+          try {
+            if (imgEl.complete && imgEl.naturalWidth > 0) return;
+            await new Promise<void>((res) => {
+              const to = window.setTimeout(res, 3500);
+              imgEl.addEventListener("load", () => {
+                window.clearTimeout(to);
+                res();
               });
-            } catch {
-              /* ignore */
-            }
-          }),
-        );
-      }
-
-      if (!target) {
-        throw new Error("Vorschau konnte nicht erstellt werden.");
-      }
-
-      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+              imgEl.addEventListener("error", () => {
+                window.clearTimeout(to);
+                res();
+              });
+            });
+          } catch {
+            /* ignore */
+          }
+        }),
+      );
 
       const canvasRaw = await html2canvas(target, {
         backgroundColor: "#ffffff",
@@ -343,8 +313,8 @@ export default function BoardMailboxPage() {
         logging: false,
         imageTimeout: 0,
         removeContainer: true,
-        windowWidth: Math.max(window.innerWidth, exportWidthPx),
-        windowHeight: Math.max(window.innerHeight, targetHeightPx),
+        windowWidth: exportWidthPx * 2,
+        windowHeight: targetHeightPx * 2,
       });
 
       const finalCanvas = document.createElement("canvas");
@@ -364,28 +334,21 @@ export default function BoardMailboxPage() {
       const slug = draft.title
         .toLowerCase()
         .replace(/[^a-z0-9äöüß]+/g, "-")
-        .replace(/(^-|-$)/g, "");
-      const datePart = new Date().toISOString().slice(0, 10);
-      const filename = `sg-wiking-posting-${slug || "entwurf"}-${datePart}.jpg`;
+        .replace(/(^-|-$)/g, "")
+        .slice(0, 60) || "posting";
+      const stamp = new Date().toISOString().slice(0, 10);
+      const filename = `sg-wiking-posting-${slug}-${stamp}.jpg`;
 
-      const a = document.createElement("a");
-      a.href = finalDataUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      const link = document.createElement("a");
+      link.href = finalDataUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     } catch (err) {
       console.error(err);
       setError("JPG Export fehlgeschlagen. Bitte versuche es im Social-Media-Bereich.");
     } finally {
-      while (restore.length) {
-        try {
-          const fn = restore.pop()!;
-          fn();
-        } catch {
-          /* ignore */
-        }
-      }
       if (root) {
         try {
           root.unmount();
