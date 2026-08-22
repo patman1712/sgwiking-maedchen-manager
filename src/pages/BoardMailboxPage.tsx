@@ -209,170 +209,122 @@ export default function BoardMailboxPage() {
     let wrap: HTMLDivElement | null = null;
     let root: Root | null = null;
     try {
-      const baseAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
-      const finalLogoUrl = clubLogoUrl ?? null;
       const layers = (draft.layers.length ? draft.layers : buildFallbackLayers(draft)).map(
         normalizeLayer,
       );
       const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
       const targetHeightPx = draft.draftType === "story" ? 1920 : 1440;
 
-      const fetchDataUrl = async (rawSrc: string): Promise<string> => {
-        const trimmed = rawSrc.trim();
-        if (!trimmed) return rawSrc;
-        if (trimmed.startsWith("data:")) return trimmed;
-        if (trimmed.startsWith("blob:")) return trimmed;
-        try {
-          const url = trimmed.startsWith("http")
-            ? trimmed
-            : new URL(trimmed, window.location.origin).toString();
-          const response = await fetch(url, {
-            cache: "force-cache",
-            credentials: "same-origin",
-            mode: "cors",
-          });
-          if (!response.ok) {
-            return rawSrc;
-          }
-          const blob = await response.blob();
-          if (!blob || blob.size === 0) {
-            return rawSrc;
-          }
-          return await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              const result = reader.result;
-              if (typeof result === "string") resolve(result);
-              else resolve(rawSrc);
-            };
-            reader.onerror = () => reject(new Error("DataURL fehlgeschlagen"));
-            reader.readAsDataURL(blob);
-          });
-        } catch {
-          return rawSrc;
-        }
-      };
-
-      const cache = new Map<string, string>();
-      const toCachedDataUrl = async (src: string): Promise<string> => {
-        if (!src) return src;
-        if (cache.has(src)) {
-          return cache.get(src)!;
-        }
-        const out = await fetchDataUrl(src);
-        cache.set(src, out);
-        return out;
-      };
-
-      const assets: EditorAsset[] = await Promise.all(
-        baseAssets.map(async (asset) => {
-          const dataUrl = await toCachedDataUrl(asset.url);
-          return { ...asset, url: dataUrl, ref: asset.ref };
-        }),
+      let target: HTMLElement | null = document.querySelector(
+        `[data-jpg-export="${CSS.escape(draft.id)}"]`,
       );
 
-      wrap = document.createElement("div");
-      wrap.style.position = "absolute";
-      wrap.style.left = "0";
-      wrap.style.top = "0";
-      wrap.style.pointerEvents = "none";
-      wrap.style.visibility = "hidden";
-      wrap.style.zIndex = "-9999";
-      wrap.style.width = `${exportWidthPx}px`;
-      document.body.appendChild(wrap);
+      if (!target) {
+        const baseAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
+        const finalLogoUrl = clubLogoUrl ?? null;
+        wrap = document.createElement("div");
+        wrap.style.position = "fixed";
+        wrap.style.left = "0";
+        wrap.style.top = "0";
+        wrap.style.pointerEvents = "none";
+        wrap.style.opacity = "0.0001";
+        wrap.style.zIndex = "-9999";
+        wrap.style.width = `${exportWidthPx}px`;
+        wrap.style.height = `${targetHeightPx}px`;
+        wrap.style.overflow = "visible";
+        document.body.appendChild(wrap);
 
-      root = createRoot(wrap);
-      const target: HTMLElement = await new Promise<HTMLElement>((resolveRender) => {
-        root!.render(
-          <div
-            ref={(el) => {
-              if (el) {
-                requestAnimationFrame(() => {
+        root = createRoot(wrap);
+        target = await new Promise<HTMLElement>((resolveRender) => {
+          root!.render(
+            <div
+              ref={(el) => {
+                if (el) {
                   requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
-                      const candidate = el.querySelector<HTMLElement>("[class*='aspect-']") ??
-                        (el.firstElementChild as HTMLElement | null);
-                      if (candidate) resolveRender(candidate);
+                      requestAnimationFrame(() => {
+                        const candidate = el.querySelector<HTMLElement>("[class*='aspect-']") ??
+                          (el.firstElementChild as HTMLElement | null);
+                        if (candidate) resolveRender(candidate);
+                      });
                     });
                   });
+                }
+              }}
+              style={{ width: `${exportWidthPx}px` }}
+            >
+              <SocialPreview
+                noChrome={true}
+                draftType={draft.draftType as "feed" | "story"}
+                layout={draft.layout}
+                layers={layers}
+                assets={baseAssets}
+                logoUrl={finalLogoUrl}
+              />
+            </div>,
+          );
+        });
+
+        await new Promise<void>((r) => setTimeout(r, 3600));
+        const wrapImgs = Array.from(wrap.querySelectorAll("img"));
+        await Promise.all(
+          wrapImgs.map(async (imgEl) => {
+            try {
+              if (imgEl.complete && imgEl.naturalWidth > 0) return;
+              await new Promise<void>((res) => {
+                const to = window.setTimeout(res, 3500);
+                imgEl.addEventListener("load", () => {
+                  window.clearTimeout(to);
+                  res();
                 });
-              }
-            }}
-            style={{ width: `${exportWidthPx}px` }}
-          >
-            <SocialPreview
-              noChrome={true}
-              draftType={draft.draftType as "feed" | "story"}
-              layout={draft.layout}
-              layers={layers}
-              assets={assets}
-              logoUrl={finalLogoUrl}
-            />
-          </div>,
+                imgEl.addEventListener("error", () => {
+                  window.clearTimeout(to);
+                  res();
+                });
+              });
+            } catch {
+              /* ignore */
+            }
+          }),
         );
-      });
+      }
 
-      await new Promise<void>((r) => setTimeout(r, 3800));
-      const wrapImgs = Array.from(wrap.querySelectorAll("img"));
-      await Promise.all(
-        wrapImgs.map(async (imgEl) => {
-          try {
-            if (imgEl.complete && imgEl.naturalWidth > 0) return;
-            await new Promise<void>((res) => {
-              const to = window.setTimeout(res, 3500);
-              imgEl.addEventListener("load", () => {
-                window.clearTimeout(to);
-                res();
-              });
-              imgEl.addEventListener("error", () => {
-                window.clearTimeout(to);
-                res();
-              });
-            });
-          } catch {
-            /* ignore */
-          }
-        }),
-      );
+      if (!target) {
+        throw new Error("Vorschau konnte nicht erstellt werden.");
+      }
 
-      const canvas = await html2canvas(target, {
+      const boundingRect = target.getBoundingClientRect();
+      const isVisible = boundingRect.width > 50 && boundingRect.height > 50;
+      const scale = isVisible
+        ? Math.max(2, Math.min(4, exportWidthPx / Math.max(1, boundingRect.width)))
+        : 1;
+
+      const canvasRaw = await html2canvas(target, {
         backgroundColor: "#ffffff",
-        scale: 1,
-        width: exportWidthPx,
-        height: targetHeightPx,
-        windowWidth: exportWidthPx * 2,
-        windowHeight: targetHeightPx * 2,
+        scale: scale,
         useCORS: true,
         allowTaint: true,
         logging: false,
         imageTimeout: 0,
         removeContainer: true,
+        windowWidth: Math.max(window.innerWidth, Math.ceil((boundingRect.width || exportWidthPx) * scale * 2)),
+        windowHeight: Math.max(window.innerHeight, Math.ceil((boundingRect.height || targetHeightPx) * scale * 2)),
       });
 
-      let finalDataUrl: string = canvas.toDataURL("image/jpeg", 0.97);
-      try {
-        const sourceImg = new Image();
-        sourceImg.crossOrigin = "anonymous";
-        await new Promise<void>((resolve, reject) => {
-          sourceImg.onload = () => resolve();
-          sourceImg.onerror = () => reject(new Error("Finales Canvas laden fehlgeschlagen"));
-          sourceImg.src = finalDataUrl;
-        });
-        const finalCanvas = document.createElement("canvas");
-        finalCanvas.width = exportWidthPx;
-        finalCanvas.height = targetHeightPx;
-        const ctx = finalCanvas.getContext("2d");
-        if (ctx) {
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = "high";
-          ctx.drawImage(sourceImg, 0, 0, finalCanvas.width, finalCanvas.height);
-          finalDataUrl = finalCanvas.toDataURL("image/jpeg", 0.97);
-        }
-      } catch (err) {
-        console.warn("Finales Resize übersprungen:", err);
+      const finalCanvas = document.createElement("canvas");
+      finalCanvas.width = exportWidthPx;
+      finalCanvas.height = targetHeightPx;
+      const ctx = finalCanvas.getContext("2d");
+      if (!ctx) {
+        throw new Error("Canvas Context nicht verfügbar");
       }
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(canvasRaw, 0, 0, finalCanvas.width, finalCanvas.height);
+
+      const finalDataUrl = finalCanvas.toDataURL("image/jpeg", 0.97);
 
       const slug = draft.title
         .toLowerCase()
