@@ -1451,6 +1451,10 @@ export default function SocialMediaPage() {
       const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
       const targetHeightPx = draft.draftType === "story" ? 1920 : 1440;
       const sourcePreviewWidthPx = 400;
+      const sourcePreviewHeightPx =
+        draft.draftType === "story"
+          ? sourcePreviewWidthPx * (1920 / 1080)
+          : sourcePreviewWidthPx * (1440 / 1080);
       const upscale = exportWidthPx / sourcePreviewWidthPx;
       const previewLayers = (
         draft.layers.length ? draft.layers : buildFallbackLayers(draft)
@@ -1465,6 +1469,7 @@ export default function SocialMediaPage() {
       wrap.style.opacity = "0.001";
       wrap.style.zIndex = "999999";
       wrap.style.width = `${sourcePreviewWidthPx}px`;
+      wrap.style.height = `${sourcePreviewHeightPx}px`;
       wrap.style.overflow = "visible";
       document.body.appendChild(wrap);
 
@@ -1493,6 +1498,9 @@ export default function SocialMediaPage() {
                           const candidate = el.querySelector<HTMLElement>("[class*='aspect-']") ??
                             (el.firstElementChild as HTMLElement | null);
                           if (candidate) {
+                            candidate.style.width = `${sourcePreviewWidthPx}px`;
+                            candidate.style.height = `${sourcePreviewHeightPx}px`;
+                            candidate.style.aspectRatio = "unset";
                             window.clearTimeout(renderTimeout);
                             resolveRender(candidate);
                           }
@@ -1504,7 +1512,10 @@ export default function SocialMediaPage() {
                   });
                 }
               }}
-              style={{ width: `${sourcePreviewWidthPx}px` }}
+              style={{
+                width: `${sourcePreviewWidthPx}px`,
+                height: `${sourcePreviewHeightPx}px`,
+              }}
             >
               <SocialPreview
                 noChrome={true}
@@ -1522,7 +1533,7 @@ export default function SocialMediaPage() {
         }
       });
 
-      await new Promise<void>((r) => setTimeout(r, 3800));
+      await new Promise<void>((r) => setTimeout(r, 4000));
       const wrapImgs = Array.from(wrap.querySelectorAll("img"));
       await Promise.all(
         wrapImgs.map(async (imgEl) => {
@@ -1553,8 +1564,8 @@ export default function SocialMediaPage() {
         logging: false,
         imageTimeout: 0,
         removeContainer: true,
-        windowWidth: Math.max(window.innerWidth, sourcePreviewWidthPx * upscale * 2),
-        windowHeight: Math.max(window.innerHeight, sourcePreviewWidthPx * upscale * 2),
+        windowWidth: sourcePreviewWidthPx * upscale * 2,
+        windowHeight: sourcePreviewHeightPx * upscale * 2,
       });
 
       const finalCanvas = document.createElement("canvas");
@@ -1568,18 +1579,7 @@ export default function SocialMediaPage() {
       ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
-      {
-        const rawW = Math.max(1, canvasRaw.width);
-        const rawH = Math.max(1, canvasRaw.height);
-        const scaleW = finalCanvas.width / rawW;
-        const scaleH = finalCanvas.height / rawH;
-        const drawScale = Math.min(scaleW, scaleH);
-        const drawW = rawW * drawScale;
-        const drawH = rawH * drawScale;
-        const drawX = (finalCanvas.width - drawW) / 2;
-        const drawY = (finalCanvas.height - drawH) / 2;
-        ctx.drawImage(canvasRaw, drawX, drawY, drawW, drawH);
-      }
+      ctx.drawImage(canvasRaw, 0, 0, finalCanvas.width, finalCanvas.height);
 
       const finalDataUrl = finalCanvas.toDataURL("image/jpeg", 0.97);
 
