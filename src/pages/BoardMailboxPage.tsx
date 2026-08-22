@@ -211,97 +211,113 @@ export default function BoardMailboxPage() {
     try {
       const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
       const targetHeightPx = draft.draftType === "story" ? 1920 : 1440;
-      const sourcePreviewWidthPx = 400;
-      const sourcePreviewHeightPx =
-        draft.draftType === "story"
-          ? sourcePreviewWidthPx * (1920 / 1080)
-          : sourcePreviewWidthPx * (1440 / 1080);
-      const upscale = exportWidthPx / sourcePreviewWidthPx;
-      const previewLayers = (
-        draft.layers.length ? draft.layers : buildFallbackLayers(draft)
-      ).map(normalizeLayer);
-      const previewAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
 
-      wrap = document.createElement("div");
-      wrap.style.position = "fixed";
-      wrap.style.left = "0";
-      wrap.style.top = "0";
-      wrap.style.pointerEvents = "none";
-      wrap.style.opacity = "0.001";
-      wrap.style.zIndex = "999999";
-      wrap.style.width = `${sourcePreviewWidthPx}px`;
-      wrap.style.height = `${sourcePreviewHeightPx}px`;
-      wrap.style.overflow = "visible";
-      document.body.appendChild(wrap);
+      let target: HTMLElement | null = document.querySelector(
+        `[data-jpg-export="${CSS.escape(draft.id)}"]`,
+      );
 
-      root = createRoot(wrap);
-      const target = await new Promise<HTMLElement>((resolveRender, rejectRender) => {
-        const renderTimeout = window.setTimeout(() => {
+      let useScale = exportWidthPx;
+      if (target) {
+        const rect = target.getBoundingClientRect();
+        const realW = Math.max(1, rect.width || target.clientWidth || exportWidthPx / 3);
+        useScale = Math.max(2, exportWidthPx / realW);
+      } else {
+        useScale = exportWidthPx / 400;
+        const previewLayers = (
+          draft.layers.length ? draft.layers : buildFallbackLayers(draft)
+        ).map(normalizeLayer);
+        const previewAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
+        const sourcePreviewWidthPx = 400;
+        const sourcePreviewHeightPx =
+          draft.draftType === "story"
+            ? sourcePreviewWidthPx * (1920 / 1080)
+            : sourcePreviewWidthPx * (1440 / 1080);
+
+        wrap = document.createElement("div");
+        wrap.style.position = "fixed";
+        wrap.style.left = "0";
+        wrap.style.top = "0";
+        wrap.style.pointerEvents = "none";
+        wrap.style.opacity = "0.001";
+        wrap.style.zIndex = "999999";
+        wrap.style.width = `${sourcePreviewWidthPx}px`;
+        wrap.style.height = `${sourcePreviewHeightPx}px`;
+        wrap.style.overflow = "visible";
+        document.body.appendChild(wrap);
+
+        root = createRoot(wrap);
+        target = await new Promise<HTMLElement>((resolveRender, rejectRender) => {
+          const renderTimeout = window.setTimeout(() => {
+            try {
+              const candidate = wrap?.querySelector<HTMLElement>("[class*='aspect-']") ??
+                (wrap?.firstElementChild as HTMLElement | null);
+              if (candidate) resolveRender(candidate);
+              else rejectRender(new Error("Render timeout"));
+            } catch (err) {
+              rejectRender(err);
+            }
+          }, 20000);
+
           try {
-            const candidate = wrap?.querySelector<HTMLElement>("[class*='aspect-']") ??
-              (wrap?.firstElementChild as HTMLElement | null);
-            if (candidate) resolveRender(candidate);
-            else rejectRender(new Error("Render timeout"));
-          } catch (err) {
-            rejectRender(err);
-          }
-        }, 20000);
-
-        try {
-          root!.render(
-            <div
-              ref={(el) => {
-                if (el) {
-                  requestAnimationFrame(() => {
+            root!.render(
+              <div
+                ref={(el) => {
+                  if (el) {
                     requestAnimationFrame(() => {
                       requestAnimationFrame(() => {
-                        try {
-                          const candidate = el.querySelector<HTMLElement>("[class*='aspect-']") ??
-                            (el.firstElementChild as HTMLElement | null);
-                          if (candidate) {
-                            candidate.style.width = `${sourcePreviewWidthPx}px`;
-                            candidate.style.height = `${sourcePreviewHeightPx}px`;
-                            candidate.style.aspectRatio = "unset";
-                            window.clearTimeout(renderTimeout);
-                            resolveRender(candidate);
+                        requestAnimationFrame(() => {
+                          try {
+                            const candidate = el.querySelector<HTMLElement>("[class*='aspect-']") ??
+                              (el.firstElementChild as HTMLElement | null);
+                            if (candidate) {
+                              candidate.style.width = `${sourcePreviewWidthPx}px`;
+                              candidate.style.height = `${sourcePreviewHeightPx}px`;
+                              candidate.style.aspectRatio = "unset";
+                              window.clearTimeout(renderTimeout);
+                              resolveRender(candidate);
+                            }
+                          } catch {
+                            /* ignore */
                           }
-                        } catch {
-                          /* ignore */
-                        }
+                        });
                       });
                     });
-                  });
-                }
-              }}
-              style={{
-                width: `${sourcePreviewWidthPx}px`,
-                height: `${sourcePreviewHeightPx}px`,
-              }}
-            >
-              <SocialPreview
-                noChrome={true}
-                draftType={draft.draftType as "feed" | "story"}
-                layout={draft.layout}
-                layers={previewLayers}
-                assets={previewAssets}
-                logoUrl={clubLogoUrl ?? null}
-                respectLayerLocks={false}
-              />
-            </div>,
-          );
-        } catch (error) {
-          rejectRender(error);
-        }
-      });
+                  }
+                }}
+                style={{
+                  width: `${sourcePreviewWidthPx}px`,
+                  height: `${sourcePreviewHeightPx}px`,
+                }}
+              >
+                <SocialPreview
+                  noChrome={true}
+                  draftType={draft.draftType as "feed" | "story"}
+                  layout={draft.layout}
+                  layers={previewLayers}
+                  assets={previewAssets}
+                  logoUrl={clubLogoUrl ?? null}
+                  respectLayerLocks={false}
+                />
+              </div>,
+            );
+          } catch (error) {
+            rejectRender(error);
+          }
+        });
+      }
 
-      await new Promise<void>((r) => setTimeout(r, 4000));
-      const wrapImgs = Array.from(wrap.querySelectorAll("img"));
+      if (!target) {
+        throw new Error("Vorschau konnte nicht erstellt werden.");
+      }
+
+      await new Promise<void>((r) => setTimeout(r, 1800));
+      const imgs = Array.from(target.querySelectorAll("img"));
       await Promise.all(
-        wrapImgs.map(async (imgEl) => {
+        imgs.map(async (imgEl) => {
           try {
             if (imgEl.complete && imgEl.naturalWidth > 0) return;
             await new Promise<void>((res) => {
-              const to = window.setTimeout(res, 3500);
+              const to = window.setTimeout(res, 3000);
               imgEl.addEventListener("load", () => {
                 window.clearTimeout(to);
                 res();
@@ -319,14 +335,14 @@ export default function BoardMailboxPage() {
 
       const canvasRaw = await html2canvas(target, {
         backgroundColor: "#ffffff",
-        scale: upscale,
+        scale: useScale,
         useCORS: true,
         allowTaint: true,
         logging: false,
         imageTimeout: 0,
         removeContainer: true,
-        windowWidth: sourcePreviewWidthPx * upscale * 2,
-        windowHeight: sourcePreviewHeightPx * upscale * 2,
+        windowWidth: Math.max(window.innerWidth, exportWidthPx * 2),
+        windowHeight: Math.max(window.innerHeight, targetHeightPx * 2),
       });
 
       const finalCanvas = document.createElement("canvas");
@@ -340,7 +356,18 @@ export default function BoardMailboxPage() {
       ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(canvasRaw, 0, 0, finalCanvas.width, finalCanvas.height);
+      {
+        const rawW = Math.max(1, canvasRaw.width);
+        const rawH = Math.max(1, canvasRaw.height);
+        const scaleW = finalCanvas.width / rawW;
+        const scaleH = finalCanvas.height / rawH;
+        const drawScale = Math.min(scaleW, scaleH);
+        const drawW = rawW * drawScale;
+        const drawH = rawH * drawScale;
+        const drawX = (finalCanvas.width - drawW) / 2;
+        const drawY = (finalCanvas.height - drawH) / 2;
+        ctx.drawImage(canvasRaw, drawX, drawY, drawW, drawH);
+      }
 
       const finalDataUrl = finalCanvas.toDataURL("image/jpeg", 0.97);
 
