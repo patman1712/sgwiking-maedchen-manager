@@ -29,6 +29,7 @@ import {
   Check,
 } from "lucide-react";
 import * as htmlToImage from "html-to-image";
+import html2canvas from "html2canvas";
 import SectionCard from "@/components/SectionCard";
 import { optimizeImageForUpload } from "@/lib/image";
 import { cn } from "@/lib/utils";
@@ -1444,91 +1445,159 @@ export default function SocialMediaPage() {
     }
 
     setExportingJpgId(draft.id);
+    let wrap: HTMLDivElement | null = null;
+    let root: Root | null = null;
     try {
-      const previewAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
-      const previewLayers = draft.layers.length ? draft.layers : buildFallbackLayers(draft);
       const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
-      const wrap = document.createElement("div");
+      const targetHeightPx = draft.draftType === "story" ? 1920 : 1440;
+      const previewLayers = (
+        draft.layers.length ? draft.layers : buildFallbackLayers(draft)
+      ).map(normalizeLayer);
+      const previewAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
+
+      wrap = document.createElement("div");
       wrap.style.position = "fixed";
-      wrap.style.left = "-100000px";
-      wrap.style.top = "0px";
+      wrap.style.left = "0";
+      wrap.style.top = "0";
       wrap.style.pointerEvents = "none";
-      wrap.style.zIndex = "-9999";
+      wrap.style.opacity = "0.001";
+      wrap.style.zIndex = "999999";
+      wrap.style.width = `${exportWidthPx}px`;
+      wrap.style.height = `${targetHeightPx}px`;
+      wrap.style.overflow = "visible";
       document.body.appendChild(wrap);
-      const root: Root = createRoot(wrap);
-      await new Promise<void>((resolve, reject) => {
-        let settled = false;
+
+      root = createRoot(wrap);
+      const target = await new Promise<HTMLElement>((resolveRender, rejectRender) => {
+        const renderTimeout = window.setTimeout(() => {
+          try {
+            const candidate = wrap?.querySelector<HTMLElement>("[class*='aspect-']") ??
+              (wrap?.firstElementChild as HTMLElement | null);
+            if (candidate) resolveRender(candidate);
+            else rejectRender(new Error("Render timeout"));
+          } catch (err) {
+            rejectRender(err);
+          }
+        }, 20000);
+
         try {
-          root.render(
+          root!.render(
             <div
-              style={{
-                background: "#ffffff",
-                padding: "16px",
-                borderRadius: "32px",
+              ref={(el) => {
+                if (el) {
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                      requestAnimationFrame(() => {
+                        try {
+                          const candidate = el.querySelector<HTMLElement>("[class*='aspect-']") ??
+                            (el.firstElementChild as HTMLElement | null);
+                          if (candidate) {
+                            window.clearTimeout(renderTimeout);
+                            resolveRender(candidate);
+                          }
+                        } catch {
+                          /* ignore */
+                        }
+                      });
+                    });
+                  });
+                }
               }}
+              style={{ width: `${exportWidthPx}px`, height: `${targetHeightPx}px` }}
             >
-              <div style={{ position: "relative", width: `${exportWidthPx}px` }}>
-                <SocialPreview
-                  draftType={draft.draftType}
-                  layout={draft.layout}
-                  layers={previewLayers}
-                  assets={previewAssets}
-                  logoUrl={settings.logoUrl}
-                />
-              </div>
+              <SocialPreview
+                noChrome={true}
+                draftType={draft.draftType}
+                layout={draft.layout}
+                layers={previewLayers}
+                assets={previewAssets}
+                logoUrl={settings.logoUrl ?? null}
+                respectLayerLocks={false}
+              />
             </div>,
           );
-
-          window.setTimeout(() => {
-            if (settled) {
-              return;
-            }
-            settled = true;
-            resolve();
-          }, 250);
         } catch (error) {
-          settled = true;
-          reject(error);
+          rejectRender(error);
         }
       });
 
-      const target = wrap.firstElementChild as HTMLElement | null;
-      if (!target) {
-        throw new Error("Vorschau konnte nicht erstellt werden.");
-      }
+      await new Promise<void>((r) => setTimeout(r, 3800));
+      const wrapImgs = Array.from(wrap.querySelectorAll("img"));
+      await Promise.all(
+        wrapImgs.map(async (imgEl) => {
+          try {
+            if (imgEl.complete && imgEl.naturalWidth > 0) return;
+            await new Promise<void>((res) => {
+              const to = window.setTimeout(res, 3500);
+              imgEl.addEventListener("load", () => {
+                window.clearTimeout(to);
+                res();
+              });
+              imgEl.addEventListener("error", () => {
+                window.clearTimeout(to);
+                res();
+              });
+            });
+          } catch {
+            /* ignore */
+          }
+        }),
+      );
 
-      const dataUrl = await htmlToImage.toJpeg(target, {
-        pixelRatio: 1,
-        quality: 0.95,
-        cacheBust: true,
+      const canvasRaw = await html2canvas(target, {
         backgroundColor: "#ffffff",
+        scale: 1,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        imageTimeout: 0,
+        removeContainer: true,
+        windowWidth: exportWidthPx * 2,
+        windowHeight: targetHeightPx * 2,
       });
+
+      const finalCanvas = document.createElement("canvas");
+      finalCanvas.width = exportWidthPx;
+      finalCanvas.height = targetHeightPx;
+      const ctx = finalCanvas.getContext("2d");
+      if (!ctx) {
+        throw new Error("Canvas Context nicht verfügbar");
+      }
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(canvasRaw, 0, 0, finalCanvas.width, finalCanvas.height);
+
+      const finalDataUrl = finalCanvas.toDataURL("image/jpeg", 0.97);
 
       const slug = draft.title
         .toLowerCase()
         .replace(/[^a-z0-9äöüß]+/g, "-")
         .replace(/(^-|-$)/g, "")
         .slice(0, 60) || "posting";
-      const link = document.createElement("a");
-      link.href = dataUrl;
       const stamp = new Date().toISOString().slice(0, 10);
-      link.download = `sg-wiking-${slug}-${stamp}.jpg`;
+      const filename = `sg-wiking-${slug}-${stamp}.jpg`;
+
+      const link = document.createElement("a");
+      link.href = finalDataUrl;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       link.remove();
+    } catch (err) {
+      console.error(err);
     } finally {
-      setExportingJpgId(null);
-      const leftover = document.body.querySelector(
-        'body > div[style*="left: -100000px"]',
-      ) as HTMLElement | null;
-      if (leftover?.parentNode === document.body) {
+      if (root) {
         try {
-          (leftover as HTMLElement & { _reactRoot?: Root })._reactRoot?.unmount?.();
+          root.unmount();
         } catch {
-          // ignore
+          /* ignore */
         }
-        document.body.removeChild(leftover);
       }
+      if (wrap && wrap.parentNode) {
+        wrap.parentNode.removeChild(wrap);
+      }
+      setExportingJpgId(null);
     }
   };
   const trainerUsers = useMemo(
