@@ -209,9 +209,6 @@ export default function BoardMailboxPage() {
     let wrap: HTMLDivElement | null = null;
     let root: Root | null = null;
     try {
-      const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
-      const targetHeightPx = draft.draftType === "story" ? 1920 : 1440;
-
       try {
         if (document.fonts && typeof document.fonts.ready !== "undefined") {
           await Promise.race([
@@ -227,29 +224,16 @@ export default function BoardMailboxPage() {
         `[data-jpg-export="${CSS.escape(draft.id)}"]`,
       );
 
-      let useScale = 3;
-      let previewLayers: ReturnType<typeof normalizeLayer>[] = [];
-      let previewAssets: EditorAsset[] = [];
-
-      if (target) {
-        const realW = Math.max(
-          1,
-          (target as HTMLElement).clientWidth ||
-            (target as HTMLElement).getBoundingClientRect().width ||
-            exportWidthPx / 3,
-        );
-        useScale = Math.max(2, Math.min(4, exportWidthPx / realW));
-      } else {
-        previewLayers = (
+      if (!target) {
+        const previewLayers = (
           draft.layers.length ? draft.layers : buildFallbackLayers(draft)
         ).map(normalizeLayer);
-        previewAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
+        const previewAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
         const sourcePreviewWidthPx = 400;
         const sourcePreviewHeightPx =
           draft.draftType === "story"
             ? sourcePreviewWidthPx * (1920 / 1080)
             : sourcePreviewWidthPx * (1440 / 1080);
-        useScale = exportWidthPx / sourcePreviewWidthPx;
 
         wrap = document.createElement("div");
         wrap.style.position = "fixed";
@@ -353,41 +337,15 @@ export default function BoardMailboxPage() {
 
       const canvasRaw = await html2canvas(target, {
         backgroundColor: "#ffffff",
-        scale: useScale,
+        scale: 1,
         useCORS: true,
         allowTaint: true,
         logging: false,
         imageTimeout: 0,
         removeContainer: true,
-        windowWidth: exportWidthPx * 2,
-        windowHeight: targetHeightPx * 2,
       });
 
-      const finalCanvas = document.createElement("canvas");
-      finalCanvas.width = exportWidthPx;
-      finalCanvas.height = targetHeightPx;
-      const ctx = finalCanvas.getContext("2d");
-      if (!ctx) {
-        throw new Error("Canvas Context nicht verfügbar");
-      }
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-      {
-        const rawW = Math.max(1, canvasRaw.width);
-        const rawH = Math.max(1, canvasRaw.height);
-        const scaleW = finalCanvas.width / rawW;
-        const scaleH = finalCanvas.height / rawH;
-        const drawScale = Math.min(scaleW, scaleH);
-        const drawW = rawW * drawScale;
-        const drawH = rawH * drawScale;
-        const drawX = (finalCanvas.width - drawW) / 2;
-        const drawY = (finalCanvas.height - drawH) / 2;
-        ctx.drawImage(canvasRaw, drawX, drawY, drawW, drawH);
-      }
-
-      const finalDataUrl = finalCanvas.toDataURL("image/jpeg", 0.97);
+      const finalDataUrl = canvasRaw.toDataURL("image/jpeg", 0.97);
 
       const slug = draft.title
         .toLowerCase()
