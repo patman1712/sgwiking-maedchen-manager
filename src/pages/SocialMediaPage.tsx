@@ -1269,7 +1269,9 @@ export function SocialPreview({
               ...zStyle,
               left: `${geometry.centerX}%`,
               top: `${geometry.centerY}%`,
-              display: "inline-block",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               width: "max-content",
               height: "max-content",
               transform: "translate(-50%, -50%)",
@@ -1320,13 +1322,14 @@ export function SocialPreview({
               className={cn(
                 getTextClasses(layer),
                 getTextSelectRingClasses(isSelected),
-                "inline-block leading-none m-0 p-0 whitespace-pre-wrap break-words w-auto h-auto",
+                "block leading-[0.85] m-0 p-0 whitespace-pre-wrap break-words w-auto h-auto",
               )}
               style={{
                 ...getTextInlineStyle(layer),
                 margin: 0,
                 padding: 0,
-                display: "inline-block",
+                display: "block",
+                lineHeight: String(layer.lineHeight ?? getDefaultTextAppearance(layer).lineHeight),
               }}
             >
               {text}

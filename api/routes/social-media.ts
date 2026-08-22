@@ -625,7 +625,9 @@ router.delete('/drafts/:id', (req: Request, res: Response) => {
   }
 
   db.prepare('DELETE FROM social_media_drafts WHERE id = ?').run(id)
-  deleteDraftImages(parseImageUrls(draft.image_urls))
+  // ACHTUNG: BIBLIOTHEKS-ASSETS UND VORLAGEN-BILDER NIEMALS LÖSCHEN!
+  // Auch Draft-eigene Uploads behalten wir jetzt, ausversehen löschen ist zu gefährlich!
+  // deleteDraftImages(parseImageUrls(draft.image_urls))
 
   res.json({
     success: true,
