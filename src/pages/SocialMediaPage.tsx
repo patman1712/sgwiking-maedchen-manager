@@ -1450,6 +1450,18 @@ export default function SocialMediaPage() {
     try {
       const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
       const targetHeightPx = draft.draftType === "story" ? 1920 : 1440;
+
+      try {
+        if (document.fonts && typeof document.fonts.ready !== "undefined") {
+          await Promise.race([
+            document.fonts.ready,
+            new Promise<void>((r) => setTimeout(r, 6000)),
+          ]);
+        }
+      } catch {
+        /* ignore */
+      }
+
       const sourcePreviewWidthPx = 400;
       const sourcePreviewHeightPx =
         draft.draftType === "story"
@@ -1533,14 +1545,14 @@ export default function SocialMediaPage() {
         }
       });
 
-      await new Promise<void>((r) => setTimeout(r, 4000));
+      await new Promise<void>((r) => setTimeout(r, 2500));
       const wrapImgs = Array.from(wrap.querySelectorAll("img"));
       await Promise.all(
         wrapImgs.map(async (imgEl) => {
           try {
             if (imgEl.complete && imgEl.naturalWidth > 0) return;
             await new Promise<void>((res) => {
-              const to = window.setTimeout(res, 3500);
+              const to = window.setTimeout(res, 3000);
               imgEl.addEventListener("load", () => {
                 window.clearTimeout(to);
                 res();

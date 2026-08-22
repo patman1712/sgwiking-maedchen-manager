@@ -212,26 +212,44 @@ export default function BoardMailboxPage() {
       const exportWidthPx = draft.draftType === "story" ? 1080 : 1080;
       const targetHeightPx = draft.draftType === "story" ? 1920 : 1440;
 
+      try {
+        if (document.fonts && typeof document.fonts.ready !== "undefined") {
+          await Promise.race([
+            document.fonts.ready,
+            new Promise<void>((r) => setTimeout(r, 6000)),
+          ]);
+        }
+      } catch {
+        /* ignore */
+      }
+
       let target: HTMLElement | null = document.querySelector(
         `[data-jpg-export="${CSS.escape(draft.id)}"]`,
       );
 
-      let useScale = exportWidthPx;
+      let useScale = 3;
+      let previewLayers: ReturnType<typeof normalizeLayer>[] = [];
+      let previewAssets: EditorAsset[] = [];
+
       if (target) {
-        const rect = target.getBoundingClientRect();
-        const realW = Math.max(1, rect.width || target.clientWidth || exportWidthPx / 3);
-        useScale = Math.max(2, exportWidthPx / realW);
+        const realW = Math.max(
+          1,
+          (target as HTMLElement).clientWidth ||
+            (target as HTMLElement).getBoundingClientRect().width ||
+            exportWidthPx / 3,
+        );
+        useScale = Math.max(2, Math.min(4, exportWidthPx / realW));
       } else {
-        useScale = exportWidthPx / 400;
-        const previewLayers = (
+        previewLayers = (
           draft.layers.length ? draft.layers : buildFallbackLayers(draft)
         ).map(normalizeLayer);
-        const previewAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
+        previewAssets = buildDraftAssets(draft, socialMediaCrests, socialMediaAssets);
         const sourcePreviewWidthPx = 400;
         const sourcePreviewHeightPx =
           draft.draftType === "story"
             ? sourcePreviewWidthPx * (1920 / 1080)
             : sourcePreviewWidthPx * (1440 / 1080);
+        useScale = exportWidthPx / sourcePreviewWidthPx;
 
         wrap = document.createElement("div");
         wrap.style.position = "fixed";
@@ -310,7 +328,7 @@ export default function BoardMailboxPage() {
         throw new Error("Vorschau konnte nicht erstellt werden.");
       }
 
-      await new Promise<void>((r) => setTimeout(r, 1800));
+      await new Promise<void>((r) => setTimeout(r, 2500));
       const imgs = Array.from(target.querySelectorAll("img"));
       await Promise.all(
         imgs.map(async (imgEl) => {
@@ -341,8 +359,8 @@ export default function BoardMailboxPage() {
         logging: false,
         imageTimeout: 0,
         removeContainer: true,
-        windowWidth: Math.max(window.innerWidth, exportWidthPx * 2),
-        windowHeight: Math.max(window.innerHeight, targetHeightPx * 2),
+        windowWidth: exportWidthPx * 2,
+        windowHeight: targetHeightPx * 2,
       });
 
       const finalCanvas = document.createElement("canvas");
